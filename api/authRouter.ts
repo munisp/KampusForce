@@ -16,12 +16,12 @@ async function createRepIfNeeded(userId: number) {
   if (existing) return existing;
   let [campus] = await db.select().from(campuses).where(eq(campuses.name, "University of Lagos")).limit(1);
   if (!campus) {
-    const [{ id }] = await db.insert(campuses).values({ name: "University of Lagos", state: "Lagos", status: "live" }).$returningId();
+    const [{ id }] = await db.insert(campuses).values({ name: "University of Lagos", state: "Lagos", status: "live" }).returning({ id: campuses.id });
     [campus] = await db.select().from(campuses).where(eq(campuses.id, id)).limit(1);
   }
   const count = (await db.select().from(reps)).length + 1;
   const code = `KF-UNILAG-${String(count).padStart(4, "0")}`;
-  const [{ id }] = await db.insert(reps).values({ userId, campusId: campus.id, code, status: "pending" }).$returningId();
+  const [{ id }] = await db.insert(reps).values({ userId, campusId: campus.id, code, status: "pending" }).returning({ id: reps.id });
   const [rep] = await db.select().from(reps).where(eq(reps.id, id)).limit(1);
   return rep;
 }
@@ -41,14 +41,16 @@ export const authRouter = createRouter({
     await db.update(otpChallenges).set({ verifiedAt: new Date(), attempts: challenge.attempts + 1 }).where(eq(otpChallenges.id, challenge.id));
     let [user] = await db.select().from(users).where(eq(users.phoneE164, phone)).limit(1);
     if (!user) {
-      const [{ id }] = await db.insert(users).values({ phoneE164: phone, name: input.name || "New KampusForce rep", role: "rep" }).$returningId();
+      const [{ id }] = await db.insert(users).values({ phoneE164: phone, name: input.name || "New KampusForce rep", role: "rep" }).returning({ id: users.id });
       [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     }
     const rep = user.role === "rep" ? await createRepIfNeeded(user.id) : null;
     return { ...(await issueToken(user.id)), user, rep };
   }),
-  demoLogin: publicQuery.input(z.object({ role: z.enum(["rep", "vendor", "ops"]) })).mutation(async ({ input }) => {
-    const [user] = await getDb().select().from(users).where(eq(users.role, input.role)).limit(1);
+  demoLogin: publicQuery.input(z.object({ role: z.enum(["rep", "vendor", "ops"]), repCode: z.string().max(32).optional() })).mutation(async ({ input }) => {
+    const [user] = input.repCode
+      ? await getDb().select({ user: users }).from(users).innerJoin(reps, eq(reps.userId, users.id)).where(and(eq(users.role, input.role), eq(reps.code, input.repCode))).limit(1).then((rows) => rows.map((row) => row.user))
+      : await getDb().select().from(users).where(eq(users.role, input.role)).limit(1);
     if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Sandbox user not found. Run the database seed." });
     return { ...(await issueToken(user.id)), user };
   }),

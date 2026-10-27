@@ -1,18 +1,56 @@
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { auditLogs, deals, disputes, products, reps, users, vendorEvents } from "@db/schema";
+import { TRPCError } from "@trpc/server";
+import {
+  auditLogs,
+  campusLeadOverrides,
+  campuses,
+  deals,
+  disputes,
+  products,
+  reps,
+  supportTickets,
+  users,
+  vendorEvents,
+  vendors,
+} from "@db/schema";
 import { createRouter } from "./middleware";
 import { authedQuery, requireRole } from "./services/auth";
 import { getDb } from "./queries/connection";
 import { confirmDueDeals, runPayoutBatch } from "./services/ledger";
+import { rankTopDecile } from "./services/overrides";
+import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
+
+async function campusLeadRankings() {
+  const db = getDb();
+  const allReps = await db.select({ rep: reps, user: users, campus: campuses }).from(reps)
+    .innerJoin(users, eq(reps.userId, users.id)).innerJoin(campuses, eq(reps.campusId, campuses.id));
+  const allDeals = await db.select().from(deals);
+  const campusIds = [...new Set(allReps.map((row) => row.rep.campusId))];
+  return campusIds.flatMap((campusId) => {
+    const campusReps = allReps.filter((row) => row.rep.campusId === campusId && row.rep.status === "active");
+    const ranked = rankTopDecile(campusReps.map((row) => {
+      const repDeals = allDeals.filter((deal) => deal.repId === row.rep.id && ["confirmed", "payable", "paid"].includes(deal.state));
+      return { repId: row.rep.id, campusId, confirmedCommissionKobo: repDeals.reduce((sum, deal) => sum + deal.repCommissionKobo, 0), activationCount: repDeals.length };
+    }));
+    return ranked.map((ranking) => ({ ...ranking, rep: campusReps.find((row) => row.rep.id === ranking.repId)!.rep, user: campusReps.find((row) => row.rep.id === ranking.repId)!.user }));
+  });
+}
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "finance", "admin"]);
+    await syncSlaBreaches();
     const allDeals = await getDb().select({ deal: deals, productName: products.name, repCode: reps.code }).from(deals).innerJoin(products, eq(deals.productId, products.id)).innerJoin(reps, eq(deals.repId, reps.id)).orderBy(desc(deals.createdAt));
     const quarantine = await getDb().select().from(vendorEvents).where(eq(vendorEvents.status, "quarantined")).orderBy(desc(vendorEvents.receivedAt)).limit(30);
     const cases = await getDb().select({ dispute: disputes, openedBy: users.name }).from(disputes).innerJoin(users, eq(disputes.openedBy, users.id)).orderBy(desc(disputes.createdAt)).limit(30);
+    const supportCases = await getDb().select({ ticket: supportTickets, repCode: reps.code, vendorName: vendors.companyName }).from(supportTickets)
+      .innerJoin(reps, eq(supportTickets.repId, reps.id)).innerJoin(vendors, eq(supportTickets.vendorId, vendors.id)).orderBy(desc(supportTickets.createdAt)).limit(40);
+    const overrides = await getDb().select({ override: campusLeadOverrides, leadCode: reps.code }).from(campusLeadOverrides)
+      .innerJoin(reps, eq(campusLeadOverrides.leadRepId, reps.id)).orderBy(desc(campusLeadOverrides.createdAt)).limit(40);
+    const leadRankings = await campusLeadRankings();
     const audit = await getDb().select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(30);
+    const rated = supportCases.filter(({ ticket }) => ticket.csat);
     return {
       metrics: {
         deals: allDeals.length,
@@ -21,10 +59,17 @@ export const opsRouter = createRouter({
         paid: allDeals.filter((d) => d.deal.state === "paid").length,
         quarantined: quarantine.length,
         openDisputes: cases.filter((c) => ["open", "reviewing"].includes(c.dispute.state)).length,
+        openSupport: supportCases.filter(({ ticket }) => !["resolved", "closed"].includes(ticket.state)).length,
+        breachedSupport: supportCases.filter(({ ticket }) => isSlaBreached(ticket)).length,
+        averageCsat: rated.length ? Math.round((rated.reduce((sum, { ticket }) => sum + (ticket.csat || 0), 0) / rated.length) * 10) / 10 : null,
+        overridesAccruedKobo: overrides.filter(({ override }) => override.state === "accrued").reduce((sum, { override }) => sum + override.overrideKobo, 0),
       },
       deals: allDeals.slice(0, 40),
       quarantine,
       disputes: cases,
+      supportCases: supportCases.map((row) => ({ ...row, slaBreached: isSlaBreached(row.ticket) })),
+      overrides,
+      leadRankings,
       audit,
     };
   }),
@@ -34,7 +79,7 @@ export const opsRouter = createRouter({
   }),
   advanceWindows: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "admin"]);
-    await getDb().update(deals).set({ confirmAt: new Date() }).where(eq(deals.state, "pending"));
+    await getDb().update(deals).set({ confirmAt: new Date(), updatedAt: new Date() }).where(eq(deals.state, "pending"));
     await getDb().insert(auditLogs).values({ actorUserId: ctx.user.id, action: "sandbox.confirmation_windows_advanced", entityType: "deal_batch", entityId: crypto.randomUUID() });
     return { advanced: true, mode: "sandbox_only" };
   }),
@@ -42,13 +87,37 @@ export const opsRouter = createRouter({
     requireRole(ctx.user, ["ops", "finance", "admin"]);
     return runPayoutBatch(ctx.user.id);
   }),
+  promoteLead: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    const ranking = (await campusLeadRankings()).find((row) => row.repId === input.repId);
+    if (!ranking) throw new TRPCError({ code: "NOT_FOUND", message: "Active campus rep not found" });
+    if (!ranking.topDecileEligible) throw new TRPCError({ code: "FORBIDDEN", message: `Rep ranks #${ranking.rank}; only the campus top decile is eligible` });
+    if (!ranking.rep.contractorAgreementSignedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Campus leads must have a signed contractor agreement" });
+    await getDb().update(reps).set({ tier: "campus_lead" }).where(eq(reps.id, input.repId));
+    await getDb().insert(auditLogs).values({ actorUserId: ctx.user.id, action: "campus_lead.promoted", entityType: "rep", entityId: String(input.repId), metadataJson: { campusId: ranking.campusId, rank: ranking.rank, confirmedCommissionKobo: ranking.confirmedCommissionKobo, contractorStatus: "contractor_not_employee" } });
+    return { repId: input.repId, tier: "campus_lead" as const, rank: ranking.rank, topDecileEligible: true };
+  }),
+  resolveSupport: authedQuery.input(z.object({ ticketId: z.number().int().positive(), resolution: z.string().trim().min(10).max(2000) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return resolveSupportTicket({ ticketId: input.ticketId, actorUserId: ctx.user.id, actor: "ops", resolution: input.resolution });
+  }),
+  escalateSupport: authedQuery.input(z.object({ ticketId: z.number().int().positive(), note: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return escalateSupportTicket({ ticketId: input.ticketId, actorUserId: ctx.user.id, actor: "ops", note: input.note });
+  }),
+  supportTimeline: authedQuery.input(z.object({ ticketId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    const [ticket] = await getDb().select().from(supportTickets).where(eq(supportTickets.id, input.ticketId)).limit(1);
+    if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Support ticket not found" });
+    return { ticket, events: await ticketEvents(ticket.id) };
+  }),
   resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     const [dispute] = await getDb().select().from(disputes).where(eq(disputes.id, input.disputeId)).limit(1);
-    if (!dispute) throw new Error("Dispute not found");
+    if (!dispute) throw new TRPCError({ code: "NOT_FOUND", message: "Dispute not found" });
     await getDb().update(disputes).set({ state: input.upholdRep ? "resolved" : "rejected", decision: input.decision, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
     const [deal] = await getDb().select().from(deals).where(eq(deals.id, dispute.dealId)).limit(1);
-    if (deal) await getDb().update(deals).set({ state: input.upholdRep ? "payable" : "void" }).where(eq(deals.id, deal.id));
+    if (deal) await getDb().update(deals).set({ state: input.upholdRep ? "payable" : "void", updatedAt: new Date() }).where(eq(deals.id, deal.id));
     await getDb().insert(auditLogs).values({ actorUserId: ctx.user.id, action: "dispute.decided", entityType: "dispute", entityId: String(dispute.id), metadataJson: { upholdRep: input.upholdRep, decision: input.decision } });
     return { disputeId: dispute.id, state: input.upholdRep ? "resolved" : "rejected" };
   }),

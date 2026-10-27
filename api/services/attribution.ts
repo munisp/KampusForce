@@ -17,7 +17,7 @@ export async function ensureAttribution(input: { repId: number; productId: numbe
   const [existing] = await db.select().from(attributionRecords).where(and(eq(attributionRecords.customerPhoneHash, phoneHash), eq(attributionRecords.vendorId, product.vendorId))).limit(1);
   if (existing) return { attribution: existing, created: false, phoneHash };
   const token = attributionToken(input.repId, product.id, product.vendorId);
-  const [{ id }] = await db.insert(attributionRecords).values({ repId: input.repId, customerPhoneHash: phoneHash, productId: product.id, vendorId: product.vendorId, source: input.source, tokenSig: token.slice(-48), claimExpiresAt: new Date(Date.now() + 24 * 3_600_000) }).$returningId();
+  const [{ id }] = await db.insert(attributionRecords).values({ repId: input.repId, customerPhoneHash: phoneHash, productId: product.id, vendorId: product.vendorId, source: input.source, tokenSig: token.slice(-48), claimExpiresAt: new Date(Date.now() + 24 * 3_600_000) }).returning({ id: attributionRecords.id });
   await db.insert(consentLogs).values({ actorUserId: input.actorUserId, phoneHash, purpose: "Attribution and vendor-assisted onboarding", policyVersion: "privacy-v1.0" });
   const [attribution] = await db.select().from(attributionRecords).where(eq(attributionRecords.id, id)).limit(1);
   return { attribution, created: true, phoneHash };

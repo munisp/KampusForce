@@ -2,97 +2,131 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 1 core MVP vertical slice**, not a claim of production certification or live financial integration.
+This repository contains an executable **Phase 2 campus-scale vertical slice**. It is not production certification, a live financial integration, or evidence that the fifteen-campus rollout and target architecture are complete.
 
 ## Product thesis
 
-- **Goal:** make campus distribution accountable from introduction to payout.
+- **Goal:** make campus distribution accountable from introduction to payout and support resolution.
 - **Rep problem:** introductions are difficult to prove, commission terms are opaque and earnings arrive unpredictably.
-- **Vendor problem:** campus acquisition is fragmented and hard to reconcile against verified activations.
+- **Vendor problem:** campus acquisition is fragmented and hard to reconcile against verified activations and support quality.
 - **Customer problem:** assisted access to useful products must not create markups or expose sensitive KYC data to another intermediary.
 - **Opportunity:** one verified-event and settlement rail can serve fintech, airtime/data, devices, edtech and micro-insurance without inventory, terminals or customer float.
 
-Vendor-funded commission is split **80% to the rep / 20% to KampusForce**. Commission is earned on the vendor-verified activation defined by the product rule—not a signup. Escrow is pre-funded; KampusForce never fronts vendor money.
+Vendor-funded commission is split **80% to the activating rep / 20% to KampusForce**. Commission is earned on the vendor-verified activation defined by the product rule—not a signup. Escrow is pre-funded; KampusForce never fronts vendor money.
+
+Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirmed gross commission**, funded entirely from platform margin. It never reduces the activating rep’s 80% share and never creates additional vendor escrow liability.
 
 ## Implemented slice
+
+### Core attribution and settlement
 
 - Sandbox OTP and 12-hour JWT sessions; role-gated rep, vendor and operations workspaces.
 - Catalog across five product verticals with versioned flat/percentage rules and transparent terms.
 - Signed links, QR kits, WhatsApp sharing and first-touch attribution using salted phone hashes.
 - Six-step assisted onboarding that records consent and telemetry, never customer NIN/BVN/OTP fields.
 - Raw-body HMAC-SHA256 webhooks, five-minute timestamp validation, replay deduplication and quarantine.
-- Integer-kobo commission math, escrow reservation, state history and double-entry-style ledger postings.
+- Integer-kobo commission math, escrow reservation, state history and ledger postings.
 - Refund voids, paid-deal clawbacks and negative-balance netting against later payouts.
 - Payout pre-flight checks for active rep, verified KYC, bank-name match and ₦500 minimum; 10% sandbox withholding.
-- Rep disputes, operations decisions and audit history.
-- Installable PWA shell and last-viewed offline catalog; offline financial mutations are deliberately not queued.
+- Rep deal disputes, operations decisions and audit history.
+
+### Phase 2 vendor, campus and support workflows
+
+- Vendor Rule Studio with persisted 30-minute dry runs, exact split previews, typed publication confirmation and immutable rule versions.
+- New deals persist their `commissionRuleId`; publishing a new version never recalculates historical deal amounts.
+- Vendor attribution → activation → confirmation → paid funnel.
+- Campus Lead recruiting invitations, existing-rep team assignment and team-performance records.
+- Campus-specific top-decile eligibility and signed-contractor designation gates in Operations.
+- Platform-funded override accrual, combined direct/override payouts, paid reversals and future netting.
+- Scoped support inbox for owned deals or active first-touch referrals, with rep → campus lead → vendor → Ops escalation paths.
+- Vendor-specific 1–168-hour SLA targets, persisted breach events, approved resolution macros and full ticket timelines.
+- One-time post-resolution CSAT feeding rep and vendor quality scores.
+- Installable PWA shell and last-viewed offline catalog; offline financial/support mutations are deliberately not queued.
 
 ## Run locally
 
-Requirements: Node.js and a MySQL-compatible database.
+Requirements: Node.js 20+ and PostgreSQL 16+.
 
 ```bash
 npm install
-cp .env.example .env # then provide local values
-npm run db:push
+cp .env.example .env # then provide local values, including POSTGRES_URL
+npm run db:migrate       # apply the reviewed PostgreSQL schema migration
 npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:3000`. The workspace selector provides seeded **Student rep**, **Vendor partner** and **Operations** identities. The OTP form is also a sandbox adapter and displays its code on screen.
+Use a separate empty PostgreSQL sandbox database for the supplied verification journey. The migration creates the PostgreSQL baseline; it does not copy or destructively convert the earlier MySQL data. Any historical data migration requires a separate backed-up, reconciled runbook. Never force a schema push over existing financial records.
+
+Open `http://localhost:3000`. The workspace selector provides four seeded identities:
+
+- **Campus Lead:** Ada, with team, recruiting, override and support-triage views.
+- **Team rep:** Tobi, with attribution, earnings and owned-support workflows.
+- **Vendor partner:** CampusSave, with Rule Studio, escrow, event simulation and support resolution.
+- **Operations:** settlement, support escalation, top-decile designation and override monitoring.
+
+The OTP form is also a sandbox adapter and displays its code on screen. Seeded verified status is not live NIN verification.
 
 Useful commands:
 
 ```bash
-npm run check   # TypeScript project check
-npm test        # money and security unit tests
-npm run build   # frontend + bundled production server
-npm start       # serve the production build
+npm run check                  # TypeScript project check
+npm test                       # money, security, rule, override and support unit tests
+npm run build                  # frontend + bundled production server
+npm start                      # serve the production build
+npx tsx scripts/verify-phase2.ts # live sandbox database acceptance journey
 ```
+
+The acceptance script creates unique sandbox records and is designed to remain repeatable after paid-refund reversals. Use it only against a sandbox database.
 
 ## End-to-end sandbox exercise
 
-1. Enter the rep workspace and create a signed share kit with a customer phone.
-2. Enter the vendor workspace and send a qualifying `funded` event for `savings-01` using that phone.
-3. In Operations, advance sandbox confirmation windows, run the confirmation sweep, then run payout.
-4. Inspect the rep ledger, payout, state history and operations audit log.
-5. Send a vendor `refund` to exercise reversal and clawback behavior.
+1. As the **Vendor partner**, open Rule Studio, calculate a dry run and type `PUBLISH` to create a new future-deal rule version.
+2. As **Team rep** Tobi, create a signed share kit with a customer phone.
+3. As the vendor, send a qualifying `funded` event for `savings-01` using that phone.
+4. In **Operations**, advance sandbox confirmation windows and run the confirmation sweep. Tobi’s direct commission and Ada’s platform-funded team override accrue separately.
+5. Run payout and inspect the rep, lead, escrow, state and audit records.
+6. Send a vendor `refund` to exercise direct clawback and lead-override reversal.
+7. As Tobi, open a support case for the owned deal. Escalate directly to the vendor or through Ada; resolve as vendor/Ops and submit one-time CSAT as Tobi.
 
-The seeded fintech example produces a ₦1,000 vendor commission, ₦800 rep gross, ₦200 platform fee, ₦80 sandbox withholding and ₦720 net payout.
+The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 rep gross and ₦200 platform fee. If that deal belongs to Ada’s team, Ada also accrues a ₦40 override and KampusForce retains ₦160 platform margin. Later published rules change only future deals.
 
 ## Sandbox and production boundaries
 
 - SMS/OTP, NIN status, escrow top-up, event simulation, time advancement and bank transfer are **explicit sandbox adapters**.
 - No real payment, KYC, tax remittance or regulatory approval is created by this software.
-- Seeded verified KYC status is not a live NIN verification.
 - Raw NIN/BVN must never be persisted. Customer KYC remains in the vendor’s regulated flow.
-- Customer phone numbers are normalized and salted-hashed for attribution; stored webhook payloads redact phone values.
-- Replace fallback sandbox secrets and disable demo login, event simulation and time advancement before production.
+- Customer phone numbers are normalized and salted-hashed for attribution and structured support records; stored webhook payloads redact phone values.
+- SLA breach synchronization currently runs when support/overview records are read. Production requires a durable scheduler and alert delivery.
+- Recruiting invitations do not activate or verify a recruit, and seeded Campus Lead status is workflow evidence—not real top-decile performance.
+- Replace fallback sandbox secrets and disable demo login, event simulation, time advancement and sandbox transfers before production.
 - Production requires provider callbacks/reconciliation, scheduled jobs, rate limiting, append-only database enforcement, secrets management, monitoring, legal review and compliance evidence.
 
 ## Runtime architecture
 
-React 19 + TypeScript + Vite + Tailwind; Hono + tRPC 11 + SuperJSON; Drizzle ORM + MySQL; JWT via `jose`; QR via `qrcode`; Vitest.
+React 19 + TypeScript + Vite + Tailwind; Hono + tRPC 11 + SuperJSON; Drizzle ORM + PostgreSQL 16 via `pg`; JWT via `jose`; QR via `qrcode`; Vitest.
 
-The source specification’s NestJS/PostgreSQL and later polyglot/Kubernetes architecture is a target reference, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md).
+The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. NestJS and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md) and [ADR 003](docs/adr/003-postgresql-persistence.md).
 
 Key paths:
 
-- `db/schema.ts` — persistence model and inferred types
-- `api/services/` — attribution, event, ledger, money, security and session logic
+- `db/schema.ts` and `db/migrations/` — persistence model and additive migrations
+- `api/services/` — attribution, events, rules, overrides, support, ledger, money and security
 - `api/routes/webhooks.ts` — signed vendor webhook
 - `api/routes/links.ts` — signed public product redirect
-- `src/pages/` — rep, vendor, operations and scorecard interfaces
+- `src/pages/` — rep, Campus Lead, vendor, operations and scorecard interfaces
+- `scripts/verify-phase2.ts` — repeatable database-backed acceptance journey
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — per-workstream scores and production gaps
+- `docs/implementation-scorecard.md` — Phase 2 scores plus the preserved Phase 1 baseline
 
 ## Verification status
 
 - TypeScript check: passed.
-- Production build: passed.
-- Unit tests: 10 passed.
-- Live end-to-end API exercise: attribution → activation → confirmation → payout → clawback → negative-balance netting → dispute resolution passed.
-- Raw HMAC webhook accepted; identical replay returned duplicate; invalid signature returned 401.
-- Desktop route and 375px mobile overflow/console checks: passed.
+- Production build and bundled-server smoke: passed.
+- Unit tests: 19 passed.
+- Live PostgreSQL 16 Phase 2 database journey: migration and idempotent seed → historical-rule preservation → publication → override accrual → combined payout → paid reversal → support resolution/escalation → CSAT → SLA breach passed.
+- Cross-vendor support resolution and duplicate CSAT were rejected.
+- Browser Rule Studio dry run/publication and role workspaces passed; 375px mobile overflow was fixed and rechecked.
+- Production dependency audit: zero known vulnerabilities at assessment time.
+- Roadmap metrics such as 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes and 136k activated customers remain planning gates, not achieved evidence.
 
 The narration MP3 could not be transcribed in the execution environment; no claim of audio-content review is made. All other supplied PDF, workbook and infographic artifacts were reviewed.

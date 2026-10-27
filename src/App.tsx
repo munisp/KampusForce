@@ -6,6 +6,8 @@ import { RepAssist, RepCatalog, RepEarnings, RepOverview, RepShare } from "@/pag
 import Vendor from "@/pages/Vendor";
 import Ops from "@/pages/Ops";
 import Implementation from "@/pages/Implementation";
+import RepSupport from "@/pages/RepSupport";
+import RepTeam from "@/pages/RepTeam";
 
 function Protected({ children }: { children: ReactNode }) {
   const { token } = useWorkspace();
@@ -20,6 +22,8 @@ export default function App() {
     <Route path="/rep/share" element={<Protected><RepShare /></Protected>} />
     <Route path="/rep/assist" element={<Protected><RepAssist /></Protected>} />
     <Route path="/rep/earnings" element={<Protected><RepEarnings /></Protected>} />
+    <Route path="/rep/support" element={<Protected><RepSupport /></Protected>} />
+    <Route path="/rep/team" element={<Protected><RepTeam /></Protected>} />
     <Route path="/vendor" element={<Protected><Vendor /></Protected>} />
     <Route path="/ops" element={<Protected><Ops /></Protected>} />
     <Route path="/implementation" element={<Implementation />} />

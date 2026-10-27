@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { attributionRecords, commissionRules, dealStateHistory, deals, products, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
@@ -52,7 +52,7 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     return { status: "quarantined" as const, kf_event_id: eventId, reason: "No active attribution" };
   }
   const trigger = payload.type === "account_created" ? "signup" : payload.type;
-  const [rule] = await db.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger as any))).orderBy(desc(commissionRules.version)).limit(1);
+  const [rule] = await db.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger as any), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
   if (!rule) {
     await db.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: "Event does not trigger the active commission rule" });
     return { status: "ignored" as const, kf_event_id: eventId };
@@ -65,7 +65,7 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     return { status: "quarantined" as const, kf_event_id: eventId };
   }
   await db.insert(vendorEvents).values(baseEvent);
-  const [{ id: dealId }] = await db.insert(deals).values({ attributionId: attribution.id, productId: product.id, vendorId: vendor.id, repId: attribution.repId, customerPhoneHash: phoneHash, triggerEvent: trigger, eventId, state: "pending", ...commission, confirmAt: new Date(Date.now() + rule.confirmDays * 86_400_000) }).$returningId();
+  const [{ id: dealId }] = await db.insert(deals).values({ attributionId: attribution.id, productId: product.id, vendorId: vendor.id, repId: attribution.repId, commissionRuleId: rule.id, customerPhoneHash: phoneHash, triggerEvent: trigger, eventId, state: "pending", ...commission, confirmAt: new Date(Date.now() + rule.confirmDays * 86_400_000) }).returning({ id: deals.id });
   await db.insert(dealStateHistory).values({ dealId, fromState: null, toState: "pending", actor: `vendor:${vendor.id}`, reason: `Verified ${payload.type} event accepted` });
   return { status: "accepted" as const, kf_event_id: eventId, deal_id: dealId };
 }

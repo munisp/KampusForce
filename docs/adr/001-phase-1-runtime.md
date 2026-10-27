@@ -1,7 +1,9 @@
 # ADR 001: Use a modular single-runtime Phase 1 slice
 
-- Status: Accepted for this implementation slice
+- Status: Superseded for persistence by ADR 003; modular single-runtime decision retained
 - Date: 2026-10-27
+
+> Historical record: the original Phase 1 slice used MySQL. The current Phase 2 runtime uses PostgreSQL 16; see ADR 003. The MySQL statements below document the original decision, not the delivered architecture.
 
 ## Context
 

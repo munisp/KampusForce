@@ -6,9 +6,10 @@ import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 
 const roles = [
-  { role: "rep" as const, title: "Student rep", detail: "Share offers, assist customers and track earnings.", icon: UserRound, path: "/rep" },
-  { role: "vendor" as const, title: "Vendor partner", detail: "Fund escrow, publish rules and verify activations.", icon: Store, path: "/vendor" },
-  { role: "ops" as const, title: "Operations", detail: "Confirm deals, run payouts and resolve disputes.", icon: ShieldCheck, path: "/ops" },
+  { role: "rep" as const, title: "Campus lead", detail: "Ada · manage a team, overrides and escalations.", icon: UsersRound, path: "/rep" },
+  { role: "rep" as const, repCode: "KF-UNILAG-0002", title: "Team rep", detail: "Tobi · share offers, open tickets and track earnings.", icon: UserRound, path: "/rep" },
+  { role: "vendor" as const, title: "Vendor partner", detail: "Dry-run rules, fund escrow and resolve support.", icon: Store, path: "/vendor" },
+  { role: "ops" as const, title: "Operations", detail: "Monitor SLAs, promote leads and run settlement.", icon: ShieldCheck, path: "/ops" },
 ];
 
 export default function Login() {
@@ -62,7 +63,7 @@ export default function Login() {
         <div className="section-intro"><p className="eyebrow">Executable product slice</p><h2>Choose a workspace.</h2><p>Use seeded sandbox identities to exercise the same database-backed activation, escrow and settlement records. No real money or KYC checks occur.</p></div>
         {token && user && <button className="continue-session" onClick={() => navigate(user.role === "rep" ? "/rep" : `/${user.role}`)}>Continue as {user.name}<ArrowRight size={17} /></button>}
         <div className="role-grid">
-          {roles.map(({ role, title, detail, icon: Icon }) => <button className="role-card" key={role} onClick={() => { setError(""); demo.mutate({ role }); }} disabled={demo.isPending}>
+          {roles.map(({ role, repCode, title, detail, icon: Icon }) => <button className="role-card" key={title} onClick={() => { setError(""); demo.mutate({ role, repCode }); }} disabled={demo.isPending}>
             <span className="role-icon"><Icon size={22} /></span><span><strong>{title}</strong><small>{detail}</small></span><ArrowRight size={18} />
           </button>)}
         </div>
@@ -77,6 +78,6 @@ export default function Login() {
         </div>
       </section>
     </main>
-    <footer className="entry-footer"><span>Phase 1 core MVP · Nigeria</span><span>Attribution → activation → escrow → payout</span></footer>
+    <footer className="entry-footer"><span>Phase 2 campus scale · Nigeria</span><span>Rules → teams → support → settlement</span></footer>
   </div>;
 }

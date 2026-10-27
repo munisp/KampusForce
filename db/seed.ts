@@ -1,32 +1,46 @@
 import "dotenv/config";
-import { eq } from "drizzle-orm";
-import { campuses, commissionRules, escrowWallets, products, reps, users, vendors } from "./schema";
+import { and, eq } from "drizzle-orm";
+import { campusLeadAssignments, campuses, commissionRules, escrowWallets, products, reps, supportResolutionMacros, users, vendors } from "./schema";
 import { getDb } from "../api/queries/connection";
 
 async function main() {
   const db = getDb();
   let [campus] = await db.select().from(campuses).where(eq(campuses.name, "University of Lagos")).limit(1);
   if (!campus) {
-    const [{ id }] = await db.insert(campuses).values({ name: "University of Lagos", state: "Lagos", status: "live", launchDate: new Date() }).$returningId();
+    const [{ id }] = await db.insert(campuses).values({ name: "University of Lagos", state: "Lagos", status: "live", launchDate: new Date() }).returning({ id: campuses.id });
     [campus] = await db.select().from(campuses).where(eq(campuses.id, id)).limit(1);
   }
   const userSeeds = [
     { phoneE164: "+2348000000001", name: "Ada Okafor", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_ada", ninLast4: "0001", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0001", bankAccountName: "Ada Okafor", bankNameMatch: true },
     { phoneE164: "+2348000000002", name: "CampusSave Partnerships", role: "vendor" as const, kycState: "verified" as const },
     { phoneE164: "+2348000000003", name: "KampusForce Operations", role: "ops" as const, kycState: "verified" as const },
+    { phoneE164: "+2348000000004", name: "Tobi Bello", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_tobi", ninLast4: "0004", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0004", bankAccountName: "Tobi Bello", bankNameMatch: true },
   ];
   const createdUsers = [];
   for (const seed of userSeeds) {
     let [user] = await db.select().from(users).where(eq(users.phoneE164, seed.phoneE164)).limit(1);
     if (!user) {
-      const [{ id }] = await db.insert(users).values(seed).$returningId();
+      const [{ id }] = await db.insert(users).values(seed).returning({ id: users.id });
       [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     }
     createdUsers.push(user);
   }
-  const [repUser] = createdUsers;
-  const [existingRep] = await db.select().from(reps).where(eq(reps.code, "KF-UNILAG-0001")).limit(1);
-  if (!existingRep) await db.insert(reps).values({ userId: repUser.id, campusId: campus.id, code: "KF-UNILAG-0001", tier: "silver", status: "active", contractorAgreementSignedAt: new Date() });
+  const [repUser, , , teamUser] = createdUsers;
+  let [leadRep] = await db.select().from(reps).where(eq(reps.code, "KF-UNILAG-0001")).limit(1);
+  if (!leadRep) {
+    const [{ id }] = await db.insert(reps).values({ userId: repUser.id, campusId: campus.id, code: "KF-UNILAG-0001", tier: "campus_lead", status: "active", contractorAgreementSignedAt: new Date() }).returning({ id: reps.id });
+    [leadRep] = await db.select().from(reps).where(eq(reps.id, id)).limit(1);
+  } else if (leadRep.tier !== "campus_lead") {
+    await db.update(reps).set({ tier: "campus_lead" }).where(eq(reps.id, leadRep.id));
+    [leadRep] = await db.select().from(reps).where(eq(reps.id, leadRep.id)).limit(1);
+  }
+  let [teamRep] = await db.select().from(reps).where(eq(reps.code, "KF-UNILAG-0002")).limit(1);
+  if (!teamRep) {
+    const [{ id }] = await db.insert(reps).values({ userId: teamUser.id, campusId: campus.id, code: "KF-UNILAG-0002", tier: "silver", status: "active", contractorAgreementSignedAt: new Date() }).returning({ id: reps.id });
+    [teamRep] = await db.select().from(reps).where(eq(reps.id, id)).limit(1);
+  }
+  const [assignment] = await db.select().from(campusLeadAssignments).where(and(eq(campusLeadAssignments.leadRepId, leadRep.id), eq(campusLeadAssignments.repId, teamRep.id))).limit(1);
+  if (!assignment) await db.insert(campusLeadAssignments).values({ leadRepId: leadRep.id, repId: teamRep.id, campusId: campus.id });
 
   const vendorSeeds = [
     { companyName: "CampusSave", webhookKey: "campussave_sandbox", webhookSecret: "sandbox_campussave_hmac_secret", userId: createdUsers[1].id },
@@ -39,7 +53,7 @@ async function main() {
   for (const seed of vendorSeeds) {
     let [vendor] = await db.select().from(vendors).where(eq(vendors.webhookKey, seed.webhookKey)).limit(1);
     if (!vendor) {
-      const [{ id }] = await db.insert(vendors).values({ ...seed, status: "active", cacNumber: "SANDBOX" }).$returningId();
+      const [{ id }] = await db.insert(vendors).values({ ...seed, status: "active", cacNumber: "SANDBOX", supportSlaHours: 24 }).returning({ id: vendors.id });
       [vendor] = await db.select().from(vendors).where(eq(vendors.id, id)).limit(1);
       await db.insert(escrowWallets).values({ vendorId: id, balanceKobo: 50_000_000, lowBalanceThresholdKobo: 10_000_000 });
     }
@@ -57,12 +71,15 @@ async function main() {
     const seed = productSeeds[i];
     let [product] = await db.select().from(products).where(eq(products.vendorRef, seed.vendorRef)).limit(1);
     if (!product) {
-      const [{ id }] = await db.insert(products).values({ vendorId: vendorIds[i], vendorRef: seed.vendorRef, name: seed.name, category: seed.category, description: seed.description, priceKobo: seed.priceKobo, landingUrl: `https://example.com/kampusforce/${seed.vendorRef}`, pitchScript: seed.pitchScript, status: "active" }).$returningId();
+      const [{ id }] = await db.insert(products).values({ vendorId: vendorIds[i], vendorRef: seed.vendorRef, name: seed.name, category: seed.category, description: seed.description, priceKobo: seed.priceKobo, landingUrl: `https://example.com/kampusforce/${seed.vendorRef}`, pitchScript: seed.pitchScript, status: "active" }).returning({ id: products.id });
       [product] = await db.select().from(products).where(eq(products.id, id)).limit(1);
       await db.insert(commissionRules).values({ productId: id, version: 1, ...seed.rule, recurrenceMonths: seed.rule.triggerEvent === "renewal" ? 12 : 1, confirmDays: 30, clawbackDays: 60 });
     }
   }
-  console.log("KampusForce sandbox seed complete");
+  const [campusSave] = await db.select().from(vendors).where(eq(vendors.webhookKey, "campussave_sandbox")).limit(1);
+  const [macro] = await db.select().from(supportResolutionMacros).where(and(eq(supportResolutionMacros.vendorId, campusSave.id), eq(supportResolutionMacros.title, "Activation evidence rechecked"))).limit(1);
+  if (!macro) await db.insert(supportResolutionMacros).values({ vendorId: campusSave.id, title: "Activation evidence rechecked", body: "We rechecked the signed activation evidence and confirmed the outcome shown in this case. The rep can review the resolution and submit CSAT.", approvedByUserId: createdUsers[1].id });
+  console.log("KampusForce sandbox seed complete, including Phase 2 campus team and support fixtures");
   process.exit(0);
 }
 

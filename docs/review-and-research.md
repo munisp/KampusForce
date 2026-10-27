@@ -40,7 +40,15 @@ The executive summary, business/technical specification and phased roadmap consi
 - Manual-first validation before vendor self-service and broader national expansion.
 - No rep joining fee, customer markup, inventory, terminal or customer float.
 
-The implementation deliberately prioritizes F1, F2, F3, F6 and F11, plus enough vendor/operations surface to exercise those records end to end. The later vendor self-service and national/polyglot scale phases remain roadmap work.
+Phase 1 prioritized F1, F2, F3, F6 and F11, plus enough vendor/operations surface to exercise those records end to end. Phase 2 now adds vendor self-service rules, campus recruiting/team overrides and the support operating loop. The fifteen-campus rollout, live-provider production controls and national/polyglot scale phases remain roadmap work.
+
+### Phase 2 translation and invariant additions
+
+- Vendors can dry-run and publish rules, but existing deals keep their original `commissionRuleId` and stored economics.
+- Campus Leads are contractors. Top-decile eligibility is calculated within each campus; signed contractor status is a separate Ops designation gate.
+- A lead override equals 5% of the assigned team rep’s confirmed gross commission and is funded by platform revenue—not vendor escrow or the activating rep’s 80% share.
+- Support is an evidence-bearing state machine across rep, Campus Lead, vendor and Ops queues, with scoped ownership, vendor-specific SLAs, approved macros and one-time CSAT.
+- Roadmap KPIs remain measurement targets. The implementation does not claim 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes, 136k activated customers or 5.6-month payback as observed outcomes.
 
 ## 3. Infographic review
 
@@ -137,7 +145,7 @@ A useful Phase 0 research scorecard should track:
 
 The specification’s long-term service list is broader than the launch evidence requires. NestJS/PostgreSQL/Redis may be a valid target, but Kafka, Kubernetes, TigerBeetle, Temporal, Dapr, polyglot services and a lakehouse should be justified by measured scale and operating requirements.
 
-This implementation proves the commercial spine in a modular Hono/tRPC/Drizzle/MySQL runtime and records the deviation in ADR 001. Production hardening should precede distributed-system expansion.
+This implementation proves the commercial spine in a modular Hono/tRPC/Drizzle/PostgreSQL 16 runtime. The original MySQL deviation and the user-required PostgreSQL correction are recorded in ADR 001 and ADR 003. NestJS parity and production hardening should precede distributed-system expansion.
 
 ## 8. Artifact coverage and limitation
 
