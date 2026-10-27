@@ -35,6 +35,8 @@ export const overrideStateEnum = pgEnum("override_state", ["accrued", "paid", "r
 export const ledgerAccountEnum = pgEnum("ledger_account", ["rep_payable", "lead_override_payable", "platform_revenue", "vendor_escrow", "clawback_reserve", "withholding_tax", "external_bank"]);
 export const ledgerDirectionEnum = pgEnum("ledger_direction", ["debit", "credit"]);
 export const payoutStateEnum = pgEnum("payout_state", ["queued", "processing", "paid", "failed", "held"]);
+export const payoutAttemptStateEnum = pgEnum("payout_attempt_state", ["initiated", "succeeded", "failed"]);
+export const reconciliationStateEnum = pgEnum("reconciliation_state", ["pending", "matched", "within_tolerance", "variance"]);
 export const assistedSessionStatusEnum = pgEnum("assisted_session_status", ["active", "completed", "abandoned"]);
 export const disputeStateEnum = pgEnum("dispute_state", ["open", "reviewing", "resolved", "rejected"]);
 export const supportPriorityEnum = pgEnum("support_priority", ["normal", "urgent"]);
@@ -187,6 +189,7 @@ export const deals = pgTable(
     triggerEvent: varchar("trigger_event", { length: 40 }).notNull(),
     eventId: varchar("event_id", { length: 36 }).notNull().unique(),
     state: dealStateEnum("state").notNull().default("pending"),
+    payoutId: integer("payout_id"),
     vendorCommissionKobo: bigint("vendor_commission_kobo", { mode: "number" }).notNull(),
     repCommissionKobo: bigint("rep_commission_kobo", { mode: "number" }).notNull(),
     platformFeeKobo: bigint("platform_fee_kobo", { mode: "number" }).notNull(),
@@ -195,7 +198,7 @@ export const deals = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("deals_rep_state_idx").on(t.repId, t.state), index("deals_confirm_idx").on(t.state, t.confirmAt)],
+  (t) => [index("deals_rep_state_idx").on(t.repId, t.state), index("deals_confirm_idx").on(t.state, t.confirmAt), index("deals_payout_idx").on(t.payoutId)],
 );
 
 export const dealStateHistory = pgTable("deal_state_history", {
@@ -321,9 +324,37 @@ export const payouts = pgTable("payouts", {
   state: payoutStateEnum("state").notNull().default("queued"),
   batchId: varchar("batch_id", { length: 64 }).notNull(),
   attempts: integer("attempts").notNull().default(0),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  lastFailureCode: varchar("last_failure_code", { length: 120 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   paidAt: timestamp("paid_at", { withTimezone: true }),
-});
+}, (t) => [index("payout_dispatch_idx").on(t.state, t.nextRetryAt), index("payout_batch_idx").on(t.batchId)]);
+
+export const payoutAttempts = pgTable("payout_attempts", {
+  id: serial("id").primaryKey(),
+  payoutId: integer("payout_id").notNull().references(() => payouts.id),
+  attemptNo: integer("attempt_no").notNull(),
+  provider: varchar("provider", { length: 40 }).notNull(),
+  providerRef: varchar("provider_ref", { length: 100 }).notNull().unique(),
+  state: payoutAttemptStateEnum("state").notNull().default("initiated"),
+  failureCode: varchar("failure_code", { length: 120 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("payout_attempt_number_unique").on(t.payoutId, t.attemptNo), index("payout_attempt_payout_idx").on(t.payoutId, t.state)]);
+
+export const reconciliationRuns = pgTable("reconciliation_runs", {
+  id: serial("id").primaryKey(),
+  batchId: varchar("batch_id", { length: 64 }).notNull(),
+  actorUserId: integer("actor_user_id").notNull().references(() => users.id),
+  ledgerKobo: bigint("ledger_kobo", { mode: "number" }).notNull(),
+  providerKobo: bigint("provider_kobo", { mode: "number" }).notNull(),
+  bankKobo: bigint("bank_kobo", { mode: "number" }).notNull(),
+  varianceKobo: bigint("variance_kobo", { mode: "number" }).notNull(),
+  state: reconciliationStateEnum("state").notNull(),
+  evidence: varchar("evidence", { length: 40 }).notNull().default("sandbox_records"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("reconciliation_batch_idx").on(t.batchId, t.createdAt)]);
 
 export const assistedSessions = pgTable("assisted_sessions", {
   id: serial("id").primaryKey(),

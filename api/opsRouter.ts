@@ -8,7 +8,10 @@ import {
   campuses,
   deals,
   disputes,
+  payoutAttempts,
+  payouts,
   products,
+  reconciliationRuns,
   reps,
   supportTickets,
   users,
@@ -18,7 +21,14 @@ import {
 import { createRouter } from "./middleware";
 import { authedQuery, requireRole } from "./services/auth";
 import { getDb } from "./queries/connection";
-import { confirmDueDeals, runPayoutBatch } from "./services/ledger";
+import {
+  confirmDueDeals,
+  dispatchDuePayouts,
+  reconcilePayoutBatch,
+  recordSandboxPayoutOutcome,
+  recoverFailedPayout,
+  runPayoutBatch,
+} from "./services/ledger";
 import { rankTopDecile } from "./services/overrides";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { activateRecruitment, revokeRecruitment } from "./services/recruiting";
@@ -58,6 +68,10 @@ export const opsRouter = createRouter({
       .innerJoin(campuses, eq(campusRecruitments.campusId, campuses.id)).innerJoin(reps, eq(campusRecruitments.leadRepId, reps.id)).orderBy(desc(campusRecruitments.invitedAt)).limit(50);
     const jobs = await recentJobRuns();
     const telemetry = await campusTelemetry();
+    const payoutRows = await getDb().select({ payout: payouts, repCode: reps.code }).from(payouts)
+      .innerJoin(reps, eq(payouts.repId, reps.id)).orderBy(desc(payouts.createdAt));
+    const attempts = await getDb().select().from(payoutAttempts).orderBy(desc(payoutAttempts.createdAt)).limit(100);
+    const reconciliations = await getDb().select().from(reconciliationRuns).orderBy(desc(reconciliationRuns.createdAt)).limit(50);
     const rated = supportCases.filter(({ ticket }) => ticket.csat);
     return {
       metrics: {
@@ -65,6 +79,9 @@ export const opsRouter = createRouter({
         pending: allDeals.filter((d) => d.deal.state === "pending").length,
         payable: allDeals.filter((d) => d.deal.state === "payable").length,
         paid: allDeals.filter((d) => d.deal.state === "paid").length,
+        queuedPayouts: payoutRows.filter(({ payout }) => payout.state === "queued").length,
+        processingPayouts: payoutRows.filter(({ payout }) => payout.state === "processing").length,
+        failedPayouts: payoutRows.filter(({ payout }) => ["failed", "held"].includes(payout.state)).length,
         quarantined: quarantine.length,
         openDisputes: cases.filter((c) => ["open", "reviewing"].includes(c.dispute.state)).length,
         openSupport: supportCases.filter(({ ticket }) => !["resolved", "closed"].includes(ticket.state)).length,
@@ -82,6 +99,9 @@ export const opsRouter = createRouter({
       recruitments,
       jobs,
       telemetry,
+      payouts: payoutRows.slice(0, 50),
+      payoutAttempts: attempts,
+      reconciliations,
     };
   }),
   confirmSweep: authedQuery.mutation(async ({ ctx }) => {
@@ -97,6 +117,29 @@ export const opsRouter = createRouter({
   payoutBatch: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "finance", "admin"]);
     return runPayoutBatch(ctx.user.id);
+  }),
+  dispatchPayouts: authedQuery.mutation(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return dispatchDuePayouts(ctx.user.id);
+  }),
+  payoutOutcome: authedQuery.input(z.object({
+    payoutId: z.number().int().positive(),
+    outcome: z.enum(["success", "failure"]),
+    failureCode: z.string().trim().min(3).max(120).optional(),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return recordSandboxPayoutOutcome({ ...input, actorUserId: ctx.user.id });
+  }),
+  recoverPayout: authedQuery.input(z.object({ payoutId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return recoverFailedPayout(input.payoutId, ctx.user.id);
+  }),
+  reconcileBatch: authedQuery.input(z.object({
+    batchId: z.string().trim().min(5).max(64),
+    bankNetKobo: z.number().int().nonnegative().max(1_000_000_000_000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return reconcilePayoutBatch({ ...input, actorUserId: ctx.user.id });
   }),
   runJobs: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "admin"]);

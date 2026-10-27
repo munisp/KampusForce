@@ -71,7 +71,7 @@ export const repRouter = createRouter({
         activations: rows.length,
         pendingKobo: rows.filter((r) => ["pending", "confirmed"].includes(r.deal.state)).reduce((s, r) => s + r.deal.repCommissionKobo, 0),
         payableKobo: rows.filter((r) => r.deal.state === "payable").reduce((s, r) => s + r.deal.repCommissionKobo, 0),
-        paidKobo: paid.reduce((s, p) => s + p.amountNetKobo, 0),
+        paidKobo: paid.filter((payout) => payout.state === "paid").reduce((s, p) => s + p.amountNetKobo, 0),
         overridePayableKobo: overrides.filter((override) => override.state === "accrued").reduce((sum, override) => sum + override.overrideKobo, 0),
         overridePaidKobo: overrides.filter((override) => override.state === "paid").reduce((sum, override) => sum + override.overrideKobo, 0),
       },

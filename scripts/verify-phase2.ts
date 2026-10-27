@@ -21,7 +21,7 @@ import {
 import { getDb } from "../api/queries/connection";
 import { ensureAttribution } from "../api/services/attribution";
 import { ingestVendorEvent } from "../api/services/events";
-import { confirmDueDeals, runPayoutBatch } from "../api/services/ledger";
+import { confirmDueDeals, dispatchDuePayouts, recordSandboxPayoutOutcome, runPayoutBatch } from "../api/services/ledger";
 import { calculateRuleDryRun, publishRuleDraft } from "../api/services/rules";
 import {
   createSupportTicket,
@@ -176,11 +176,20 @@ async function main() {
 
   const payoutRun = await runPayoutBatch(opsUser.id);
   const leadPayoutResult = payoutRun.results.find((result) => result.repId === leadRep.id);
-  assert.equal(leadPayoutResult?.status, "paid");
+  assert.equal(leadPayoutResult?.status, "queued");
   assert.ok((leadPayoutResult?.overrideKobo || 0) >= targetOverrideKobo);
+  const [queuedNewOverride] = await db.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.id, newOverride.id)).limit(1);
+  assert.equal(queuedNewOverride.state, "accrued");
+  assert.ok(queuedNewOverride.payoutId);
+  await dispatchDuePayouts(opsUser.id);
+  for (const queuedPayout of payoutRun.results) {
+    if (queuedPayout.status === "queued" && queuedPayout.payoutId) {
+      const settled = await recordSandboxPayoutOutcome({ payoutId: queuedPayout.payoutId, outcome: "success", actorUserId: opsUser.id });
+      assert.equal(settled.status, "paid");
+    }
+  }
   const [paidNewOverride] = await db.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.id, newOverride.id)).limit(1);
   assert.equal(paidNewOverride.state, "paid");
-  assert.ok(paidNewOverride.payoutId);
   const [leadPayout] = await db.select().from(payouts).where(eq(payouts.id, paidNewOverride.payoutId!)).limit(1);
   assert.equal(leadPayout.provider, "paystack_sandbox");
 

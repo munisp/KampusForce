@@ -1,13 +1,14 @@
 import { and, desc, eq, lte } from "drizzle-orm";
 import { commissionRuleDrafts, jobRuns } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { confirmDueDeals } from "./ledger";
+import { confirmDueDeals, dispatchDuePayouts, runPayoutBatch } from "./ledger";
+import { dailyPayoutSlotKey, isDailyPayoutWindow } from "./payoutPolicy";
 import { expireRecruitments } from "./recruiting";
 import { syncSlaBreaches } from "./support";
 import { log } from "../lib/logger";
 
-export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry"] as const;
-export type JobKey = typeof JOB_KEYS[number];
+export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch"] as const;
+export type JobKey = typeof JOB_KEYS[number] | "payout_batch";
 
 export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
   const db = getDb();
@@ -31,6 +32,14 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
       const breached = await syncSlaBreaches();
       result = { breached };
       processedCount = breached;
+    } else if (jobKey === "payout_dispatch") {
+      const dispatched = await dispatchDuePayouts();
+      result = dispatched;
+      processedCount = dispatched.dispatched;
+    } else if (jobKey === "payout_batch") {
+      const batch = await runPayoutBatch();
+      result = batch;
+      processedCount = batch.results.filter((row) => row.status === "queued").length;
     } else {
       result = await expireRecruitments();
       processedCount = Number(result.expired || 0);
@@ -46,8 +55,12 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
 }
 
 export async function runDueJobs(trigger: "manual" | "schedule" = "manual") {
-  const slot = trigger === "schedule" ? new Date().toISOString().slice(0, 16) : crypto.randomUUID();
+  const now = new Date();
+  const slot = trigger === "schedule" ? now.toISOString().slice(0, 16) : crypto.randomUUID();
   const results = [];
+  if (trigger === "schedule" && isDailyPayoutWindow(now)) {
+    results.push(await runDurableJob("payout_batch", trigger, dailyPayoutSlotKey(now)));
+  }
   for (const jobKey of JOB_KEYS) results.push(await runDurableJob(jobKey, trigger, slot));
   return { trigger, slot, results };
 }

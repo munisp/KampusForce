@@ -1,7 +1,46 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 3 operational vertical slice, with the Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+Scope: executable Phase 4 settlement vertical slice, with the Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+
+## Phase 4 assessment
+
+The unweighted mean across 16 workstreams is **82/100**. Phase 4 adds reserved payout assembly, durable attempts, 09:00 WAT scheduling, retry/fallback, Finance recovery, idempotent sandbox outcomes and three-way reconciliation. The score still excludes live-provider, real-bank, production-operations and target-architecture credit.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 95 | Exact dry runs, expiry worker, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, load evidence and vendor team permissions |
+| Vendor funnel & command | 86 | Vendor-scoped escrow, event simulation, full funnel, support metrics and quality | Live reconciliation exports and team permissions |
+| Campus recruiting & team management | 90 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment and notifications | Live identity provider, throttling and production onboarding policy |
+| Top-decile lead designation | 82 | Campus-specific confirmed-performance ranking, deterministic ties, top-decile slots and signed-contractor gate | Periodic eligibility recalculation, demotion policy and real cohorts |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings | Live formal reconciliation, backup/restore and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, support-specific alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 91 | Vendor-specific targets, approved macros, one-time CSAT, quality updates and durable idempotent SLA scheduling | Alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 88 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Token-verification hardening, abuse controls and deep-link telemetry |
+| Event ingestion & historical rules | 90 | HMAC/timestamp/dedupe/quarantine, active-rule selection and immutable historical deal economics | Durable ingestion queue, retries, key rotation and replay retention |
+| Escrow, payout & clawbacks | 96 | Locked reservation, dispatch and settlement; three retries with fallback; Finance replacement recovery; idempotent success; refund-before-settlement hold | Live signed callbacks, provider evidence and configurable production tax policy |
+| Security, privacy & RBAC | 78 | Role/ownership scopes, token/session hashes, redaction, phone-bound invites and append-only controls | Production secrets, throttling, DPIA/DPO evidence and penetration test |
+| Offline & installable shell | 70 | Manifest, icons, app-shell cache and offline last-viewed catalog | Install analytics and broader read-only offline support |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived operational telemetry | Real campus cohorts and measured roadmap KPI attainment |
+| Automated verification | 97 | PostgreSQL 16 CI, 23 unit tests and three acceptance journeys covering money, concurrency, retries, recovery, idempotency and reconciliation | Browser/load/cross-browser suites and isolated preview-environment evidence |
+| Target architecture & scale services | 51 | PostgreSQL 16, row locks, durable job claims, minute dispatch and a deduplicated 09:00 WAT assembly slot | NestJS parity, Redis/BullMQ and all later distributed services |
+| Live providers & production operations | 45 | Explicit sandbox attempts/outcomes, Finance recovery and three-way reconciliation against a supplied sandbox bank figure | Live KYC/payment, real bank statements, monitoring, backup/restore and incident response |
+
+### Phase 4 verification evidence
+
+- Additive PostgreSQL migration created payout attempts and append-only reconciliation runs, linked reservations to payouts and backfilled successful attempts for already-paid sandbox records.
+- `npx tsx scripts/verify-phase4.ts` passed duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback provider selection, Finance recovery, idempotent success, exact and over-threshold reconciliation, append-only reports and a refund-before-settlement hold.
+- Phase 2 paid-refund and Phase 3 concurrency regressions still pass after moving paid state and external-bank postings to the explicit success outcome.
+- All 23 unit tests, TypeScript, ESLint, production build and production dependency audit pass. CI runs all three database journeys.
+- Desktop Operations rendering and sandbox outcome/reconciliation interactions passed. The 375px journey measured 375px document width with zero console or HTTP errors.
+
+### Remaining production and architecture gates
+
+1. Connect live KYC/payment providers with signed callback verification and replace sandbox outcome controls and supplied bank figures with authenticated provider/bank evidence.
+2. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
+3. Add production rate limiting, secrets management, monitoring, backup/restore, incident response and privileged-access review.
+4. Replace campus fixtures and sandbox outcomes with real cohort and rollout evidence before claiming roadmap KPI attainment.
+5. Complete privacy/security/legal review and reconcile financial narratives before investor or production use.
 
 ## Phase 3 assessment
 

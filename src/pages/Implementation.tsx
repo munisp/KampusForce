@@ -12,13 +12,13 @@ const areas = [
   { name: "SLA, macros & CSAT quality", score: 91, detail: "Vendor-specific due dates, approved macros, one-time CSAT and quality updates work. SLA breach processing is durable and idempotent." },
   { name: "Attribution & assisted onboarding", score: 88, detail: "Signed links, QR, first-touch preservation, salted phone hashes and consent-led vendor-handoff telemetry remain active across Phase 2." },
   { name: "Event ingestion & historical rules", score: 90, detail: "HMAC validation, dedupe, quarantine and trigger mapping now select only active rules while deals retain their original commissionRuleId and amounts." },
-  { name: "Escrow, payout & clawbacks", score: 93, detail: "Pre-funded escrow and all money invariants passed. Five concurrent batches produced exactly one payout for the test recipient." },
+  { name: "Escrow, payout & clawbacks", score: 96, detail: "Pre-funded escrow, reserved batch assembly, three-attempt recovery, idempotent settlement and pre-settlement refund holds passed. Five concurrent batches still produce one reservation." },
   { name: "Security, privacy & RBAC", score: 78, detail: "Role/ownership scopes, token hashes, redaction, phone-bound invites and append-only controls are present. Production throttling and compliance evidence remain." },
   { name: "Offline & installable shell", score: 70, detail: "Manifest, icons, versioned app-shell cache and last-viewed catalog remain. Financial and support mutations are deliberately not queued offline." },
   { name: "Fifteen-campus rollout & KPI telemetry", score: 68, detail: "Fifteen campus fixtures now expose record-derived health, rep, activation, commission, support and breach telemetry. Real campus KPI evidence remains." },
-  { name: "Automated verification", score: 96, detail: "PostgreSQL 16 CI, type/build/unit checks, two live database journeys, concurrency and append-only tests cover critical paths." },
-  { name: "Target architecture & scale services", score: 50, detail: "PostgreSQL 16, row locks, unique durable job claims and a minute scheduler work. Hono/tRPC remains; NestJS, Redis/BullMQ and distributed services are not claimed." },
-  { name: "Live providers & production operations", score: 38, detail: "OTP, NIN status, escrow, events and transfers are explicit sandbox adapters. Live callbacks, 09:00 WAT workers, reconciliation and operating evidence remain gates." },
+  { name: "Automated verification", score: 97, detail: "PostgreSQL 16 CI, 23 unit tests and three live database journeys cover concurrency, retries, recovery, idempotency, reconciliation and append-only controls." },
+  { name: "Target architecture & scale services", score: 51, detail: "PostgreSQL 16, row locks, unique job claims, minute dispatch and a 09:00 WAT assembly slot work. Hono/tRPC remains; NestJS and Redis/BullMQ are not claimed." },
+  { name: "Live providers & production operations", score: 45, detail: "Sandbox attempts, callbacks, recovery and three-way reconciliation work. Live providers, real bank evidence, monitoring, backup/restore and incident response remain gates." },
 ];
 const overall = Math.round(areas.reduce((sum, area) => sum + area.score, 0) / areas.length);
 
@@ -26,7 +26,7 @@ export default function Implementation() {
   return <div className="score-page">
     <header className="score-nav"><Brand /><Link to="/" className="text-link"><ArrowLeft size={15} />Workspace selector</Link></header>
     <main>
-      <section className="score-hero"><div><p className="eyebrow">Phase 3 · evidence-based assessment</p><h1>Implementation,<br /><em>without the fog.</em></h1><p>Sixteen areas cover the broadened operational scope. Working workflows earn credit; sandbox adapters, campus fixtures and future architecture do not earn production credit.</p></div><div className="overall-score"><span>PHASE 3 ASSESSED SCOPE</span><strong>{overall}<small>/100</small></strong><p>Functional slice; production gates remain</p><div><span style={{ width: `${overall}%` }} /></div></div></section>
+      <section className="score-hero"><div><p className="eyebrow">Phase 4 · evidence-based assessment</p><h1>Implementation,<br /><em>without the fog.</em></h1><p>Sixteen areas cover the broadened operational scope. Working workflows earn credit; sandbox adapters, campus fixtures and future architecture do not earn production credit.</p></div><div className="overall-score"><span>PHASE 4 ASSESSED SCOPE</span><strong>{overall}<small>/100</small></strong><p>Functional slice; production gates remain</p><div><span style={{ width: `${overall}%` }} /></div></div></section>
       <section className="thesis-grid">
         <article><Target size={23} /><p className="eyebrow">THE GOAL</p><h2>Make campus distribution accountable.</h2><p>Become the vendor-neutral attribution, commission, escrow and settlement layer between vendors, NIN-verified student reps and customers.</p></article>
         <article><UsersRound size={23} /><p className="eyebrow">THE PROBLEM</p><h2>Introductions disappear before payment.</h2><p>Reps lack credible attribution and predictable earnings; vendors lack a trusted campus channel; customers need assisted access without added fees.</p></article>

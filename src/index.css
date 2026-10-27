@@ -328,7 +328,9 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .ops-metrics { grid-template-columns: repeat(6, 1fr); }
 .ops-metrics .metric { min-height: 116px; padding: 15px; }
 .ops-metrics .metric strong { font-size: 25px; }
-.runbook-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 1px solid var(--line); }
+.runbook-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); }
+.reconcile-control { display: flex; align-items: center; gap: 7px; }
+.reconcile-control input { width: 125px; border: 1px solid var(--line); background: #fff; padding: 8px; color: var(--ink); font: inherit; }
 .runbook-steps > div { display: grid; grid-template-columns: auto 1fr; gap: 10px; padding: 18px; }
 .runbook-steps > div:not(:last-child) { border-right: 1px solid var(--line); }
 .runbook-steps > div > span { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 9px; }

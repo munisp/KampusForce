@@ -15,6 +15,13 @@
       "when": 1793118308201,
       "tag": "0001_needy_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793123343235,
+      "tag": "0002_charming_kingpin",
+      "breakpoints": true
     }
   ]
 }

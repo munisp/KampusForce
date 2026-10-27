@@ -19,7 +19,7 @@ import {
 import { getDb } from "../api/queries/connection";
 import { ensureAttribution } from "../api/services/attribution";
 import { ingestVendorEvent } from "../api/services/events";
-import { confirmDueDeals, runPayoutBatch } from "../api/services/ledger";
+import { confirmDueDeals, dispatchDuePayouts, recordSandboxPayoutOutcome, runPayoutBatch } from "../api/services/ledger";
 import { runDurableJob } from "../api/services/jobs";
 import { listNotifications } from "../api/services/notifications";
 import {
@@ -132,9 +132,19 @@ async function main() {
 
   const payoutRuns = await Promise.all(Array.from({ length: 5 }, () => runPayoutBatch(ops.id)));
   const newRepPayouts = await db.select().from(payouts).where(eq(payouts.repId, activeRep.id));
-  assert.equal(newRepPayouts.length, 1, "concurrent batches must not double-pay the recruit");
-  const paidResults = payoutRuns.flatMap((run) => run.results).filter((result) => result.repId === activeRep.id && result.status === "paid");
-  assert.equal(paidResults.length, 1);
+  assert.equal(newRepPayouts.length, 1, "concurrent batches must not reserve the recruit twice");
+  const queuedResults = payoutRuns.flatMap((run) => run.results).filter((result) => result.repId === activeRep.id && result.status === "queued");
+  assert.equal(queuedResults.length, 1);
+  const [reservedDeal] = await db.select().from(deals).where(eq(deals.id, deal.id)).limit(1);
+  assert.equal(reservedDeal.state, "payable");
+  assert.equal(reservedDeal.payoutId, newRepPayouts[0].id);
+  assert.equal((await db.select().from(ledgerEntries).where(eq(ledgerEntries.payoutId, newRepPayouts[0].id))).length, 0);
+  await dispatchDuePayouts(ops.id);
+  const settled = await recordSandboxPayoutOutcome({ payoutId: newRepPayouts[0].id, outcome: "success", actorUserId: ops.id });
+  assert.equal(settled.status, "paid");
+  const duplicateSettlement = await recordSandboxPayoutOutcome({ payoutId: newRepPayouts[0].id, outcome: "success", actorUserId: ops.id });
+  assert.equal(duplicateSettlement.idempotent, true);
+  assert.equal((await db.select().from(ledgerEntries).where(eq(ledgerEntries.payoutId, newRepPayouts[0].id))).length, 3);
   const [paidDeal] = await db.select().from(deals).where(eq(deals.id, deal.id)).limit(1);
   assert.equal(paidDeal.state, "paid");
   const inbox = await listNotifications(recruitUserId);

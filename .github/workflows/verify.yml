@@ -40,6 +40,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm run lint
       - run: npm test
       - run: npm run build
       - run: npm run db:migrate
@@ -47,4 +48,5 @@ jobs:
       - run: npm run db:seed
       - run: npx tsx scripts/verify-phase2.ts
       - run: npx tsx scripts/verify-phase3.ts
+      - run: npx tsx scripts/verify-phase4.ts
       - run: npm audit --omit=dev
