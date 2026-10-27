@@ -77,6 +77,11 @@ export const reps = pgTable("reps", {
   qualityScore: integer("quality_score").notNull().default(100),
   status: repStatusEnum("status").notNull().default("pending"),
   contractorAgreementSignedAt: timestamp("contractor_agreement_signed_at", { withTimezone: true }),
+  leadPreviousTier: repTierEnum("lead_previous_tier"),
+  leadPromotedAt: timestamp("lead_promoted_at", { withTimezone: true }),
+  leadDemotedAt: timestamp("lead_demoted_at", { withTimezone: true }),
+  leadDemotionReason: varchar("lead_demotion_reason", { length: 300 }),
+  leadEligibilitySyncedAt: timestamp("lead_eligibility_synced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -256,6 +261,16 @@ export const jobRuns = pgTable("job_runs", {
   resultJson: json("result_json"),
   error: varchar("error", { length: 1000 }),
 }, (t) => [uniqueIndex("job_run_slot_unique").on(t.jobKey, t.slotKey), index("job_run_started_idx").on(t.startedAt)]);
+
+export const rateLimitBuckets = pgTable("rate_limit_buckets", {
+  id: serial("id").primaryKey(),
+  keyHash: varchar("key_hash", { length: 64 }).notNull().unique(),
+  policy: varchar("policy", { length: 60 }).notNull(),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull(),
+  requestCount: integer("request_count").notNull().default(0),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("rate_limit_expiry_idx").on(t.expiresAt), index("rate_limit_policy_idx").on(t.policy, t.windowStartedAt)]);
 
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),

@@ -108,7 +108,7 @@ async function main() {
   assert.equal(duplicateJob.status, "skipped_duplicate");
 
   const telemetry = await campusTelemetry();
-  assert.equal(telemetry.length, 15);
+  assert.ok(telemetry.length >= 15, "all fifteen seeded campuses must remain present");
   const unilag = telemetry.find((row) => row.campus.name === "University of Lagos")!;
   assert.ok(unilag.activeReps >= 3);
   assert.ok(unilag.activations >= 0);

@@ -1,14 +1,15 @@
 import { and, desc, eq, lte } from "drizzle-orm";
-import { commissionRuleDrafts, jobRuns } from "@db/schema";
+import { commissionRuleDrafts, jobRuns, rateLimitBuckets } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { confirmDueDeals, dispatchDuePayouts, runPayoutBatch } from "./ledger";
 import { dailyPayoutSlotKey, isDailyPayoutWindow } from "./payoutPolicy";
 import { expireRecruitments } from "./recruiting";
 import { syncSlaBreaches } from "./support";
+import { recalculateCampusLeadEligibility } from "./leadEligibility";
 import { log } from "../lib/logger";
 
-export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch"] as const;
-export type JobKey = typeof JOB_KEYS[number] | "payout_batch";
+export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup"] as const;
+export type JobKey = typeof JOB_KEYS[number] | "payout_batch" | "lead_eligibility";
 
 export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
   const db = getDb();
@@ -40,6 +41,14 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
       const batch = await runPayoutBatch();
       result = batch;
       processedCount = batch.results.filter((row) => row.status === "queued").length;
+    } else if (jobKey === "lead_eligibility") {
+      const eligibility = await recalculateCampusLeadEligibility();
+      result = eligibility;
+      processedCount = eligibility.demoted;
+    } else if (jobKey === "rate_limit_cleanup") {
+      const deleted = await db.delete(rateLimitBuckets).where(lte(rateLimitBuckets.expiresAt, new Date())).returning({ id: rateLimitBuckets.id });
+      result = { deleted: deleted.length };
+      processedCount = deleted.length;
     } else {
       result = await expireRecruitments();
       processedCount = Number(result.expired || 0);
@@ -60,6 +69,9 @@ export async function runDueJobs(trigger: "manual" | "schedule" = "manual") {
   const results = [];
   if (trigger === "schedule" && isDailyPayoutWindow(now)) {
     results.push(await runDurableJob("payout_batch", trigger, dailyPayoutSlotKey(now)));
+  }
+  if (trigger === "schedule") {
+    results.push(await runDurableJob("lead_eligibility", trigger, now.toISOString().slice(0, 13)));
   }
   for (const jobKey of JOB_KEYS) results.push(await runDurableJob(jobKey, trigger, slot));
   return { trigger, slot, results };

@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 4 settlement vertical slice**. It is not production certification, a live financial integration, evidence of a real fifteen-campus rollout, or completion of the NestJS/Redis target architecture.
+This repository contains an executable **Phase 5 operational-safeguards vertical slice**. It is not production certification, a live financial integration, evidence of a real fifteen-campus rollout, or completion of the NestJS/Redis target architecture.
 
 ## Product thesis
 
@@ -63,6 +63,15 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - The PostgreSQL worker dispatches due retries and claims one daily 09:00 WAT assembly slot; this remains a minute-based worker rather than Redis/BullMQ.
 - Three-way reconciliation compares external-bank ledger credits, successful sandbox attempts and an explicitly supplied sandbox bank figure. Exact matches, ₦1,000 tolerance and variance reports are append-only.
 
+### Phase 5 operational safeguards
+
+- Atomic PostgreSQL fixed-window throttling protects OTP request/verification, demo login, recruitment inspection and vendor-event routes. Over-limit requests return HTTP 429 with `Retry-After`; only SHA-256 policy/subject/window hashes persist.
+- Lightweight liveness and database-backed readiness routes are available at `/api/health/live` and `/api/health/ready`. Responses explicitly identify sandbox mode.
+- Campus Lead eligibility recalculation runs in a deduplicated hourly durable slot and through an Operations control. Ineligible leads are demoted under row locks to their prior tier; active assignments and open invitations are revoked, with audit and notification records.
+- Demotion preserves historical override and ledger rows while disabling future team management and override accrual. It never rewrites settlement history or automatically promotes a replacement.
+- Expired rate-limit buckets are removed by a durable cleanup job without deleting active buckets.
+- PostgreSQL custom-format backup and isolated restore scripts validate the backup manifest, restore only into a newly created sandbox database, compare schema/data counts and leave source records unchanged.
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -82,7 +91,7 @@ Open `http://localhost:3000`. The workspace selector provides four seeded identi
 - **Campus Lead:** Ada, with team, recruiting, override and support-triage views.
 - **Team rep:** Tobi, with attribution, earnings and owned-support workflows.
 - **Vendor partner:** CampusSave, with Rule Studio, escrow, event simulation and support resolution.
-- **Operations:** settlement, support escalation, campus rollout/activation, durable jobs, top-decile designation and override monitoring.
+- **Operations:** settlement, support escalation, campus rollout/activation, durable jobs, top-decile designation/recalculation, demotion and override monitoring.
 
 The OTP form is also a sandbox adapter and displays its code on screen. Seeded verified status is not live NIN verification.
 
@@ -90,15 +99,18 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # money, security, rule, override, support and payout-policy unit tests
+npm test                       # all 28 policy and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
 npx tsx scripts/verify-phase3.ts # operational, immutability and concurrency acceptance
 npx tsx scripts/verify-phase4.ts # payout retry, recovery and reconciliation acceptance
+npx tsx scripts/verify-phase5.ts # throttling, health, cleanup and lead-demote acceptance
+npm run db:backup -- backups/sandbox.dump
+KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
 
-The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database.
+The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
 
 ## End-to-end sandbox exercise
 
@@ -109,6 +121,7 @@ The acceptance scripts create unique sandbox records and are designed to remain 
 5. Assemble the payout batch, dispatch due attempts and record explicit sandbox outcomes. Inspect the rep, lead, escrow, state and audit records; only successful outcomes mark entitlements paid.
 6. Enter a sandbox bank total to record three-way reconciliation, then send a vendor `refund` to exercise direct clawback and lead-override reversal.
 7. As Tobi, open a support case for the owned deal. Escalate directly to the vendor or through Ada; resolve as vendor/Ops and submit one-time CSAT as Tobi.
+8. In Operations → Campus leads, recalculate eligibility and inspect the resulting tier, revocation, notification and audit records. Check `/api/health/live` and `/api/health/ready` for sandbox health signals.
 
 The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 rep gross and ₦200 platform fee. If that deal belongs to Ada’s team, Ada also accrues a ₦40 override and KampusForce retains ₦160 platform margin. Later published rules change only future deals.
 
@@ -118,43 +131,50 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - No real payment, KYC, tax remittance or regulatory approval is created by this software.
 - Raw NIN/BVN must never be persisted. Customer KYC remains in the vendor’s regulated flow.
 - Customer phone numbers are normalized and salted-hashed for attribution and structured support records; stored webhook payloads redact phone values.
-- Durable minute-based jobs cover confirmation, draft expiry, SLA breaches, invite expiry, payout retries and a deduplicated 09:00 WAT assembly slot. This is not Redis/BullMQ or external alert delivery.
+- Durable minute-based jobs cover confirmation, draft expiry, SLA breaches, invite expiry, payout retries, rate-limit cleanup, hourly lead eligibility and a deduplicated 09:00 WAT assembly slot. This is not Redis/BullMQ or external alert delivery.
+- Rate limiting uses atomic PostgreSQL fixed windows and hashed local subjects. It is not a distributed edge/WAF control, and production proxy/IP trust still requires review.
+- Backup/restore evidence is a local sandbox drill, not an offsite backup policy, point-in-time recovery, high availability or an incident-response certification.
 - Payout outcomes and reconciliation bank totals are explicit sandbox inputs. They are not signed live-provider callbacks or actual bank statements.
 - Recruiting acceptance does not itself activate a recruit; Operations activation uses a sandbox identity adapter. Seeded Campus Lead status and campus fixtures are workflow evidence—not real performance or rollout outcomes.
 - Replace fallback sandbox secrets and disable demo login, event simulation, time advancement and sandbox transfers before production.
-- Production requires signed live-provider callbacks, authenticated provider/bank reconciliation evidence, live KYC, external notifications, rate limiting, secrets management, monitoring, backup/restore, legal review and compliance evidence.
+- Production requires signed live-provider callbacks, authenticated provider/bank reconciliation evidence, live KYC, external notifications, edge/distributed abuse controls, secrets management, monitoring, scheduled offsite recovery policy, legal review and compliance evidence.
 
 ## Runtime architecture
 
 React 19 + TypeScript + Vite + Tailwind; Hono + tRPC 11 + SuperJSON; Drizzle ORM + PostgreSQL 16 via `pg`; JWT via `jose`; QR via `qrcode`; Vitest.
 
-The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md) and [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md).
+The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot, atomic rate-limit counters and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md), [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md) and [ADR 006](docs/adr/006-phase-5-operational-safeguards.md).
 
 Key paths:
 
 - `db/schema.ts` and `db/migrations/` — persistence model and additive migrations
-- `api/services/` — attribution, events, rules, overrides, support, ledger, recruiting, telemetry, jobs, notifications, money and security
+- `api/services/` — attribution, events, rules, overrides, support, ledger, recruiting, telemetry, jobs, lead eligibility, rate limiting, notifications, money and security
 - `api/routes/webhooks.ts` — signed vendor webhook
 - `api/routes/links.ts` — signed public product redirect
+- `api/routes/health.ts` — sandbox liveness and database-backed readiness
 - `src/pages/` — rep, Campus Lead, vendor, operations and scorecard interfaces
-- `scripts/verify-phase2.ts`, `scripts/verify-phase3.ts` and `scripts/verify-phase4.ts` — repeatable database-backed acceptance journeys
+- `scripts/verify-phase2.ts` through `scripts/verify-phase5.ts` — repeatable database-backed acceptance journeys
+- `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — Phase 4 scores plus preserved Phase 3, Phase 2 and Phase 1 baselines
+- `docs/implementation-scorecard.md` — Phase 5 scores plus preserved Phase 4, Phase 3, Phase 2 and Phase 1 baselines
 
 ## Verification status
 
 - TypeScript check: passed.
 - Production build and bundled-server smoke: passed.
-- Unit tests: 23 passed.
+- Unit tests: 28 passed.
 - Live PostgreSQL 16 Phase 2 regression: historical rules, publication, overrides, combined payout, paid reversal, support, CSAT, SLA and redaction passed.
-- Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, fifteen-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
+- Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, seeded-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
 - Live PostgreSQL 16 Phase 4 journey: reservation without settlement, duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback, Finance recovery, idempotent success, reconciliation and refund-before-settlement hold passed.
+- Live PostgreSQL 16 Phase 5 journey: exact concurrent counter sequencing, sensitive-route 429/`Retry-After`, hashed subjects, selective expiry cleanup, health/readiness, eligible-lead retention, row-locked demotion, prior-tier restoration, revocation, notification/audit and historical-override preservation passed.
+- Backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts; source counts remained unchanged.
 - Five simultaneous payout batches produced exactly one reservation for the new test rep; two concurrent publishers produced one winner. Duplicate success outcomes did not duplicate ledger postings.
 - Cross-vendor support resolution and duplicate CSAT were rejected.
 - Browser Rule Studio dry run/publication and role workspaces passed. The full recruiting journey also passed: private public inspection, phone-bound OTP, consent-gated acceptance, separate Operations activation, team assignment and activation notification.
 - Recruiting acceptance, campus team, campus rollout, notifications and implementation score passed at 375px without page overflow. Mobile header overlap was fixed, and notification dismissal was verified.
 - Phase 4 Operations passed desktop outcome/reconciliation interactions and a 375px check with zero document overflow, console errors or HTTP errors.
-- The isolated production bundle passed root, manifest, service-worker and API smoke checks without an external `node_modules` directory.
+- Phase 5 Operations passed desktop and 375px recalculation interactions; Operations and the 84/100 scorecard both measured exactly 375px document width with zero console or HTTP errors.
+- The isolated production bundle passed root, manifest, service-worker, liveness and database-readiness smoke checks without an external `node_modules` directory.
 - Production dependency audit: zero known vulnerabilities at assessment time.
 - Roadmap metrics such as 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes and 136k activated customers remain planning gates, not achieved evidence.
 

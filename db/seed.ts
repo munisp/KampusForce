@@ -58,7 +58,11 @@ async function main() {
     [teamRep] = await db.select().from(reps).where(eq(reps.id, id)).limit(1);
   }
   const [assignment] = await db.select().from(campusLeadAssignments).where(and(eq(campusLeadAssignments.leadRepId, leadRep.id), eq(campusLeadAssignments.repId, teamRep.id))).limit(1);
-  if (!assignment) await db.insert(campusLeadAssignments).values({ leadRepId: leadRep.id, repId: teamRep.id, campusId: campus.id });
+  if (!assignment) {
+    await db.insert(campusLeadAssignments).values({ leadRepId: leadRep.id, repId: teamRep.id, campusId: campus.id });
+  } else if (assignment.revokedAt) {
+    await db.update(campusLeadAssignments).set({ revokedAt: null }).where(eq(campusLeadAssignments.id, assignment.id));
+  }
 
   const vendorSeeds = [
     { companyName: "CampusSave", webhookKey: "campussave_sandbox", webhookSecret: "sandbox_campussave_hmac_secret", userId: createdUsers[1].id },

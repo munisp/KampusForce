@@ -30,6 +30,8 @@ dist-ssr
 *.db
 *.sqlite
 *.sqlite3
+backups/
+*.dump
 # TypeScript cache
 *.tsbuildinfo
 # Build outputs

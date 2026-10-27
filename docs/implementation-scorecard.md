@@ -1,7 +1,49 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 4 settlement vertical slice, with the Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+Scope: executable Phase 5 operational-safeguards vertical slice, with the Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+
+## Phase 5 assessment
+
+The unweighted mean across 16 workstreams is **84/100** (exact mean **84.0625**). Phase 5 adds atomic sensitive-route throttling, health/readiness, hourly and manual Campus Lead recalculation, row-locked demotion, rate-limit cleanup and a non-destructive backup/isolated-restore drill. The score still excludes live-provider, real-bank, real-campus, production-operations and target-architecture credit.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 95 | Exact dry runs, expiry worker, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, load evidence and vendor team permissions |
+| Vendor funnel & command | 86 | Vendor-scoped escrow, event simulation, full funnel, support metrics and quality | Live reconciliation exports and team permissions |
+| Campus recruiting & team management | 91 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment, notifications and sensitive-route throttling | Live identity provider and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, hourly/manual recalculation and row-locked demotion with prior-tier restoration, revocation, notification and audit | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings; demotion preserves history and stops future accrual | Live formal reconciliation and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, support-specific alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 91 | Vendor-specific targets, approved macros, one-time CSAT, quality updates and durable idempotent SLA scheduling | Alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 88 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Token-verification hardening, abuse controls and deep-link telemetry |
+| Event ingestion & historical rules | 90 | HMAC/timestamp/dedupe/quarantine, active-rule selection, immutable deal economics and vendor-event throttling | Durable ingestion queue, retries, key rotation and replay retention |
+| Escrow, payout & clawbacks | 96 | Locked reservation, dispatch and settlement; three retries with fallback; Finance replacement recovery; idempotent success; refund-before-settlement hold | Live signed callbacks, provider evidence and configurable production tax policy |
+| Security, privacy & RBAC | 86 | Existing scopes/hashes/redaction plus atomic fixed-window limits, hashed subjects, 429/`Retry-After`, selective cleanup and health/readiness | Production proxy/IP trust, edge/WAF controls, secrets, DPIA/DPO and penetration test |
+| Offline & installable shell | 70 | Manifest, icons, app-shell cache and offline last-viewed catalog | Install analytics and broader read-only offline support |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived operational telemetry | Real campus cohorts and measured roadmap KPI attainment |
+| Automated verification | 98 | PostgreSQL 16 CI, 28 unit tests, four database journeys and isolated backup/restore verification covering money, concurrency, throttling, demotion and reconciliation | Browser/load/cross-browser suites and isolated preview-environment evidence |
+| Target architecture & scale services | 53 | PostgreSQL 16, row locks, durable job claims, atomic counters, health routes and scheduled cleanup | NestJS parity, Redis/BullMQ and all later distributed services |
+| Live providers & production operations | 55 | Explicit sandbox finance adapters, health/readiness and non-destructive local backup with isolated restore verification | Live KYC/payment, real bank statements, offsite recovery policy, monitoring and incident response |
+
+### Phase 5 verification evidence
+
+- Additive migration `0003` adds nullable lead-eligibility history fields and the rate-limit bucket table/indexes; it contains no drops or destructive operations.
+- Thirty-two concurrent counter calls produced the exact sequence 1–32: 24 allowed and eight throttled. The actual OTP route returned five 200 responses followed by 429 with a valid `Retry-After`; persisted keys contained hashes, not raw IP subjects.
+- Expired buckets were deleted while active buckets remained. Liveness and database-backed readiness returned 200 in sandbox mode.
+- An eligible signed top-decile lead was retained. An ineligible lead was demoted from Campus Lead to its previous gold tier; its assignment and open invitation were revoked, notification/audit records were written, and its existing override and five deal-ledger postings remained unchanged.
+- A subsequent confirmed team deal created no new override for the demoted lead. Two claims for one hourly lead-eligibility slot produced one succeeded run and one duplicate skip.
+- A custom-format PostgreSQL 16 backup passed manifest validation and restored into a new isolated database. Users, reps, products, deals, ledger, audit, rate-limit, migration and trigger counts matched; the source counts did not change.
+- All 28 unit tests, TypeScript, ESLint, production build, repeated seed, Phase 2–5 journeys and production dependency audit pass. CI includes all four journeys and the recovery drill.
+- Desktop and 375px Operations recalculation interactions passed. Operations and the 84/100 scorecard measured exactly 375px document width with no console or HTTP errors. The standalone production bundle passed root, manifest, service-worker and health/readiness smoke checks.
+
+### Remaining production and architecture gates
+
+1. Connect live KYC/payment providers with signed callback verification and replace sandbox outcome controls and supplied bank figures with authenticated provider/bank evidence.
+2. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
+3. Add reviewed proxy/IP trust and edge/distributed abuse controls, production secrets, monitoring, scheduled offsite recovery, point-in-time recovery and incident response.
+4. Replace campus fixtures and sandbox outcomes with real cohort and rollout evidence before claiming roadmap KPI attainment.
+5. Complete privacy/security/legal review, privileged-access review and financial-narrative reconciliation before investor or production use.
 
 ## Phase 4 assessment
 

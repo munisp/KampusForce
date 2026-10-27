@@ -10,7 +10,9 @@ import { handleClientLog } from "./lib/clientlog";
 import { REQUEST_ID_HEADER, runWithRequestId } from "./lib/requestcontext";
 import { webhookRoutes } from "./routes/webhooks";
 import { linkRoutes } from "./routes/links";
+import { healthRoutes } from "./routes/health";
 import { startDurableWorker } from "./services/jobs";
+import { ipRateLimit, rateLimit } from "./services/rateLimit";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -52,6 +54,19 @@ app.use("*", async (c, next) => {
   });
 });
 
+// Sensitive public procedures use fixed-window PostgreSQL counters. Only hashed
+// policy/subject/window keys are stored; raw IP addresses and phone numbers are not.
+app.use("/api/trpc/auth.requestOtp", ipRateLimit("otp_request", 5, 10 * 60));
+app.use("/api/trpc/auth.verifyOtp", ipRateLimit("otp_verify", 20, 10 * 60));
+app.use("/api/trpc/auth.demoLogin", ipRateLimit("demo_login", 60, 10 * 60));
+app.use("/api/trpc/recruitment.inspect", ipRateLimit("recruitment_inspect", 30, 10 * 60));
+app.use("/v1/webhooks/:vendorKey/events", rateLimit({
+  policy: "vendor_event",
+  limit: 120,
+  windowSeconds: 60,
+  subject: (c) => c.req.param("vendorKey") || "unknown_vendor",
+}));
+
 // Scoped to the tRPC route, NOT global: on the dev server (@hono/vite-dev-server)
 // a global bodyLimit breaks bodyless requests. Hono's bodyLimit reads any truthy
 // request stream to the end and then rebuilds the Request with `new Request(raw,
@@ -79,6 +94,7 @@ app.post(
 );
 app.route("/v1/webhooks", webhookRoutes);
 app.route("/l", linkRoutes);
+app.route("/api/health", healthRoutes);
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 // Unhandled request errors must reach /tmp/kimi-logs/app.log, not just stdout:

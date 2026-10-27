@@ -29,27 +29,11 @@ import {
   recoverFailedPayout,
   runPayoutBatch,
 } from "./services/ledger";
-import { rankTopDecile } from "./services/overrides";
+import { campusLeadRankings, recalculateCampusLeadEligibility } from "./services/leadEligibility";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { activateRecruitment, revokeRecruitment } from "./services/recruiting";
 import { recentJobRuns, runDueJobs } from "./services/jobs";
 import { campusTelemetry } from "./services/telemetry";
-
-async function campusLeadRankings() {
-  const db = getDb();
-  const allReps = await db.select({ rep: reps, user: users, campus: campuses }).from(reps)
-    .innerJoin(users, eq(reps.userId, users.id)).innerJoin(campuses, eq(reps.campusId, campuses.id));
-  const allDeals = await db.select().from(deals);
-  const campusIds = [...new Set(allReps.map((row) => row.rep.campusId))];
-  return campusIds.flatMap((campusId) => {
-    const campusReps = allReps.filter((row) => row.rep.campusId === campusId && row.rep.status === "active");
-    const ranked = rankTopDecile(campusReps.map((row) => {
-      const repDeals = allDeals.filter((deal) => deal.repId === row.rep.id && ["confirmed", "payable", "paid"].includes(deal.state));
-      return { repId: row.rep.id, campusId, confirmedCommissionKobo: repDeals.reduce((sum, deal) => sum + deal.repCommissionKobo, 0), activationCount: repDeals.length };
-    }));
-    return ranked.map((ranking) => ({ ...ranking, rep: campusReps.find((row) => row.rep.id === ranking.repId)!.rep, user: campusReps.find((row) => row.rep.id === ranking.repId)!.user }));
-  });
-}
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -153,13 +137,24 @@ export const opsRouter = createRouter({
     requireRole(ctx.user, ["ops", "admin"]);
     return revokeRecruitment({ recruitmentId: input.recruitmentId, actorUserId: ctx.user.id });
   }),
+  recalculateLeads: authedQuery.mutation(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return recalculateCampusLeadEligibility(ctx.user.id);
+  }),
   promoteLead: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     const ranking = (await campusLeadRankings()).find((row) => row.repId === input.repId);
     if (!ranking) throw new TRPCError({ code: "NOT_FOUND", message: "Active campus rep not found" });
     if (!ranking.topDecileEligible) throw new TRPCError({ code: "FORBIDDEN", message: `Rep ranks #${ranking.rank}; only the campus top decile is eligible` });
     if (!ranking.rep.contractorAgreementSignedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Campus leads must have a signed contractor agreement" });
-    await getDb().update(reps).set({ tier: "campus_lead" }).where(eq(reps.id, input.repId));
+    await getDb().update(reps).set({
+      tier: "campus_lead",
+      leadPreviousTier: ranking.rep.tier === "campus_lead" ? ranking.rep.leadPreviousTier : ranking.rep.tier,
+      leadPromotedAt: new Date(),
+      leadDemotedAt: null,
+      leadDemotionReason: null,
+      leadEligibilitySyncedAt: new Date(),
+    }).where(eq(reps.id, input.repId));
     await getDb().insert(auditLogs).values({ actorUserId: ctx.user.id, action: "campus_lead.promoted", entityType: "rep", entityId: String(input.repId), metadataJson: { campusId: ranking.campusId, rank: ranking.rank, confirmedCommissionKobo: ranking.confirmedCommissionKobo, contractorStatus: "contractor_not_employee" } });
     return { repId: input.repId, tier: "campus_lead" as const, rank: ranking.rank, topDecileEligible: true };
   }),
