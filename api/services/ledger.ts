@@ -254,11 +254,16 @@ export async function dispatchDuePayouts(actorUserId?: number) {
   return { due: due.length, dispatched: results.filter((result) => result.status === "processing").length, results };
 }
 
-export async function recordSandboxPayoutOutcome(input: {
+async function recordPayoutOutcome(input: {
   payoutId: number;
   outcome: "success" | "failure";
-  actorUserId: number;
+  actorUserId: number | null;
   failureCode?: string;
+  mode: "sandbox" | "live";
+  provider?: "paystack" | "flutterwave";
+  providerRef?: string;
+  providerEventId?: string;
+  amountNetKobo?: number;
 }) {
   const outcome = await db().transaction(async (tx) => {
     const [payout] = await tx.select().from(payouts).where(eq(payouts.id, input.payoutId)).limit(1).for("update");
@@ -271,11 +276,19 @@ export async function recordSandboxPayoutOutcome(input: {
     if (payout.state !== "processing" || !attempt || attempt.state !== "initiated") {
       throw new Error("Payout has no initiated attempt awaiting an outcome");
     }
+    if (input.mode === "live") {
+      if (!input.provider || attempt.provider !== input.provider || attempt.providerRef !== input.providerRef) {
+        throw new Error("Verified provider reference does not match the initiated payout attempt");
+      }
+      if (!Number.isSafeInteger(input.amountNetKobo) || input.amountNetKobo !== payout.amountNetKobo) {
+        throw new Error("Verified provider amount does not match the payout net amount");
+      }
+    }
     const [rep] = await tx.select().from(reps).where(eq(reps.id, payout.repId)).limit(1);
     const [user] = rep ? await tx.select().from(users).where(eq(users.id, rep.userId)).limit(1) : [];
 
     if (input.outcome === "failure") {
-      const failureCode = input.failureCode?.trim().slice(0, 120) || "sandbox_declined";
+      const failureCode = input.failureCode?.trim().slice(0, 120) || (input.mode === "live" ? "provider_failed" : "sandbox_declined");
       const exhausted = payout.attempts >= MAX_PAYOUT_ATTEMPTS;
       const retryAt = exhausted ? null : new Date(Date.now() + retryDelayMinutes(payout.attempts) * 60_000);
       await tx.update(payoutAttempts).set({ state: "failed", failureCode, completedAt: new Date() }).where(eq(payoutAttempts.id, attempt.id));
@@ -290,7 +303,7 @@ export async function recordSandboxPayoutOutcome(input: {
         action: exhausted ? "payout.retries_exhausted" : "payout.retry_scheduled",
         entityType: "payout",
         entityId: String(payout.id),
-        metadataJson: { attemptId: attempt.id, attemptNo: attempt.attemptNo, provider: attempt.provider, failureCode, nextRetryAt: retryAt, financeFlagged: exhausted, mode: "sandbox_only" },
+        metadataJson: { attemptId: attempt.id, attemptNo: attempt.attemptNo, provider: attempt.provider, failureCode, nextRetryAt: retryAt, financeFlagged: exhausted, mode: input.mode, providerEventId: input.providerEventId || null },
       });
       return { payoutId: payout.id, status: exhausted ? "failed" as const : "queued" as const, attempts: payout.attempts, nextRetryAt: retryAt, financeFlagged: exhausted, userId: user?.id };
     }
@@ -328,7 +341,9 @@ export async function recordSandboxPayoutOutcome(input: {
     if (overrideDebit) entries.push({ payoutId: payout.id, account: "lead_override_payable", direction: "debit", amountKobo: overrideDebit, entryGroup: group });
     await tx.insert(ledgerEntries).values(entries);
     for (const deal of entitledDeals) {
-      await stateChange(tx, deal.id, "payable", "paid", `staff:${input.actorUserId}`, `Sandbox provider success ${attempt.providerRef}; no live bank transfer implied`);
+      await stateChange(tx, deal.id, "payable", "paid", input.actorUserId ? `staff:${input.actorUserId}` : "system:provider_webhook", input.mode === "live"
+        ? `Verified provider success ${attempt.providerRef}; event ${input.providerEventId || "recorded"}`
+        : `Sandbox provider success ${attempt.providerRef}; no live bank transfer implied`);
     }
     for (const override of entitledOverrides) {
       await tx.update(campusLeadOverrides).set({ state: "paid" }).where(eq(campusLeadOverrides.id, override.id));
@@ -340,26 +355,52 @@ export async function recordSandboxPayoutOutcome(input: {
       action: "payout.batch_completed",
       entityType: "payout",
       entityId: String(payout.id),
-      metadataJson: { attemptId: attempt.id, provider: attempt.provider, providerRef: attempt.providerRef, adjustedGross: payout.amountGrossKobo, net: payout.amountNetKobo, tax: payout.withholdingKobo, directDebit, overrideDebit, mode: "sandbox_only" },
+      metadataJson: { attemptId: attempt.id, provider: attempt.provider, providerRef: attempt.providerRef, adjustedGross: payout.amountGrossKobo, net: payout.amountNetKobo, tax: payout.withholdingKobo, directDebit, overrideDebit, mode: input.mode, providerEventId: input.providerEventId || null },
     });
     return { payoutId: payout.id, status: "paid" as const, netKobo: payout.amountNetKobo, userId: user?.id, idempotent: false };
   });
 
   if (outcome.userId && !("idempotent" in outcome && outcome.idempotent)) {
     const paid = outcome.status === "paid";
+    const live = input.mode === "live";
     await notifyUser({
       userId: outcome.userId,
       type: paid ? "payout_paid" : outcome.status === "held" ? "payout_held" : "payout_delayed",
-      title: paid ? "Sandbox payout completed" : outcome.status === "held" ? "Sandbox payout held" : "Sandbox payout delayed",
+      title: paid ? `${live ? "Payout" : "Sandbox payout"} completed` : outcome.status === "held" ? `${live ? "Payout" : "Sandbox payout"} held` : `${live ? "Payout" : "Sandbox payout"} delayed`,
       body: paid
-        ? `Your sandbox payout of ₦${((outcome.netKobo || 0) / 100).toLocaleString("en-NG")} was recorded. No live bank transfer is implied.`
-        : "The sandbox payout requires Operations review or a retry. No live bank transfer is implied.",
+        ? live
+          ? `Your verified payout of ₦${((outcome.netKobo || 0) / 100).toLocaleString("en-NG")} was marked paid from a signed provider outcome.`
+          : `Your sandbox payout of ₦${((outcome.netKobo || 0) / 100).toLocaleString("en-NG")} was recorded. No live bank transfer is implied.`
+        : live
+          ? "The payout requires Operations review or a provider retry. Review the attempt and reconciliation records."
+          : "The sandbox payout requires Operations review or a retry. No live bank transfer is implied.",
       href: "/rep/earnings",
       entityType: "payout",
       entityId: outcome.payoutId,
     });
   }
   return outcome;
+}
+
+export async function recordSandboxPayoutOutcome(input: {
+  payoutId: number;
+  outcome: "success" | "failure";
+  actorUserId: number;
+  failureCode?: string;
+}) {
+  return recordPayoutOutcome({ ...input, mode: "sandbox" });
+}
+
+export async function recordVerifiedProviderPayoutOutcome(input: {
+  payoutId: number;
+  outcome: "success" | "failure";
+  provider: "paystack" | "flutterwave";
+  providerRef: string;
+  providerEventId: string;
+  amountNetKobo: number;
+  failureCode?: string;
+}) {
+  return recordPayoutOutcome({ ...input, actorUserId: null, mode: "live" });
 }
 
 export async function recoverFailedPayout(payoutId: number, actorUserId: number) {

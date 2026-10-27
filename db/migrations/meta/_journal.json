@@ -57,6 +57,13 @@
       "when": 1793138651445,
       "tag": "0007_tiny_longshot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793142285142,
+      "tag": "0008_familiar_red_shift",
+      "breakpoints": true
     }
   ]
 }

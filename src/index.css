@@ -737,3 +737,8 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 
 /* Phase 9 reliability and route performance */
 .route-loading { min-height: 100dvh; display: grid; place-items: center; padding: 24px; color: var(--navy); background: var(--paper); font-weight: 700; }
+
+/* Phase 10 evidence-controlled launch readiness */
+.inline-filter { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+.inline-filter select { min-height: 32px; border: 1px solid var(--line); background: var(--paper); padding: 4px 8px; color: var(--navy); font-size: 10px; }
+.compact-list { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 18px; color: var(--muted); font-size: 10px; line-height: 1.55; }

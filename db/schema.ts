@@ -54,6 +54,9 @@ export const dsarStateEnum = pgEnum("dsar_state", ["received", "identity_verifie
 export const breachAssessmentStateEnum = pgEnum("breach_assessment_state", ["reported", "assessing", "decision_recorded", "closed"]);
 export const breachRiskEnum = pgEnum("breach_risk", ["low", "medium", "high"]);
 export const breachNotificationDecisionEnum = pgEnum("breach_notification_decision", ["pending", "not_required", "required"]);
+export const launchTrackEnum = pgEnum("launch_track", ["legal", "finance", "ops", "engineering", "product"]);
+export const launchGateStateEnum = pgEnum("launch_gate_state", ["not_started", "evidence_submitted", "approved", "rejected"]);
+export const providerWebhookStateEnum = pgEnum("provider_webhook_state", ["processed", "ignored", "quarantined"]);
 
 
 export const campuses = pgTable("campuses", {
@@ -476,6 +479,40 @@ export const breachAssessmentEvents = pgTable("breach_assessment_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("breach_assessment_event_idx").on(t.assessmentId, t.createdAt)]);
 
+export const launchGates = pgTable("launch_gates", {
+  id: serial("id").primaryKey(),
+  gateKey: varchar("gate_key", { length: 100 }).notNull().unique(),
+  track: launchTrackEnum("track").notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  requirement: text("requirement").notNull(),
+  evidenceHint: text("evidence_hint").notNull(),
+  state: launchGateStateEnum("state").notNull().default("not_started"),
+  required: boolean("required").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  evidenceReference: varchar("evidence_reference", { length: 500 }),
+  evidenceNote: text("evidence_note"),
+  submittedByUserId: integer("submitted_by_user_id").references(() => users.id),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvalReference: varchar("approval_reference", { length: 500 }),
+  rejectionNote: text("rejection_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("launch_gate_track_state_idx").on(t.track, t.state, t.sortOrder)]);
+
+export const launchGateEvents = pgTable("launch_gate_events", {
+  id: serial("id").primaryKey(),
+  gateId: integer("gate_id").notNull().references(() => launchGates.id),
+  actorUserId: integer("actor_user_id").notNull().references(() => users.id),
+  action: varchar("action", { length: 40 }).notNull(),
+  fromState: launchGateStateEnum("from_state"),
+  toState: launchGateStateEnum("to_state").notNull(),
+  note: text("note").notNull(),
+  evidenceJson: json("evidence_json").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("launch_gate_event_idx").on(t.gateId, t.createdAt)]);
+
 export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   id: serial("id").primaryKey(),
   keyHash: varchar("key_hash", { length: 64 }).notNull().unique(),
@@ -571,6 +608,20 @@ export const payoutAttempts = pgTable("payout_attempts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("payout_attempt_number_unique").on(t.payoutId, t.attemptNo), index("payout_attempt_payout_idx").on(t.payoutId, t.state)]);
+
+export const providerWebhookEvents = pgTable("provider_webhook_events", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  provider: varchar("provider", { length: 40 }).notNull(),
+  eventKey: varchar("event_key", { length: 64 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 80 }).notNull(),
+  payoutId: integer("payout_id").references(() => payouts.id),
+  payloadJson: json("payload_json").$type<Record<string, unknown>>().notNull(),
+  signatureVerified: boolean("signature_verified").notNull().default(false),
+  state: providerWebhookStateEnum("state").notNull().default("processed"),
+  quarantineReason: varchar("quarantine_reason", { length: 300 }),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+}, (t) => [index("provider_webhook_payout_idx").on(t.payoutId, t.receivedAt), index("provider_webhook_state_idx").on(t.state, t.receivedAt)]);
 
 export const reconciliationRuns = pgTable("reconciliation_runs", {
   id: serial("id").primaryKey(),

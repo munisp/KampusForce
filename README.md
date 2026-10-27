@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 9 performance, offline and ingestion-hardening vertical slice**. It is not production or legal-compliance certification, a live financial integration, evidence of a real fifteen-campus rollout, or completion of the NestJS/Redis target architecture.
+This repository contains an executable **Phase 10 integration and launch-readiness vertical slice**. It is not production or legal-compliance certification, a connected live financial integration, evidence of a real campus rollout, or completion of the NestJS/Redis target architecture.
 
 ## Product thesis
 
@@ -110,6 +110,14 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Route-level lazy loading reduced the initial browser JavaScript from approximately 573 kB to 326 kB before gzip. The service worker caches the shell, first-visit shared resources and visited route chunks.
 - Repeatable local acceptance covers signed HTTP throughput and a throttled six-step browser handoff. Results are sandbox measurements, not production-capacity or device-lab certification.
 
+### Phase 10 integration and launch readiness
+
+- A 25-item launch catalog covers Legal, Finance, Operations, Engineering and Product. Twenty-four gates are required; optional local load evidence earns no launch credit.
+- Evidence submission and independent approval/rejection are separate row-locked actions. Submitters cannot review their own evidence, and history is append-only. Approval records an external attestation—not verification of the external system or production readiness.
+- Secret-free Paystack/Flutterwave configuration reports presence and missing settings only. Guarded adapters validate transient bank inputs, use merchant-generated references and always return `settlementEligible: false` on acceptance.
+- Live execution fails closed without live mode, explicit cutover authorization, HTTPS and every required independent launch approval. Local readiness responses always report `productionReady: false`.
+- Paystack HMAC-SHA512 and Flutterwave verification-hash callbacks persist sanitized transfer metadata. Only an exact initiated provider/reference/net-kobo terminal outcome can settle; duplicates, reversals and ambiguities cannot create paid postings.
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -137,7 +145,7 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # all 41 policy and security unit tests
+npm test                       # all 49 policy and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
@@ -148,8 +156,10 @@ npx tsx scripts/verify-phase6.ts # incident detection, dedupe and response accep
 npx tsx scripts/verify-phase7.ts # DSAR, export, breach and privacy-monitoring acceptance
 npx tsx scripts/verify-phase8.ts # velocity, fraud holds, appeals and conduct acceptance
 npx tsx scripts/verify-phase9.ts # credential, retry, retention and replay acceptance
+npx tsx scripts/verify-phase10.ts # launch review and signed provider-outcome acceptance
 npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
 python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
+python scripts/verify-phase10-browser.py # launch/mobile/provider-guard gate; server required
 npm run db:backup -- backups/sandbox.dump
 KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
@@ -189,13 +199,14 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - Offline snapshots are read-only browser data on the current device. Private earnings snapshots clear on logout/user change; no offline financial/support mutation is synchronized. Local 3G/CPU and HTTP measurements are not real-device, staging, campus-network or production results.
 - Recruiting acceptance does not itself activate a recruit; Operations activation uses a sandbox identity adapter. Seeded Campus Lead status and campus fixtures are workflow evidence—not real performance or rollout outcomes.
 - Replace fallback sandbox secrets and disable demo login, event simulation, time advancement and sandbox transfers before production.
-- Production requires signed live-provider callbacks, authenticated provider/bank reconciliation evidence, live KYC, external notifications, edge/distributed abuse controls, secrets management, monitoring, scheduled offsite recovery policy, legal review and compliance evidence.
+- Provider adapters and signed test callbacks are implemented, but no live provider request or real bank outcome has occurred. Launch approvals are evidence attestations; they are not credentials, connectivity, legal/security certification or production authorization by themselves.
+- Production requires real provider credentials/connectivity, authenticated provider/bank reconciliation evidence, live KYC, external notifications, edge/distributed abuse controls, secrets management, monitoring, scheduled offsite recovery policy, legal review and compliance evidence.
 
 ## Runtime architecture
 
 React 19 + TypeScript + Vite + Tailwind; Hono + tRPC 11 + SuperJSON; Drizzle ORM + PostgreSQL 16 via `pg`; JWT via `jose`; QR via `qrcode`; Vitest.
 
-The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot, atomic rate-limit counters and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md), [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md), [ADR 006](docs/adr/006-phase-5-operational-safeguards.md), [ADR 007](docs/adr/007-phase-6-monitoring-incident-response.md) , [ADR 008](docs/adr/008-phase-7-privacy-operations.md), [ADR 009](docs/adr/009-phase-8-fraud-conduct-controls.md) and [ADR 010](docs/adr/010-phase-9-reliability-offline-ingestion.md).
+The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot, atomic rate-limit counters and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md), [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md), [ADR 006](docs/adr/006-phase-5-operational-safeguards.md), [ADR 007](docs/adr/007-phase-6-monitoring-incident-response.md) , [ADR 008](docs/adr/008-phase-7-privacy-operations.md), [ADR 009](docs/adr/009-phase-8-fraud-conduct-controls.md) and [ADR 010](docs/adr/010-phase-9-reliability-offline-ingestion.md) and [ADR 011](docs/adr/011-phase-10-integration-launch-readiness.md).
 
 Key paths:
 
@@ -204,20 +215,22 @@ Key paths:
 - `api/routes/webhooks.ts` — signed vendor webhook
 - `api/routes/links.ts` — signed public product redirect
 - `api/routes/health.ts` — sandbox liveness and database-backed readiness
+- `api/routes/providerPayouts.ts` — guarded signed provider callbacks
+- `api/services/launchReadiness.ts` — independent launch evidence review and fail-closed cutover guard
 - `src/pages/` — rep, Campus Lead, vendor, operations and scorecard interfaces
 - `src/components/product/PrivacyDesk.tsx` — Operations DSAR and breach workflows
 - `src/components/product/FraudDesk.tsx` and `RepFraudCases.tsx` — Operations review and representative appeal workflows
-- `scripts/verify-phase2.ts` through `scripts/verify-phase9.ts` — repeatable database-backed acceptance journeys
+- `scripts/verify-phase2.ts` through `scripts/verify-phase10.ts` — repeatable database-backed acceptance journeys
 - `scripts/load-phase9.ts` and `scripts/verify-phase9-browser.py` — signed HTTP, throttled-onboarding, offline, rotation and mobile acceptance
 - `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — Phase 9 scores plus preserved Phase 8 through Phase 1 baselines
+- `docs/implementation-scorecard.md` — Phase 10 scores plus preserved Phase 9 through Phase 1 baselines
 
 ## Verification status
 
 - TypeScript check: passed.
 - Production build and bundled-server smoke: passed.
-- Unit tests: 41 passed.
+- Unit tests: 49 passed.
 - Live PostgreSQL 16 Phase 2 regression: historical rules, publication, overrides, combined payout, paid reversal, support, CSAT, SLA and redaction passed.
 - Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, seeded-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
 - Live PostgreSQL 16 Phase 4 journey: reservation without settlement, duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback, Finance recovery, idempotent success, reconciliation and refund-before-settlement hold passed.
@@ -228,6 +241,8 @@ Key paths:
 - Live PostgreSQL 16 Phase 9 journey: credential overlap/expiry, secret-free audit metadata, transient retry recovery, permanent dead letters, concurrent retry resolution, 30-day payload purging, replay preservation and byte-equivalent financial snapshots passed.
 - Signed HTTP load acceptance: 100/100 events accepted at 60.63 events/second with p50/p95/p99 latency of 344/775/841 ms at concurrency 25. Local sandbox measurement only.
 - Phase 9 production-browser acceptance: six-step onboarding completed in 16.7 seconds under 400 ms RTT, 500 Kbps down/up and 4× CPU throttling; offline earnings/catalog reload, disabled mutations, private-snapshot cleanup, one-time credential rotation and 375px layout passed with zero runtime errors.
+- Live PostgreSQL 16 Phase 10 journey: 25/24 launch catalog, independent review, self-approval/credential-text rejection, fail-closed provider guards, exact signed outcome settlement, duplicate prevention, mismatch/reversal quarantine and raw-bank-value exclusion passed. No live provider request occurred.
+- Phase 10 production-browser acceptance: evidence submission, self-approval rejection, secret-free configuration, `productionReady: false`, sandbox HTTP 403 and 375px layout passed with zero runtime errors.
 - Backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts; source counts remained unchanged.
 - Five simultaneous payout batches produced exactly one reservation for the new test rep; two concurrent publishers produced one winner. Duplicate success outcomes did not duplicate ledger postings.
 - Cross-vendor support resolution and duplicate CSAT were rejected.
@@ -238,7 +253,7 @@ Key paths:
 - Phase 6 Operations passed desktop and 375px monitoring, review, acknowledgement, resolution and repeat-sweep interactions. Resolved records stayed resolved, append-only history and metrics refreshed, and both widths measured exactly their viewport width with zero console or HTTP errors. The 85/100 scorecard also passed at 375px with all 16 workstreams.
 - Phase 7 Operations passed DSAR registration, verification, review, JSON download and fulfilment plus breach intake, triage, Operations-owner decision and closure. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors; wide mobile queues remained contained in horizontal scrollers.
 - Phase 8 Operations and representative journeys passed manual case creation, strike uphold, appeal and release with complete history. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors. The 86/100 scorecard rendered all 16 workstreams.
-- The Phase 9 scorecard assesses all 16 workstreams at 88/100 (exact mean 87.9375); unfinished real-campus, live-provider and target-architecture work remains included in the score.
+- The Phase 10 scorecard assesses all 16 workstreams at 89/100 (exact mean 89.25); unfinished real-campus, live-provider and target-architecture work remains included in the score.
 - The isolated production bundle passed root, manifest, service-worker, liveness and database-readiness smoke checks without an external `node_modules` directory.
 - Production dependency audit: zero known vulnerabilities at assessment time.
 - Roadmap metrics such as 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes and 136k activated customers remain planning gates, not achieved evidence.

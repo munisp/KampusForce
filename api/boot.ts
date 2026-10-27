@@ -11,6 +11,7 @@ import { REQUEST_ID_HEADER, runWithRequestId } from "./lib/requestcontext";
 import { webhookRoutes } from "./routes/webhooks";
 import { linkRoutes } from "./routes/links";
 import { healthRoutes } from "./routes/health";
+import { providerPayoutRoutes } from "./routes/providerPayouts";
 import { startDurableWorker } from "./services/jobs";
 import { ipRateLimit, rateLimit } from "./services/rateLimit";
 
@@ -95,6 +96,7 @@ app.post(
 app.route("/v1/webhooks", webhookRoutes);
 app.route("/l", linkRoutes);
 app.route("/api/health", healthRoutes);
+app.route("/api/integrations/providers", providerPayoutRoutes);
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 // Unhandled request errors must reach /tmp/kimi-logs/app.log, not just stdout:

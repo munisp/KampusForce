@@ -1,7 +1,47 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 9 performance, offline and ingestion-hardening vertical slice, with the Phase 8, Phase 7, Phase 6, Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion, production AML capability or claim that the full multi-year target architecture is live.
+Scope: executable Phase 10 integration and launch-readiness vertical slice, with the Phase 9 through Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion, live-provider connection, production AML capability or claim that the full multi-year target architecture is live.
+
+## Phase 10 assessment
+
+The unweighted mean across 16 workstreams is **89/100** (exact mean **89.25**, improved from **87.9375** in Phase 9). Phase 10 adds guarded Paystack/Flutterwave adapters, signed and sanitized provider callbacks, exact provider/reference/amount settlement checks, a 25-item launch catalog and independent evidence review. Live credentials, connectivity, real bank evidence, legal/security approval, external operations and real campus outcomes still earn no completion credit.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 96 | Exact dry runs, configurable daily activation caps, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, vendor team permissions and live commercial controls |
+| Vendor funnel & command | 90 | Vendor-scoped escrow/funnel/support/reliability controls with launch evidence tracked separately | Live reconciliation exports, commercial evidence and team permissions |
+| Campus recruiting & team management | 91 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment, notifications and throttling | Live identity provider and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, recalculation and row-locked demotion with history preservation | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings | Live formal reconciliation and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, external alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 93 | Vendor-specific targets, approved macros, one-time CSAT, durable scheduling and source-linked incidents | External alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 91 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff; throttled local journey passed | Device-lab evidence, token-verification hardening and deep-link telemetry |
+| Event ingestion & historical rules | 97 | Vendor ingestion hardening plus signed provider callbacks, sanitized metadata, dedupe and quarantine | Live provider capacity, distributed queueing and broader fraud signals |
+| Escrow, payout & clawbacks | 98 | Existing financial controls plus exact initiated-provider/reference/net-kobo verification before live-outcome settlement | Real callbacks, authenticated bank evidence and configurable production tax policy |
+| Security, privacy & RBAC | 98 | Existing controls plus independent launch review, secret-free configuration and fail-closed live execution | Production identity/secrets/edge controls, legal review, penetration test and AML scope |
+| Offline & installable shell | 90 | Read-only offline catalog/earnings, disabled mutations, private cleanup and route-level loading | Device-lab, install analytics and broader read-only coverage |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived operational telemetry | Real campus cohorts, independently reviewed evidence and full-quarter KPI attainment |
+| Automated verification | 99 | PostgreSQL 16 CI, 49 unit tests, nine database journeys, isolated restore, signed load and desktop/mobile provider-launch acceptance | Cross-browser, staging and isolated preview-environment performance evidence |
+| Target architecture & scale services | 58 | PostgreSQL 16, row locks, durable jobs/retries, atomic counters and local load gate | NestJS parity, Redis/BullMQ and later distributed services |
+| Live providers & production operations | 79 | Guarded Paystack/Flutterwave adapters, signed outcomes and a 25-item evidence-controlled launch register | Live credentials/connectivity, real bank evidence, external monitoring, legal/security approval and production recovery |
+
+### Phase 10 verification evidence
+
+- Additive migration `0008` creates launch-track/state and provider-webhook enums, launch gates/history and sanitized provider-event records without dropping financial records.
+- The launch register contains 25 items, of which 24 are required. Submission and decision are separate, self-approval is rejected and `productionReady` remains `false`. Approval records an external attestation, not external-system verification.
+- Live execution requires live mode, explicit cutover authorization, HTTPS and every required independent approval. Sandbox and incomplete-approval checks fail closed; no provider request occurred.
+- Paystack uses kobo and Flutterwave uses NGN major units at the adapter boundary. Both retain the merchant-generated transfer reference; adapter acceptance always returns `settlementEligible: false`.
+- Signed test callbacks settle only exact initiated provider/reference/net-kobo matches. Duplicate success creates no additional posting; amount mismatches, unknown outcomes and reversals quarantine without paid postings. Invalid signatures cannot poison later valid dedupe.
+- All 49 unit tests, ordered Phase 2–10 regressions, isolated restore, desktop/375px browser acceptance and standalone bundled-server smoke passed. Provider routes returned HTTP 403 in sandbox mode and no raw bank-account value persisted.
+
+### Remaining production and architecture gates
+
+1. Supply real credentials and execute provider connectivity, recipient, transfer, callback, funding and authenticated bank-reconciliation acceptance outside the sandbox.
+2. Obtain independent Legal, Finance, Operations, Engineering and Product approvals; a local attestation is not the underlying legal, security or production evidence.
+3. Add external secrets management, monitoring/paging, offsite/PITR recovery and measured staging/provider-capacity evidence.
+4. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
+5. Implement and independently review real campus cohort and full-quarter KPI evidence before claiming roadmap attainment or national rollout.
 
 ## Phase 9 assessment
 

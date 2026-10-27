@@ -50,6 +50,12 @@ import {
 } from "./services/privacy";
 import { isBreachTriageOverdue, isDsarOverdue } from "./services/privacyPolicy";
 import { createOperationsFraudCase, listFraudDesk, reviewFraudCase } from "./services/fraud";
+import {
+  approveLaunchGate,
+  getLaunchReadiness,
+  rejectLaunchGate,
+  submitLaunchGateEvidence,
+} from "./services/launchReadiness";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -304,6 +310,34 @@ export const opsRouter = createRouter({
     const [ticket] = await getDb().select().from(supportTickets).where(eq(supportTickets.id, input.ticketId)).limit(1);
     if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Support ticket not found" });
     return { ticket, events: await ticketEvents(ticket.id) };
+  }),
+  launchReadiness: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return getLaunchReadiness();
+  }),
+  submitLaunchEvidence: authedQuery.input(z.object({
+    gateId: z.number().int().positive(),
+    evidenceReference: z.string().trim().min(3).max(500),
+    note: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return submitLaunchGateEvidence({ ...input, actorUserId: ctx.user.id });
+  }),
+  approveLaunchEvidence: authedQuery.input(z.object({
+    gateId: z.number().int().positive(),
+    approvalReference: z.string().trim().min(3).max(500),
+    note: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return approveLaunchGate({ ...input, actorUserId: ctx.user.id });
+  }),
+  rejectLaunchEvidence: authedQuery.input(z.object({
+    gateId: z.number().int().positive(),
+    rejectionReference: z.string().trim().min(3).max(500),
+    note: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return rejectLaunchGate({ ...input, actorUserId: ctx.user.id });
   }),
   resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
