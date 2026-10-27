@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">KampusForce</title>
+  <rect width="512" height="512" rx="96" fill="#102a43"/>
+  <path d="M138 100h82v126l116-126h98L304 244l136 168h-104l-116-150v150h-82z" fill="#f4b942"/>
+  <path d="M104 444h304" stroke="#0e7c7b" stroke-width="20" stroke-linecap="round"/>
+</svg>
