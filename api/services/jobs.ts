@@ -7,9 +7,11 @@ import { expireRecruitments } from "./recruiting";
 import { syncSlaBreaches } from "./support";
 import { recalculateCampusLeadEligibility } from "./leadEligibility";
 import { log } from "../lib/logger";
+import { monitorOperationalSignals } from "./incidents";
+import { monitoringSlotKey } from "./incidentPolicy";
 
 export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup"] as const;
-export type JobKey = typeof JOB_KEYS[number] | "payout_batch" | "lead_eligibility";
+export type JobKey = typeof JOB_KEYS[number] | "payout_batch" | "lead_eligibility" | "monitoring_sweep";
 
 export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
   const db = getDb();
@@ -45,6 +47,10 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
       const eligibility = await recalculateCampusLeadEligibility();
       result = eligibility;
       processedCount = eligibility.demoted;
+    } else if (jobKey === "monitoring_sweep") {
+      const monitored = await monitorOperationalSignals();
+      result = monitored;
+      processedCount = monitored.created + monitored.updated;
     } else if (jobKey === "rate_limit_cleanup") {
       const deleted = await db.delete(rateLimitBuckets).where(lte(rateLimitBuckets.expiresAt, new Date())).returning({ id: rateLimitBuckets.id });
       result = { deleted: deleted.length };
@@ -72,6 +78,7 @@ export async function runDueJobs(trigger: "manual" | "schedule" = "manual") {
   }
   if (trigger === "schedule") {
     results.push(await runDurableJob("lead_eligibility", trigger, now.toISOString().slice(0, 13)));
+    results.push(await runDurableJob("monitoring_sweep", trigger, monitoringSlotKey(now)));
   }
   for (const jobKey of JOB_KEYS) results.push(await runDurableJob(jobKey, trigger, slot));
   return { trigger, slot, results };

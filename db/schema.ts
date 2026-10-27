@@ -41,6 +41,8 @@ export const assistedSessionStatusEnum = pgEnum("assisted_session_status", ["act
 export const disputeStateEnum = pgEnum("dispute_state", ["open", "reviewing", "resolved", "rejected"]);
 export const supportPriorityEnum = pgEnum("support_priority", ["normal", "urgent"]);
 export const supportTicketStateEnum = pgEnum("support_ticket_state", ["rep_triage", "campus_lead_queue", "vendor_queue", "ops_queue", "resolved", "closed"]);
+export const incidentSeverityEnum = pgEnum("incident_severity", ["info", "warning", "critical"]);
+export const incidentStateEnum = pgEnum("incident_state", ["open", "acknowledged", "resolved"]);
 
 
 export const campuses = pgTable("campuses", {
@@ -261,6 +263,38 @@ export const jobRuns = pgTable("job_runs", {
   resultJson: json("result_json"),
   error: varchar("error", { length: 1000 }),
 }, (t) => [uniqueIndex("job_run_slot_unique").on(t.jobKey, t.slotKey), index("job_run_started_idx").on(t.startedAt)]);
+
+export const operationalIncidents = pgTable("operational_incidents", {
+  id: serial("id").primaryKey(),
+  dedupeKey: varchar("dedupe_key", { length: 160 }).notNull().unique(),
+  source: varchar("source", { length: 60 }).notNull(),
+  severity: incidentSeverityEnum("severity").notNull(),
+  state: incidentStateEnum("state").notNull().default("open"),
+  title: varchar("title", { length: 180 }).notNull(),
+  detail: text("detail").notNull(),
+  entityType: varchar("entity_type", { length: 80 }).notNull(),
+  entityId: varchar("entity_id", { length: 100 }).notNull(),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  resolvedByUserId: integer("resolved_by_user_id").references(() => users.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolutionNote: text("resolution_note"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("operational_incident_state_idx").on(t.state, t.severity, t.lastSeenAt), index("operational_incident_entity_idx").on(t.entityType, t.entityId)]);
+
+export const operationalIncidentEvents = pgTable("operational_incident_events", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").notNull().references(() => operationalIncidents.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  action: varchar("action", { length: 80 }).notNull(),
+  fromState: incidentStateEnum("from_state"),
+  toState: incidentStateEnum("to_state"),
+  note: text("note"),
+  evidenceJson: json("evidence_json"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("operational_incident_event_idx").on(t.incidentId, t.createdAt)]);
 
 export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   id: serial("id").primaryKey(),

@@ -1,7 +1,48 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 5 operational-safeguards vertical slice, with the Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+Scope: executable Phase 6 monitoring-and-incident-response vertical slice, with the Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+
+## Phase 6 assessment
+
+The unweighted mean across 16 workstreams is **85/100** (exact mean **84.6875**). Phase 6 adds record-derived monitoring across five operational sources, concurrent incident deduplication, Operations notifications, row-locked acknowledgement/resolution, append-only response history and a durable five-minute sweep. It does not earn external-observability, paging, live-provider, real-bank, real-campus or target-architecture credit.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 95 | Exact dry runs, expiry worker, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, load evidence and vendor team permissions |
+| Vendor funnel & command | 86 | Vendor-scoped escrow, event simulation, full funnel, support metrics and quality | Live reconciliation exports and team permissions |
+| Campus recruiting & team management | 91 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment, notifications and sensitive-route throttling | Live identity provider and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, hourly/manual recalculation and row-locked demotion with prior-tier restoration, revocation, notification and audit | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings; demotion preserves history and stops future accrual | Live formal reconciliation and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, support-specific alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 93 | Vendor-specific targets, approved macros, one-time CSAT, durable SLA scheduling and source-linked incident detection | External alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 88 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Token-verification hardening, abuse controls and deep-link telemetry |
+| Event ingestion & historical rules | 90 | HMAC/timestamp/dedupe/quarantine, active-rule selection, immutable deal economics and quarantine incident detection | Durable ingestion queue, retries, key rotation and replay retention |
+| Escrow, payout & clawbacks | 96 | Locked reservation, dispatch and settlement; retries/fallback/recovery; refund holds; failed/held payout incidents | Live signed callbacks, provider evidence and configurable production tax policy |
+| Security, privacy & RBAC | 86 | Existing scopes/hashes/redaction, throttling and health routes; incidents omit raw errors/customer payloads and retain append-only response history | Production proxy/IP trust, edge/WAF controls, secrets, DPIA/DPO and penetration test |
+| Offline & installable shell | 70 | Manifest, icons, app-shell cache and offline last-viewed catalog | Install analytics and broader read-only offline support |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived operational telemetry | Real campus cohorts and measured roadmap KPI attainment |
+| Automated verification | 99 | PostgreSQL 16 CI, 30 unit tests, five database journeys and recovery verification covering money, concurrency, throttling, demotion, reconciliation and incidents | Browser/load/cross-browser suites and isolated preview-environment evidence |
+| Target architecture & scale services | 53 | PostgreSQL 16, row locks, durable job claims, atomic counters, health routes and scheduled cleanup/monitoring | NestJS parity, Redis/BullMQ and all later distributed services |
+| Live providers & production operations | 62 | Explicit sandbox finance adapters, health/readiness, recovery drill and record-derived incident response | Live KYC/payment, real bank statements, external monitoring/paging and offsite recovery |
+
+### Phase 6 verification evidence
+
+- Additive migration `0004` creates incident enums, source-linked incidents and append-only incident events. It adds indexes, foreign keys and a history trigger without dropping existing records.
+- Five concurrent sweeps over failed job, failed payout, reconciliation variance, quarantined event and breached support fixtures produced exactly five incidents, five detection events and five Operations notifications. A repeated sweep created no duplicates.
+- Acknowledgement and resolution used row locks and appended incident/audit history. Duplicate lifecycle transitions and direct event-history mutation were rejected. A later sweep did not reopen the resolved source incident.
+- Two scheduled claims for one five-minute monitoring slot produced one succeeded run and one duplicate skip.
+- All 30 unit tests, TypeScript, ESLint, production build, repeated seed, Phase 2–6 journeys, isolated recovery drill and production dependency audit pass. CI includes all five journeys and the recovery drill.
+- Desktop and 375px Operations monitoring, review, acknowledgement, resolution and repeat-sweep interactions passed. Resolved records stayed resolved, history and metrics refreshed, and no document overflow, console errors or HTTP errors occurred. The 85/100 scorecard rendered all 16 workstreams at exactly 375px document width. The standalone production bundle passed root, PWA and health/readiness smoke checks without external `node_modules`.
+
+### Remaining production and architecture gates
+
+1. Connect live KYC/payment providers with signed callback verification and replace sandbox outcome controls and supplied bank figures with authenticated provider/bank evidence.
+2. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
+3. Add external logs/metrics/traces, synthetic checks, alert delivery and on-call escalation; the local incident desk is not production observability or paging.
+4. Add reviewed proxy/IP trust and edge/distributed abuse controls, production secrets, scheduled offsite recovery and point-in-time recovery.
+5. Replace campus fixtures and sandbox outcomes with real cohort and rollout evidence before claiming roadmap KPI attainment.
+6. Complete privacy/security/legal review, privileged-access review and financial-narrative reconciliation before investor or production use.
 
 ## Phase 5 assessment
 

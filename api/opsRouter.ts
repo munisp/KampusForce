@@ -34,6 +34,7 @@ import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBrea
 import { activateRecruitment, revokeRecruitment } from "./services/recruiting";
 import { recentJobRuns, runDueJobs } from "./services/jobs";
 import { campusTelemetry } from "./services/telemetry";
+import { acknowledgeOperationalIncident, listOperationalIncidents, monitorOperationalSignals, resolveOperationalIncident } from "./services/incidents";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -56,6 +57,7 @@ export const opsRouter = createRouter({
       .innerJoin(reps, eq(payouts.repId, reps.id)).orderBy(desc(payouts.createdAt));
     const attempts = await getDb().select().from(payoutAttempts).orderBy(desc(payoutAttempts.createdAt)).limit(100);
     const reconciliations = await getDb().select().from(reconciliationRuns).orderBy(desc(reconciliationRuns.createdAt)).limit(50);
+    const incidentData = await listOperationalIncidents();
     const rated = supportCases.filter(({ ticket }) => ticket.csat);
     return {
       metrics: {
@@ -66,6 +68,8 @@ export const opsRouter = createRouter({
         queuedPayouts: payoutRows.filter(({ payout }) => payout.state === "queued").length,
         processingPayouts: payoutRows.filter(({ payout }) => payout.state === "processing").length,
         failedPayouts: payoutRows.filter(({ payout }) => ["failed", "held"].includes(payout.state)).length,
+        openIncidents: incidentData.incidents.filter((incident) => incident.state !== "resolved").length,
+        criticalIncidents: incidentData.incidents.filter((incident) => incident.state !== "resolved" && incident.severity === "critical").length,
         quarantined: quarantine.length,
         openDisputes: cases.filter((c) => ["open", "reviewing"].includes(c.dispute.state)).length,
         openSupport: supportCases.filter(({ ticket }) => !["resolved", "closed"].includes(ticket.state)).length,
@@ -86,6 +90,8 @@ export const opsRouter = createRouter({
       payouts: payoutRows.slice(0, 50),
       payoutAttempts: attempts,
       reconciliations,
+      incidents: incidentData.incidents,
+      incidentEvents: incidentData.events,
     };
   }),
   confirmSweep: authedQuery.mutation(async ({ ctx }) => {
@@ -124,6 +130,21 @@ export const opsRouter = createRouter({
   })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "finance", "admin"]);
     return reconcilePayoutBatch({ ...input, actorUserId: ctx.user.id });
+  }),
+  monitorIncidents: authedQuery.mutation(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return monitorOperationalSignals();
+  }),
+  acknowledgeIncident: authedQuery.input(z.object({ incidentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return acknowledgeOperationalIncident(input.incidentId, ctx.user.id);
+  }),
+  resolveIncident: authedQuery.input(z.object({
+    incidentId: z.number().int().positive(),
+    resolutionNote: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return resolveOperationalIncident(input.incidentId, ctx.user.id, input.resolutionNote);
   }),
   runJobs: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "admin"]);
