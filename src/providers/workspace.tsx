@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { clearPrivateOfflineSnapshots } from "@/lib/offlineSnapshot";
 type SessionUser = {
   id: number;
   phoneE164: string;
@@ -22,6 +23,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     token: session?.token || "",
     user: session?.user as SessionUser,
     setSession: (next) => {
+      if (!next || next.user.id !== session?.user.id) clearPrivateOfflineSnapshots();
       setSessionState(next);
       if (next) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       else localStorage.removeItem(STORAGE_KEY);

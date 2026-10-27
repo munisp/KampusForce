@@ -1,14 +1,19 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { useWorkspace } from "@/providers/workspace";
-import Login from "@/pages/Login";
-import { RepAssist, RepCatalog, RepEarnings, RepOverview, RepShare } from "@/pages/Rep";
-import Vendor from "@/pages/Vendor";
-import Ops from "@/pages/Ops";
-import Implementation from "@/pages/Implementation";
-import RepSupport from "@/pages/RepSupport";
-import RepTeam from "@/pages/RepTeam";
-import RecruitAccept from "@/pages/RecruitAccept";
+
+const Login = lazy(() => import("@/pages/Login"));
+const Vendor = lazy(() => import("@/pages/Vendor"));
+const Ops = lazy(() => import("@/pages/Ops"));
+const Implementation = lazy(() => import("@/pages/Implementation"));
+const RepSupport = lazy(() => import("@/pages/RepSupport"));
+const RepTeam = lazy(() => import("@/pages/RepTeam"));
+const RecruitAccept = lazy(() => import("@/pages/RecruitAccept"));
+const RepOverview = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepOverview })));
+const RepCatalog = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepCatalog })));
+const RepShare = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepShare })));
+const RepAssist = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepAssist })));
+const RepEarnings = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepEarnings })));
 
 function Protected({ children }: { children: ReactNode }) {
   const { token } = useWorkspace();
@@ -16,7 +21,7 @@ function Protected({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
-  return <Routes>
+  return <Suspense fallback={<div className="route-loading" role="status">Loading workspace…</div>}><Routes>
     <Route path="/" element={<Login />} />
     <Route path="/recruit/accept" element={<RecruitAccept />} />
     <Route path="/rep" element={<Protected><RepOverview /></Protected>} />
@@ -30,5 +35,5 @@ export default function App() {
     <Route path="/ops" element={<Protected><Ops /></Protected>} />
     <Route path="/implementation" element={<Implementation />} />
     <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes>;
+  </Routes></Suspense>;
 }

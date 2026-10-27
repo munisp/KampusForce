@@ -32,6 +32,8 @@ export const attributionSourceEnum = pgEnum("attribution_source", ["link", "qr",
 export const attributionStatusEnum = pgEnum("attribution_status", ["active", "expired", "disputed"]);
 export const vendorEventTypeEnum = pgEnum("vendor_event_type", ["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund"]);
 export const vendorEventStatusEnum = pgEnum("vendor_event_status", ["processed", "ignored", "quarantined"]);
+export const webhookCredentialStateEnum = pgEnum("webhook_credential_state", ["active", "retiring", "revoked"]);
+export const ingestionRetryStateEnum = pgEnum("ingestion_retry_state", ["retry_scheduled", "resolved", "dead_letter"]);
 export const dealStateEnum = pgEnum("deal_state", ["pending", "confirmed", "payable", "paid", "disputed", "void", "clawed_back", "failed"]);
 export const recruitmentStatusEnum = pgEnum("recruitment_status", ["invited", "accepted", "activated", "revoked", "expired"]);
 export const jobRunStatusEnum = pgEnum("job_run_status", ["running", "succeeded", "failed"]);
@@ -108,6 +110,17 @@ export const vendors = pgTable("vendors", {
   qualityScore: integer("quality_score").notNull().default(100),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const vendorWebhookCredentials = pgTable("vendor_webhook_credentials", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  keyVersion: integer("key_version").notNull(),
+  secret: varchar("secret", { length: 128 }).notNull(),
+  state: webhookCredentialStateEnum("state").notNull().default("active"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("vendor_webhook_credential_version_unique").on(t.vendorId, t.keyVersion), index("vendor_webhook_credential_state_idx").on(t.vendorId, t.state, t.expiresAt)]);
 
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
@@ -192,7 +205,29 @@ export const vendorEvents = pgTable("vendor_events", {
   dedupeKey: varchar("dedupe_key", { length: 160 }).notNull().unique(),
   status: vendorEventStatusEnum("status").notNull().default("processed"),
   quarantineReason: varchar("quarantine_reason", { length: 300 }),
-});
+  webhookCredentialId: integer("webhook_credential_id").references(() => vendorWebhookCredentials.id),
+  payloadRetainUntil: timestamp("payload_retain_until", { withTimezone: true }).notNull().defaultNow(),
+  payloadPurgedAt: timestamp("payload_purged_at", { withTimezone: true }),
+}, (t) => [index("vendor_event_retention_idx").on(t.payloadRetainUntil, t.payloadPurgedAt)]);
+
+export const vendorIngestionRetries = pgTable("vendor_ingestion_retries", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  dedupeKey: varchar("dedupe_key", { length: 160 }).notNull().unique(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  type: vendorEventTypeEnum("type").notNull(),
+  payloadJson: json("payload_json").notNull(),
+  customerPhoneHash: varchar("customer_phone_hash", { length: 64 }).notNull(),
+  customerRefHash: varchar("customer_ref_hash", { length: 64 }).notNull(),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  state: ingestionRetryStateEnum("state").notNull().default("retry_scheduled"),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }).notNull(),
+  lastErrorCode: varchar("last_error_code", { length: 80 }),
+  vendorEventId: varchar("vendor_event_id", { length: 36 }).references(() => vendorEvents.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [index("vendor_ingestion_retry_due_idx").on(t.state, t.nextRetryAt), index("vendor_ingestion_retry_vendor_idx").on(t.vendorId, t.state)]);
 
 export const activationVelocityBuckets = pgTable(
   "activation_velocity_buckets",

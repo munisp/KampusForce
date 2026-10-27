@@ -1,12 +1,30 @@
-const CACHE = "kampusforce-shell-v4";
+const CACHE = "kampusforce-shell-v6";
 const CORE = ["/", "/manifest.webmanifest", "/icons/kf.svg"];
 
+async function cacheShell() {
+  const cache = await caches.open(CACHE);
+  const response = await fetch("/", { cache: "no-store" });
+  if (!response.ok) throw new Error("Unable to cache the application shell");
+  const html = await response.clone().text();
+  await cache.put("/", response);
+  const discovered = [...html.matchAll(/\b(?:src|href)="(\/[^"]+)"/g)].map((match) => match[1]);
+  await cache.addAll([...new Set([...CORE.filter((path) => path !== "/"), ...discovered])]);
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting()));
+  event.waitUntil(cacheShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "CACHE_FIRST_VISIT_RESOURCES" || !Array.isArray(event.data.urls)) return;
+  const urls = event.data.urls.slice(0, 200).map((value) => new URL(value, self.location.origin)).filter((url) =>
+    url.origin === self.location.origin && !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/v1/")
+  );
+  event.waitUntil(caches.open(CACHE).then((cache) => Promise.all(urls.map((url) => cache.add(url).catch(() => undefined)))));
 });
 
 self.addEventListener("fetch", (event) => {

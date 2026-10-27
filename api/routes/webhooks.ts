@@ -4,8 +4,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { ingestVendorEvent } from "../services/events";
-import { hmacSha256, safeSignatureEqual } from "../services/security";
+import { ingestWithDurableRetry } from "../services/ingestionRetries";
+import { verifyVendorWebhookCredential } from "../services/webhookCredentials";
 
 const eventSchema = z.object({
   event_id: z.string().min(8).max(160),
@@ -27,11 +27,12 @@ webhookRoutes.post("/:vendorKey/events", bodyLimit({ maxSize: 128 * 1024, onErro
   const timestamp = Number(c.req.header("X-KF-Timestamp"));
   const timestampMs = timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp;
   if (!timestamp || Math.abs(Date.now() - timestampMs) > 5 * 60_000) return c.json({ error: "Timestamp outside five-minute window" }, 401);
-  if (!safeSignatureEqual(signature, hmacSha256(raw, vendor.webhookSecret))) return c.json({ error: "Invalid HMAC signature" }, 401);
+  const credential = await verifyVendorWebhookCredential(vendor.id, raw, signature);
+  if (!credential) return c.json({ error: "Invalid HMAC signature" }, 401);
   let json: unknown;
   try { json = JSON.parse(raw); } catch { return c.json({ error: "Malformed JSON payload" }, 400); }
   const parsed = eventSchema.safeParse(json);
   if (!parsed.success) return c.json({ error: "Invalid event payload", issues: parsed.error.issues }, 400);
-  const result = await ingestVendorEvent(vendorKey, parsed.data);
+  const result = await ingestWithDurableRetry(vendorKey, parsed.data, { credentialId: credential.id });
   return c.json(result, result.status === "duplicate" ? 200 : 202);
 });

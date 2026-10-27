@@ -78,6 +78,6 @@ export default function Login() {
         </div>
       </section>
     </main>
-    <footer className="entry-footer"><span>Phase 8 fraud controls & conduct review · Nigeria</span><span>Rules → teams → support → settlement</span></footer>
+    <footer className="entry-footer"><span>Phase 9 reliability, offline & ingestion hardening · Nigeria</span><span>Rules → teams → support → settlement</span></footer>
   </div>;
 }

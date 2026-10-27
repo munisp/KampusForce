@@ -734,3 +734,6 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .rep-fraud-heading { flex-direction: column; }
   .rep-fraud-heading > div:last-child { justify-content: flex-start; }
 }
+
+/* Phase 9 reliability and route performance */
+.route-loading { min-height: 100dvh; display: grid; place-items: center; padding: 24px; color: var(--navy); background: var(--paper); font-weight: 700; }

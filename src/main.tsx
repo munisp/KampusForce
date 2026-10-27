@@ -16,7 +16,13 @@ import { WorkspaceProvider } from "@/providers/workspace"
 import App from './App.tsx'
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js").then(async (registration) => {
+      await navigator.serviceWorker.ready;
+      const urls = performance.getEntriesByType("resource").map((entry) => entry.name);
+      registration.active?.postMessage({ type: "CACHE_FIRST_VISIT_RESOURCES", urls });
+    }).catch(() => undefined);
+  });
 }
 
 createRoot(document.getElementById('root')!).render(

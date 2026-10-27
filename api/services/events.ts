@@ -5,6 +5,7 @@ import { calculateVendorCommissionKobo, splitCommission } from "./money";
 import { enforceActivationVelocity } from "./fraud";
 import { reverseDeal } from "./ledger";
 import { hashCustomerRef, hashPhone } from "./security";
+import { redactVendorEventPayload, VENDOR_PAYLOAD_RETENTION_MS } from "./ingestionPolicy";
 
 export type VendorEventInput = {
   event_id: string;
@@ -16,7 +17,12 @@ export type VendorEventInput = {
   meta?: Record<string, unknown>;
 };
 
-export async function ingestVendorEvent(vendorKey: string, payload: VendorEventInput) {
+export type IngestVendorEventOptions = {
+  credentialId?: number | null;
+  identifiers?: { customerPhoneHash: string; customerRefHash: string };
+};
+
+export async function ingestVendorEvent(vendorKey: string, payload: VendorEventInput, options: IngestVendorEventOptions = {}) {
   const db = getDb();
   const [vendor] = await db.select().from(vendors).where(eq(vendors.webhookKey, vendorKey)).limit(1);
   if (!vendor || vendor.status !== "active") throw new Error("Unknown or inactive vendor");
@@ -24,18 +30,21 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
   const [duplicate] = await db.select().from(vendorEvents).where(eq(vendorEvents.dedupeKey, dedupeKey)).limit(1);
   if (duplicate) return { status: "duplicate" as const, kf_event_id: duplicate.id };
   const [product] = await db.select().from(products).where(and(eq(products.vendorRef, payload.product_ref), eq(products.vendorId, vendor.id))).limit(1);
-  const phoneHash = hashPhone(payload.customer.phone);
+  const phoneHash = options.identifiers?.customerPhoneHash || hashPhone(payload.customer.phone);
+  const customerRefHash = options.identifiers?.customerRefHash || hashCustomerRef(payload.customer.customer_ref || payload.customer.phone);
   const eventId = crypto.randomUUID();
   const baseEvent = {
     id: eventId,
     vendorId: vendor.id,
     type: payload.type,
-    customerRefHash: hashCustomerRef(payload.customer.customer_ref || payload.customer.phone),
+    customerRefHash,
     productId: product?.id || null,
     amountKobo: payload.amount_kobo || null,
-    payloadJson: { ...payload, customer: { phone: "[redacted]", customer_ref: payload.customer.customer_ref ? "[hashed]" : undefined } },
+    payloadJson: redactVendorEventPayload(payload),
     hmacOk: true,
     dedupeKey,
+    webhookCredentialId: options.credentialId || null,
+    payloadRetainUntil: new Date(Date.now() + VENDOR_PAYLOAD_RETENTION_MS),
   };
   if (!product) {
     await db.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "Unknown product_ref" });

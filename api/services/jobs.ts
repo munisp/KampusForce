@@ -9,8 +9,9 @@ import { recalculateCampusLeadEligibility } from "./leadEligibility";
 import { log } from "../lib/logger";
 import { monitorOperationalSignals } from "./incidents";
 import { monitoringSlotKey } from "./incidentPolicy";
+import { processDueIngestionRetries, purgeExpiredVendorEventPayloads } from "./ingestionRetries";
 
-export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup"] as const;
+export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup", "ingestion_retry", "event_retention"] as const;
 export type JobKey = typeof JOB_KEYS[number] | "payout_batch" | "lead_eligibility" | "monitoring_sweep";
 
 export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
@@ -55,6 +56,14 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
       const deleted = await db.delete(rateLimitBuckets).where(lte(rateLimitBuckets.expiresAt, new Date())).returning({ id: rateLimitBuckets.id });
       result = { deleted: deleted.length };
       processedCount = deleted.length;
+    } else if (jobKey === "ingestion_retry") {
+      const retries = await processDueIngestionRetries();
+      result = retries;
+      processedCount = retries.resolved + retries.retryScheduled + retries.deadLetter;
+    } else if (jobKey === "event_retention") {
+      const retention = await purgeExpiredVendorEventPayloads();
+      result = retention;
+      processedCount = retention.purged;
     } else {
       result = await expireRecruitments();
       processedCount = Number(result.expired || 0);

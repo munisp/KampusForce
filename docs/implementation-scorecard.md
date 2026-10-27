@@ -1,7 +1,52 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 8 fraud-controls and conduct-review vertical slice, with the Phase 7, Phase 6, Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion, production AML capability or claim that the full multi-year target architecture is live.
+Scope: executable Phase 9 performance, offline and ingestion-hardening vertical slice, with the Phase 8, Phase 7, Phase 6, Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion, production AML capability or claim that the full multi-year target architecture is live.
+
+## Phase 9 assessment
+
+The unweighted mean across 16 workstreams is **88/100** (exact mean **87.9375**, improved from **85.625** in Phase 8). Phase 9 adds versioned webhook credentials with a 15-minute rotation overlap, one-time secret disclosure, durable transient-ingestion retries, dead letters, 30-day payload purging with replay-safe metadata, read-only offline earnings, route-level code splitting and measured local performance acceptance. The score continues to exclude live-provider, legal, external-response, real-campus, device-lab and target-architecture credit.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 96 | Exact dry runs, configurable daily activation caps, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, vendor team permissions and live commercial controls |
+| Vendor funnel & command | 89 | Vendor-scoped escrow/funnel/support plus retry metrics, retention disclosure and confirmed one-time credential rotation | Live reconciliation exports and team permissions |
+| Campus recruiting & team management | 91 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment, notifications and sensitive-route throttling | Live identity provider and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, hourly/manual recalculation and row-locked demotion with prior-tier restoration, revocation, notification and audit | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings; demotion preserves history and stops future accrual | Live formal reconciliation and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, support-specific alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 93 | Vendor-specific targets, approved macros, one-time CSAT, durable SLA scheduling and source-linked incident detection | External alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 91 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff; the six-step journey passed a throttled local profile in 16.7 seconds | Device-lab evidence, token-verification hardening and deep-link telemetry |
+| Event ingestion & historical rules | 96 | Versioned HMAC credentials, rotation overlap, durable retries/dead letters, 30-day payload purging, immutable economics and replay-safe retention; 60.63 accepted events/second locally | Distributed queue/provider-capacity evidence and broader fraud signals |
+| Escrow, payout & clawbacks | 97 | Locked reservation, dispatch and settlement; retries/fallback/recovery; refund and fraud holds; Phase 9 retention preserves financial snapshots | Live signed callbacks, provider evidence and configurable production tax policy |
+| Security, privacy & RBAC | 97 | Existing privacy/fraud controls plus one-time secret disclosure, secret-free audit metadata, redacted retries, replay-safe retention and private offline cleanup | Live identity proofing, production edge/secrets, legal review, penetration test and production AML scope |
+| Offline & installable shell | 90 | Installable shell, first-visit resource retention, read-only catalog and user-scoped earnings after offline reload, disabled mutations and logout cleanup | Device-lab, install analytics and broader read-only coverage; financial/support queues remain intentionally online-only |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived operational telemetry | Real campus cohorts and measured roadmap KPI attainment |
+| Automated verification | 99 | PostgreSQL 16 CI, 41 unit tests, eight database journeys, isolated restore, signed HTTP load and throttled/offline/mobile browser acceptance | Cross-browser, staging and isolated preview-environment performance evidence |
+| Target architecture & scale services | 58 | PostgreSQL 16, row locks, durable retries/job claims, atomic counters, retention workers and a local 50-events/second gate | NestJS parity, Redis/BullMQ and all later distributed services |
+| Live providers & production operations | 64 | Explicit sandbox finance adapters, health/readiness, recovery drill, record-derived incidents and human fraud/privacy response ownership | Live KYC/payment, real bank statements, external notification delivery, legal review, external monitoring/paging and offsite recovery |
+
+### Phase 9 verification evidence
+
+- Additive migration `0007` creates credential/retry enums and tables, adds event credential/retention fields and indexes, backfills existing vendor credentials and sets existing payload deadlines without dropping financial records.
+- Active and unexpired retiring credentials verify during rotation overlap; expired retiring and revoked credentials fail. New secrets appear once in the rotation response, are absent from overview/audit metadata and were not included in acceptance reports.
+- Transient failures recover through durable retries with one-minute/five-minute backoff and three attempts. Permanent or exhausted failures become dead letters. Concurrent workers resolve a retry once, and retry payloads contain salted hashes/redacted content rather than raw customer phone values.
+- Payload purging removes event content after 30 days while preserving event IDs, dedupe keys, processing status and financial links. Post-purge replay remains duplicate and deal financial snapshots remain unchanged.
+- The signed HTTP load gate accepted 100/100 events at **60.63 events/second** with p50/p95/p99 latency of **344/775/841 ms** at concurrency 25. This is one local sandbox measurement, not staging, production, Android-device-lab or provider-capacity certification.
+- The complete six-step assisted-onboarding journey passed in **16.7 seconds** under 400 ms RTT, 500 Kbps down/up and 4× CPU throttling. The ten-minute limit was not approached; the result remains a local browser measurement.
+- Real offline reloads restored user-scoped earnings and 11 catalog products. No dispute action appeared, all 11 sharing actions were disabled, and the private earnings snapshot was cleared on logout. First-visit shell/shared-resource caching was corrected and retested after an initially blank offline reload.
+- All 41 unit tests, TypeScript, ESLint, production build, repeated seed, Phase 2–9 journeys, isolated recovery drill and production dependency audit pass. CI includes all eight database journeys and the recovery drill. The standalone production bundle passed root, PWA, service-worker and health/readiness checks without external `node_modules`.
+
+### Remaining production and architecture gates
+
+1. Validate representative onboarding and offline behavior on real low-end Android devices, campus networks and supported browsers. Local throttling is not a device lab or campus-rollout result.
+2. Add distributed ingestion/backpressure, measured provider-capacity limits, external secrets management and production credential-rotation procedures before live traffic.
+3. Connect live KYC/payment providers with signed callback verification and replace sandbox outcome controls and supplied bank figures with authenticated provider/bank evidence.
+4. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
+5. Add external logs/metrics/traces, synthetic checks, alert delivery, on-call escalation, dead-letter ownership and measured response evidence; local desks are not production observability or paging.
+6. Add reviewed proxy/IP trust and edge/distributed abuse controls, scheduled offsite recovery and point-in-time recovery.
+7. Replace campus fixtures and sandbox outcomes with real cohort and rollout evidence before claiming roadmap KPI attainment.
+8. Complete privacy/security/legal review, DPIA/DPO ownership, privileged-access review and financial-narrative reconciliation before investor or production use.
 
 ## Phase 8 assessment
 

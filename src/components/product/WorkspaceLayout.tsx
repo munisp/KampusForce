@@ -42,7 +42,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
   return <div className="workspace-shell">
     <aside className="sidebar">
       <Brand inverse />
-      <div className="workspace-label">{user.role} workspace<span>Phase 8 · sandbox</span></div>
+      <div className="workspace-label">{user.role} workspace<span>Phase 9 · sandbox</span></div>
       <nav aria-label="Workspace navigation">
         {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={18} />{label}</NavLink>)}
       </nav>

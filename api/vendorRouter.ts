@@ -12,11 +12,13 @@ import {
   supportResolutionMacros,
   supportTickets,
   vendors,
+  vendorIngestionRetries,
 } from "@db/schema";
 import { createRouter } from "./middleware";
 import { authedQuery, requireRole } from "./services/auth";
 import { getDb } from "./queries/connection";
-import { ingestVendorEvent } from "./services/events";
+import { ingestWithDurableRetry } from "./services/ingestionRetries";
+import { activeWebhookCredential, rotateVendorWebhookCredential } from "./services/webhookCredentials";
 import { calculateRuleDryRun, publishRuleDraft } from "./services/rules";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 
@@ -59,6 +61,8 @@ export const vendorRouter = createRouter({
     const supportCases = await getDb().select({ ticket: supportTickets, repCode: reps.code }).from(supportTickets)
       .innerJoin(reps, eq(supportTickets.repId, reps.id)).where(eq(supportTickets.vendorId, vendor.id)).orderBy(desc(supportTickets.createdAt)).limit(40);
     const macros = await getDb().select().from(supportResolutionMacros).where(and(eq(supportResolutionMacros.vendorId, vendor.id), eq(supportResolutionMacros.active, true))).orderBy(desc(supportResolutionMacros.approvedAt));
+    const credential = await activeWebhookCredential(vendor.id);
+    const ingestionRetryRows = await getDb().select({ id: vendorIngestionRetries.id, state: vendorIngestionRetries.state, nextRetryAt: vendorIngestionRetries.nextRetryAt }).from(vendorIngestionRetries).where(eq(vendorIngestionRetries.vendorId, vendor.id));
     const activeDeals = funnel.filter((deal) => !["void", "clawed_back", "failed"].includes(deal.state));
     const funnelMetrics = {
       attributed: attributions.length,
@@ -72,7 +76,13 @@ export const vendorRouter = createRouter({
       csatRatings: supportCases.filter(({ ticket }) => ticket.csat).length,
     };
     return {
-      vendor: { id: vendor.id, companyName: vendor.companyName, webhookKey: vendor.webhookKey, status: vendor.status, supportSlaHours: vendor.supportSlaHours, qualityScore: vendor.qualityScore },
+      vendor: { id: vendor.id, companyName: vendor.companyName, webhookKey: vendor.webhookKey, webhookKeyVersion: credential?.keyVersion || 1, status: vendor.status, supportSlaHours: vendor.supportSlaHours, qualityScore: vendor.qualityScore },
+      ingestion: {
+        retryScheduled: ingestionRetryRows.filter((retry) => retry.state === "retry_scheduled").length,
+        deadLetter: ingestionRetryRows.filter((retry) => retry.state === "dead_letter").length,
+        resolved: ingestionRetryRows.filter((retry) => retry.state === "resolved").length,
+        payloadRetentionDays: 30,
+      },
       catalog,
       ruleHistory,
       drafts,
@@ -159,9 +169,14 @@ export const vendorRouter = createRouter({
     if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Support ticket not found" });
     return { ticket, events: await ticketEvents(ticket.id) };
   }),
+  rotateWebhookCredential: authedQuery.mutation(async ({ ctx }) => {
+    requireRole(ctx.user, ["vendor"]);
+    const vendor = await currentVendor(ctx.user.id);
+    return rotateVendorWebhookCredential(ctx.user.id, vendor.id);
+  }),
   simulateEvent: authedQuery.input(z.object({ productRef: z.string(), type: z.enum(["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund"]), customerPhone: z.string(), amountKobo: z.number().int().positive().optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["vendor"]);
     const vendor = await currentVendor(ctx.user.id);
-    return ingestVendorEvent(vendor.webhookKey, { event_id: crypto.randomUUID(), type: input.type, occurred_at: new Date().toISOString(), customer: { phone: input.customerPhone, customer_ref: `sandbox-${input.customerPhone}` }, product_ref: input.productRef, amount_kobo: input.amountKobo, meta: { channel: "vendor_portal_sandbox" } });
+    return ingestWithDurableRetry(vendor.webhookKey, { event_id: crypto.randomUUID(), type: input.type, occurred_at: new Date().toISOString(), customer: { phone: input.customerPhone, customer_ref: `sandbox-${input.customerPhone}` }, product_ref: input.productRef, amount_kobo: input.amountKobo, meta: { channel: "vendor_portal_sandbox" } });
   }),
 });

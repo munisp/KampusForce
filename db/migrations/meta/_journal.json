@@ -50,6 +50,13 @@
       "when": 1793136044169,
       "tag": "0006_orange_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793138651445,
+      "tag": "0007_tiny_longshot",
+      "breakpoints": true
     }
   ]
 }

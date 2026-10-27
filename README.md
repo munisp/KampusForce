@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 8 fraud-controls and conduct-review vertical slice**. It is not production or legal-compliance certification, a live financial integration, evidence of a real fifteen-campus rollout, or completion of the NestJS/Redis target architecture.
+This repository contains an executable **Phase 9 performance, offline and ingestion-hardening vertical slice**. It is not production or legal-compliance certification, a live financial integration, evidence of a real fifteen-campus rollout, or completion of the NestJS/Redis target architecture.
 
 ## Product thesis
 
@@ -41,7 +41,7 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Scoped support inbox for owned deals or active first-touch referrals, with rep → campus lead → vendor → Ops escalation paths.
 - Vendor-specific 1–168-hour SLA targets, persisted breach events, approved resolution macros and full ticket timelines.
 - One-time post-resolution CSAT feeding rep and vendor quality scores.
-- Installable PWA shell and last-viewed offline catalog; offline financial/support mutations are deliberately not queued.
+- Installable PWA shell with read-only offline catalog and user-scoped earnings snapshots; sharing, disputes, support and financial mutations are deliberately online-only.
 
 ### Phase 3 operational controls
 
@@ -100,6 +100,16 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Open and appealed reviews have an exact 24-hour objective; overdue cases generate critical `fraud_review:{id}` incidents. See the [fraud and conduct runbook](docs/fraud-conduct-response.md).
 - These are deterministic rule controls—not ML fraud scoring, production AML, regulatory reporting or automatic clawback. Decisions never void deals, post ledger entries or reverse money.
 
+### Phase 9 reliability, offline and ingestion hardening
+
+- Versioned webhook credentials support active, retiring and revoked states. Rotation returns a new secret once, keeps the previous credential valid for a 15-minute overlap and excludes both secrets from overview and audit metadata.
+- Classified transient ingestion failures use durable retries with one-minute/five-minute backoff and three attempts. Permanent or exhausted failures become dead letters; concurrent workers resolve a retry once without weakening HMAC, timestamp, dedupe or activation-cap controls.
+- Vendor-event payload content is purged after 30 days. Event IDs, dedupe keys, status and financial links remain so replay protection and commission history survive retention.
+- Retry rows use redacted payloads and salted customer/reference hashes rather than raw customer phone values.
+- Read-only offline catalog and user-scoped earnings snapshots survive an offline reload. Sharing and disputes are unavailable offline, and private snapshots clear on logout or user change.
+- Route-level lazy loading reduced the initial browser JavaScript from approximately 573 kB to 326 kB before gzip. The service worker caches the shell, first-visit shared resources and visited route chunks.
+- Repeatable local acceptance covers signed HTTP throughput and a throttled six-step browser handoff. Results are sandbox measurements, not production-capacity or device-lab certification.
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -127,7 +137,7 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # all 37 policy and security unit tests
+npm test                       # all 41 policy and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
@@ -137,11 +147,14 @@ npx tsx scripts/verify-phase5.ts # throttling, health, cleanup and lead-demote a
 npx tsx scripts/verify-phase6.ts # incident detection, dedupe and response acceptance
 npx tsx scripts/verify-phase7.ts # DSAR, export, breach and privacy-monitoring acceptance
 npx tsx scripts/verify-phase8.ts # velocity, fraud holds, appeals and conduct acceptance
+npx tsx scripts/verify-phase9.ts # credential, retry, retention and replay acceptance
+npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
+python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
 npm run db:backup -- backups/sandbox.dump
 KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
 
-The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
+The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. The browser gate requires Python Playwright with Chromium installed; run `npm run build` and `npm start` first. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
 
 ## End-to-end sandbox exercise
 
@@ -156,6 +169,7 @@ The acceptance scripts create unique sandbox records and are designed to remain 
 9. In Operations → Incidents, run a monitoring sweep, review source-linked case facts, acknowledge an open incident and resolve it with a note. Inspect the append-only response history; resolved records stay resolved on later sweeps.
 10. In Operations → Privacy, register a hashed DSAR, record sandbox identity verification, start review, download the scoped JSON and record fulfilment. Open a breach assessment, assign an Operations owner and record its decision and closure. No external notification is sent; use the privacy runbook for handling boundaries.
 11. Configure a product’s daily activation cap in Rule Studio. Above-cap unique submissions are quarantined and open an Operations fraud case. Release or uphold the case, exercise strike/suspension and representative appeal, and inspect the 24-hour review and immutable history. Conduct decisions do not reverse financial records.
+12. In the vendor Webhook reliability panel, inspect retry/dead-letter counts and rotate the credential after confirming the overlap warning. Copy the one-time secret into the sandbox signer before dismissing it. Visit catalog and earnings online, then verify their read-only offline snapshots; no financial or support mutation is queued.
 
 The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 rep gross and ₦200 platform fee. If that deal belongs to Ada’s team, Ada also accrues a ₦40 override and KampusForce retains ₦160 platform margin. Later published rules change only future deals.
 
@@ -165,12 +179,14 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - No real payment, KYC, tax remittance or regulatory approval is created by this software.
 - Raw NIN/BVN must never be persisted. Customer KYC remains in the vendor’s regulated flow.
 - Customer phone numbers are normalized and salted-hashed for attribution and structured support records; stored webhook payloads redact phone values.
-- Durable minute-based jobs cover confirmation, draft expiry, SLA breaches, invite expiry, payout retries, rate-limit cleanup, hourly lead eligibility, five-minute incident monitoring and a deduplicated 09:00 WAT assembly slot. This is not Redis/BullMQ or external alert delivery.
+- Durable minute-based jobs cover confirmation, draft expiry, SLA breaches, invite expiry, payout retries, rate-limit cleanup, hourly lead eligibility, five-minute incident monitoring, ingestion retries, 30-day event-payload retention and a deduplicated 09:00 WAT assembly slot. This is not Redis/BullMQ or external alert delivery.
 - Rate limiting uses atomic PostgreSQL fixed windows and hashed local subjects. It is not a distributed edge/WAF control, and production proxy/IP trust still requires review.
 - Backup/restore evidence is a local sandbox drill, not offsite storage, point-in-time recovery or high availability. Incident detection uses local records and in-app notifications, not external monitoring, paging or incident-response certification.
 - Payout outcomes and reconciliation bank totals are explicit sandbox inputs. They are not signed live-provider callbacks or actual bank statements.
 - DSAR identity verification is an Operations-attested sandbox transition, not live identity proofing. Exports are deliberately scoped record metadata, not statutory completeness evidence. Fulfilment does not automatically erase or rectify source records. Breach decisions do not send or verify NDPC/data-subject notification and are not legal review.
 - Fraud controls are deterministic activation-velocity rules and human review. They are not ML scoring, production AML, identity certification, regulatory reporting or automatic financial reversal. Active/upheld holds stop payout progress; releasing or upholding a case never voids deals or posts ledger entries.
+- Webhook rotation, durable retries and payload retention run against local PostgreSQL sandbox records. They are not external secrets management, distributed queueing, live-provider certification or proof of production capacity.
+- Offline snapshots are read-only browser data on the current device. Private earnings snapshots clear on logout/user change; no offline financial/support mutation is synchronized. Local 3G/CPU and HTTP measurements are not real-device, staging, campus-network or production results.
 - Recruiting acceptance does not itself activate a recruit; Operations activation uses a sandbox identity adapter. Seeded Campus Lead status and campus fixtures are workflow evidence—not real performance or rollout outcomes.
 - Replace fallback sandbox secrets and disable demo login, event simulation, time advancement and sandbox transfers before production.
 - Production requires signed live-provider callbacks, authenticated provider/bank reconciliation evidence, live KYC, external notifications, edge/distributed abuse controls, secrets management, monitoring, scheduled offsite recovery policy, legal review and compliance evidence.
@@ -179,28 +195,29 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 
 React 19 + TypeScript + Vite + Tailwind; Hono + tRPC 11 + SuperJSON; Drizzle ORM + PostgreSQL 16 via `pg`; JWT via `jose`; QR via `qrcode`; Vitest.
 
-The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot, atomic rate-limit counters and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md), [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md), [ADR 006](docs/adr/006-phase-5-operational-safeguards.md), [ADR 007](docs/adr/007-phase-6-monitoring-incident-response.md) , [ADR 008](docs/adr/008-phase-7-privacy-operations.md) and [ADR 009](docs/adr/009-phase-8-fraud-conduct-controls.md).
+The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot, atomic rate-limit counters and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md), [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md), [ADR 006](docs/adr/006-phase-5-operational-safeguards.md), [ADR 007](docs/adr/007-phase-6-monitoring-incident-response.md) , [ADR 008](docs/adr/008-phase-7-privacy-operations.md), [ADR 009](docs/adr/009-phase-8-fraud-conduct-controls.md) and [ADR 010](docs/adr/010-phase-9-reliability-offline-ingestion.md).
 
 Key paths:
 
 - `db/schema.ts` and `db/migrations/` — persistence model and additive migrations
-- `api/services/` — attribution, events, rules, overrides, support, ledger, recruiting, telemetry, jobs, lead eligibility, rate limiting, incidents, privacy, fraud/conduct workflows, notifications, money and security
+- `api/services/` — attribution, events, ingestion retries/credentials, rules, overrides, support, ledger, recruiting, telemetry, jobs, lead eligibility, rate limiting, incidents, privacy, fraud/conduct workflows, notifications, money and security
 - `api/routes/webhooks.ts` — signed vendor webhook
 - `api/routes/links.ts` — signed public product redirect
 - `api/routes/health.ts` — sandbox liveness and database-backed readiness
 - `src/pages/` — rep, Campus Lead, vendor, operations and scorecard interfaces
 - `src/components/product/PrivacyDesk.tsx` — Operations DSAR and breach workflows
 - `src/components/product/FraudDesk.tsx` and `RepFraudCases.tsx` — Operations review and representative appeal workflows
-- `scripts/verify-phase2.ts` through `scripts/verify-phase8.ts` — repeatable database-backed acceptance journeys
+- `scripts/verify-phase2.ts` through `scripts/verify-phase9.ts` — repeatable database-backed acceptance journeys
+- `scripts/load-phase9.ts` and `scripts/verify-phase9-browser.py` — signed HTTP, throttled-onboarding, offline, rotation and mobile acceptance
 - `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — Phase 8 scores plus preserved Phase 7, Phase 6, Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 baselines
+- `docs/implementation-scorecard.md` — Phase 9 scores plus preserved Phase 8 through Phase 1 baselines
 
 ## Verification status
 
 - TypeScript check: passed.
 - Production build and bundled-server smoke: passed.
-- Unit tests: 37 passed.
+- Unit tests: 41 passed.
 - Live PostgreSQL 16 Phase 2 regression: historical rules, publication, overrides, combined payout, paid reversal, support, CSAT, SLA and redaction passed.
 - Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, seeded-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
 - Live PostgreSQL 16 Phase 4 journey: reservation without settlement, duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback, Finance recovery, idempotent success, reconciliation and refund-before-settlement hold passed.
@@ -208,6 +225,9 @@ Key paths:
 - Live PostgreSQL 16 Phase 6 journey: all five original signal sources, concurrent detection deduplication, Operations notifications, acknowledgement/resolution, append-only events, resolved-state suppression and five-minute scheduled-slot deduplication passed.
 - Live PostgreSQL 16 Phase 7 journey: hash-only DSAR persistence, exact deadlines, identity-gated export, concurrent-transition rejection, scoped evidence sections, sensitive-value exclusion, Operations/Admin owner enforcement, privacy incident severity/deduplication, append-only histories and byte-equivalent financial preservation passed.
 - Live PostgreSQL 16 Phase 8 journey: default/custom cap boundaries, duplicate-event exclusion, concurrent cap serialization, case dedupe, post-release case creation, scoped payout blocking, suspension/appeal restoration, concurrent-decision rejection, immutable history, financial preservation and critical overdue monitoring passed.
+- Live PostgreSQL 16 Phase 9 journey: credential overlap/expiry, secret-free audit metadata, transient retry recovery, permanent dead letters, concurrent retry resolution, 30-day payload purging, replay preservation and byte-equivalent financial snapshots passed.
+- Signed HTTP load acceptance: 100/100 events accepted at 60.63 events/second with p50/p95/p99 latency of 344/775/841 ms at concurrency 25. Local sandbox measurement only.
+- Phase 9 production-browser acceptance: six-step onboarding completed in 16.7 seconds under 400 ms RTT, 500 Kbps down/up and 4× CPU throttling; offline earnings/catalog reload, disabled mutations, private-snapshot cleanup, one-time credential rotation and 375px layout passed with zero runtime errors.
 - Backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts; source counts remained unchanged.
 - Five simultaneous payout batches produced exactly one reservation for the new test rep; two concurrent publishers produced one winner. Duplicate success outcomes did not duplicate ledger postings.
 - Cross-vendor support resolution and duplicate CSAT were rejected.
@@ -218,6 +238,7 @@ Key paths:
 - Phase 6 Operations passed desktop and 375px monitoring, review, acknowledgement, resolution and repeat-sweep interactions. Resolved records stayed resolved, append-only history and metrics refreshed, and both widths measured exactly their viewport width with zero console or HTTP errors. The 85/100 scorecard also passed at 375px with all 16 workstreams.
 - Phase 7 Operations passed DSAR registration, verification, review, JSON download and fulfilment plus breach intake, triage, Operations-owner decision and closure. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors; wide mobile queues remained contained in horizontal scrollers.
 - Phase 8 Operations and representative journeys passed manual case creation, strike uphold, appeal and release with complete history. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors. The 86/100 scorecard rendered all 16 workstreams.
+- The Phase 9 scorecard assesses all 16 workstreams at 88/100 (exact mean 87.9375); unfinished real-campus, live-provider and target-architecture work remains included in the score.
 - The isolated production bundle passed root, manifest, service-worker, liveness and database-readiness smoke checks without an external `node_modules` directory.
 - Production dependency audit: zero known vulnerabilities at assessment time.
 - Roadmap metrics such as 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes and 136k activated customers remain planning gates, not achieved evidence.
