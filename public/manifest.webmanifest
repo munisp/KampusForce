@@ -1,0 +1,14 @@
+{
+  "name": "KampusForce Campus Commerce",
+  "short_name": "KampusForce",
+  "description": "Attribution, commissions, escrow and payouts for campus distribution.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f1e8",
+  "theme_color": "#102a43",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icons/kf-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/kf-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
