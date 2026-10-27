@@ -1,4 +1,5 @@
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
+import { DEFAULT_ACTIVATION_CAP_PER_REP_DAY } from "./fraudPolicy";
 
 export type RuleDraftInput = {
   basis: "flat" | "pct";
@@ -8,6 +9,7 @@ export type RuleDraftInput = {
   recurrenceMonths: number;
   confirmDays: number;
   clawbackDays: number;
+  activationCapPerRepDay?: number;
 };
 
 export function calculateRuleDryRun(input: RuleDraftInput, sampleAmountKobo: number | null) {
@@ -15,6 +17,7 @@ export function calculateRuleDryRun(input: RuleDraftInput, sampleAmountKobo: num
     ...input,
     pctBps: input.basis === "pct" ? input.pctBps || null : null,
     flatAmountKobo: input.basis === "flat" ? input.flatAmountKobo || null : null,
+    activationCapPerRepDay: input.activationCapPerRepDay ?? DEFAULT_ACTIVATION_CAP_PER_REP_DAY,
   };
   const vendorCommissionKobo = calculateVendorCommissionKobo(normalized, sampleAmountKobo);
   return { ...normalized, sampleAmountKobo, ...splitCommission(vendorCommissionKobo) };

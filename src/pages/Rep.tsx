@@ -3,6 +3,7 @@ import { ArrowRight, Check, CheckCircle2, Clipboard, Copy, ExternalLink, FileQue
 import { Link, useSearchParams } from "react-router";
 import { EmptyState, Metric, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
+import { RepFraudCases } from "@/components/product/RepFraudCases";
 import { money, productCategories, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
@@ -27,6 +28,7 @@ export function RepOverview() {
       <Metric label="Ready to pay" value={money(data.metrics.payableKobo)} note="Before payout withholding" tone="teal" />
       <Metric label="Paid to bank" value={money(data.metrics.paidKobo)} note="Net sandbox transfers" />
     </div>
+    <RepFraudCases />
     <div className="dashboard-grid">
       <Panel title="Recent activations" action={<Link className="text-link" to="/rep/earnings">Full ledger <ArrowRight size={14} /></Link>}>
         {data.recent.length ? <div className="deal-list">{data.recent.map(({ deal, productName, vendorName }) => <div className="deal-row" key={deal.id}><span className="deal-marker" /><div><strong>{productName}</strong><small>{vendorName} · {shortDate(deal.createdAt)}</small></div><StateBadge state={deal.state} /><strong className="money-cell">{money(deal.repCommissionKobo)}</strong></div>)}</div> : <EmptyState title="No activations yet" detail="Create an attribution link, then use the vendor sandbox to verify an activation." />}

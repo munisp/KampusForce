@@ -26,6 +26,7 @@ import { getDb } from "./queries/connection";
 import { normalizePhone } from "./services/security";
 import { createSupportTicket, escalateSupportTicket, isSlaBreached, rateSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { createInvitationToken, hashInvitationToken, revokeRecruitment } from "./services/recruiting";
+import { listRepFraudCases, requestFraudAppeal } from "./services/fraud";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -171,6 +172,19 @@ export const repRouter = createRouter({
     const repPayouts = await getDb().select().from(payouts).where(eq(payouts.repId, rep.id)).orderBy(desc(payouts.createdAt));
     const overrides = rep.tier === "campus_lead" ? await getDb().select({ override: campusLeadOverrides, sourceRepCode: reps.code }).from(campusLeadOverrides).innerJoin(reps, eq(campusLeadOverrides.sourceRepId, reps.id)).where(eq(campusLeadOverrides.leadRepId, rep.id)).orderBy(desc(campusLeadOverrides.createdAt)) : [];
     return { deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides };
+  }),
+  fraudCases: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["rep"]);
+    const rep = await currentRep(ctx.user.id);
+    return listRepFraudCases(rep.id);
+  }),
+  appealFraudCase: authedQuery.input(z.object({
+    caseId: z.number().int().positive(),
+    note: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    const rep = await currentRep(ctx.user.id);
+    return requestFraudAppeal({ ...input, repId: rep.id, actorUserId: ctx.user.id });
   }),
   support: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep"]);

@@ -29,6 +29,7 @@ export async function publishRuleDraft(actorUserId: number, vendorId: number, dr
       recurrenceMonths: draft.recurrenceMonths,
       confirmDays: draft.confirmDays,
       clawbackDays: draft.clawbackDays,
+      activationCapPerRepDay: draft.activationCapPerRepDay,
       publishedAt: now,
     }).returning({ id: commissionRules.id });
     await tx.update(commissionRuleDrafts).set({ state: "published", publishedRuleId: ruleId }).where(eq(commissionRuleDrafts.id, draft.id));

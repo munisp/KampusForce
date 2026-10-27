@@ -1,6 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
-import { randomInt, createHash } from "node:crypto";
+import { randomInt, randomUUID, createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../api/queries/connection";
 import {
@@ -144,7 +144,7 @@ async function main() {
   ));
   assert.ok(detectedAfter);
 
-  const slot = monitoringSlotKey(new Date());
+  const slot = `${monitoringSlotKey(new Date())}:verify:${randomUUID()}`;
   const scheduled = await Promise.all([
     runDurableJob("monitoring_sweep", "schedule", slot),
     runDurableJob("monitoring_sweep", "schedule", slot),

@@ -4,6 +4,7 @@ import {
   auditLogs,
   breachAssessments,
   dsarRequests,
+  fraudCases,
   jobRuns,
   operationalIncidentEvents,
   operationalIncidents,
@@ -29,7 +30,7 @@ type IncidentSignal = {
 export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
   const db = getDb();
   const now = new Date();
-  const [failedJobs, payoutAttention, variances, quarantined, breachedSupport, overdueDsars, overdueBreaches] = await Promise.all([
+  const [failedJobs, payoutAttention, variances, quarantined, breachedSupport, overdueDsars, overdueBreaches, overdueFraudCases] = await Promise.all([
     db.select().from(jobRuns).where(eq(jobRuns.status, "failed")).orderBy(desc(jobRuns.startedAt)).limit(20),
     db.select().from(payouts).where(inArray(payouts.state, ["failed", "held"])).orderBy(desc(payouts.updatedAt)).limit(50),
     db.select().from(reconciliationRuns).where(eq(reconciliationRuns.state, "variance")).orderBy(desc(reconciliationRuns.createdAt)).limit(50),
@@ -46,6 +47,10 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
       inArray(breachAssessments.state, ["reported", "assessing"]),
       lt(breachAssessments.triageDueAt, now),
     )).orderBy(desc(breachAssessments.triageDueAt)).limit(50),
+    db.select().from(fraudCases).where(and(
+      inArray(fraudCases.state, ["open", "appeal_open"]),
+      lt(fraudCases.reviewDueAt, now),
+    )).orderBy(desc(fraudCases.reviewDueAt)).limit(50),
   ]);
 
   return [
@@ -111,6 +116,15 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
       entityType: "breach_assessment",
       entityId: String(assessment.id),
       evidence: { assessmentRef: assessment.assessmentRef, triageDueAt: assessment.triageDueAt.toISOString() },
+    })),
+    ...overdueFraudCases.map((fraudCase): IncidentSignal => ({
+      dedupeKey: `fraud_review:${fraudCase.id}`,
+      source: "fraud_review",
+      title: `Fraud hold review overdue: ${fraudCase.caseRef}`,
+      detail: `Case remains in ${fraudCase.state.replaceAll("_", " ")} after its 24-hour review objective. The payout hold remains in force pending an Operations decision.`,
+      entityType: "fraud_case",
+      entityId: String(fraudCase.id),
+      evidence: { caseRef: fraudCase.caseRef, reason: fraudCase.reason, reviewDueAt: fraudCase.reviewDueAt.toISOString() },
     })),
   ];
 }

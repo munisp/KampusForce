@@ -35,6 +35,7 @@ const ruleInput = z.object({
   recurrenceMonths: z.number().int().min(1).max(12),
   confirmDays: z.number().int().min(0).max(90),
   clawbackDays: z.number().int().min(0).max(365),
+  activationCapPerRepDay: z.number().int().min(1).max(1000).optional(),
   sampleAmountKobo: z.number().int().positive().max(100000000000).optional(),
 });
 
@@ -114,6 +115,7 @@ export const vendorRouter = createRouter({
       recurrenceMonths: economics.recurrenceMonths,
       confirmDays: economics.confirmDays,
       clawbackDays: economics.clawbackDays,
+      activationCapPerRepDay: economics.activationCapPerRepDay,
       sampleAmountKobo: economics.sampleAmountKobo,
       vendorCommissionKobo: economics.vendorCommissionKobo,
       repCommissionKobo: economics.repCommissionKobo,

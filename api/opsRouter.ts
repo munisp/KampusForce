@@ -49,6 +49,7 @@ import {
   verifyDsarIdentity,
 } from "./services/privacy";
 import { isBreachTriageOverdue, isDsarOverdue } from "./services/privacyPolicy";
+import { createOperationsFraudCase, listFraudDesk, reviewFraudCase } from "./services/fraud";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -73,6 +74,7 @@ export const opsRouter = createRouter({
     const reconciliations = await getDb().select().from(reconciliationRuns).orderBy(desc(reconciliationRuns.createdAt)).limit(50);
     const incidentData = await listOperationalIncidents();
     const privacy = await listPrivacyDesk();
+    const fraud = await listFraudDesk();
     const rated = supportCases.filter(({ ticket }) => ticket.csat);
     return {
       metrics: {
@@ -88,6 +90,9 @@ export const opsRouter = createRouter({
         openDsars: privacy.requests.filter((request) => !["fulfilled", "rejected"].includes(request.state)).length,
         openBreaches: privacy.assessments.filter((assessment) => assessment.state !== "closed").length,
         overduePrivacy: privacy.requests.filter((request) => isDsarOverdue(request)).length + privacy.assessments.filter((assessment) => isBreachTriageOverdue(assessment)).length,
+        openFraudCases: fraud.cases.filter(({ fraudCase }) => ["open", "appeal_open"].includes(fraudCase.state)).length,
+        overdueFraudCases: fraud.cases.filter((row) => row.overdue).length,
+        blockingFraudHolds: fraud.holds.filter((hold) => ["active", "upheld"].includes(hold.state)).length,
         quarantined: quarantine.length,
         openDisputes: cases.filter((c) => ["open", "reviewing"].includes(c.dispute.state)).length,
         openSupport: supportCases.filter(({ ticket }) => !["resolved", "closed"].includes(ticket.state)).length,
@@ -115,6 +120,10 @@ export const opsRouter = createRouter({
       breachAssessments: privacy.assessments.map((assessment) => ({ ...assessment, overdue: isBreachTriageOverdue(assessment) })),
       breachAssessmentEvents: privacy.assessmentEvents,
       privacyOwners: privacy.owners,
+      fraudCases: fraud.cases,
+      fraudHolds: fraud.holds,
+      fraudCaseEvents: fraud.events,
+      fraudRepOptions: fraud.repOptions,
     };
   }),
   confirmSweep: authedQuery.mutation(async ({ ctx }) => {
@@ -168,6 +177,22 @@ export const opsRouter = createRouter({
   })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return resolveOperationalIncident(input.incidentId, ctx.user.id, input.resolutionNote);
+  }),
+  createFraudCase: authedQuery.input(z.object({
+    repId: z.number().int().positive(),
+    note: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return createOperationsFraudCase({ ...input, actorUserId: ctx.user.id });
+  }),
+  reviewFraudCase: authedQuery.input(z.object({
+    caseId: z.number().int().positive(),
+    decision: z.enum(["release", "uphold"]),
+    conductAction: z.enum(["strike", "suspension"]),
+    note: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return reviewFraudCase({ ...input, actorUserId: ctx.user.id });
   }),
   createDsar: authedQuery.input(z.object({
     customerPhone: z.string().trim().min(10).max(20),

@@ -705,3 +705,32 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .privacy-decision-grid { grid-template-columns: 1fr; }
   .privacy-form .button { width: 100%; justify-content: center; }
 }
+
+.fraud-intake-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 18px; align-items: start; margin-bottom: 18px; }
+.fraud-boundaries { display: grid; gap: 12px; }
+.fraud-boundaries p { display: grid; gap: 4px; margin: 0; border-left: 3px solid var(--mustard); background: var(--paper); padding: 12px 14px; }
+.fraud-boundaries strong { color: var(--navy); font-size: 12px; }
+.fraud-boundaries span { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.fraud-workspace { margin-bottom: 18px; }
+.fraud-evidence { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.fraud-evidence p { display: grid; gap: 3px; margin: 0; border: 1px solid var(--line); padding: 10px; }
+.fraud-evidence span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.fraud-evidence strong { color: var(--navy); font-size: 11px; text-transform: capitalize; }
+.appeal-note { display: flex; align-items: flex-start; gap: 9px; border: 1px solid var(--mustard); background: var(--mustard-soft); padding: 12px; color: var(--navy); }
+.appeal-note p { display: grid; gap: 4px; margin: 0; }
+.appeal-note span { font-size: 11px; line-height: 1.55; }
+.rep-fraud-list { display: grid; gap: 16px; }
+.rep-fraud-list > article { border: 1px solid var(--line); background: var(--paper); padding: 16px; }
+.rep-fraud-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.rep-fraud-heading h3 { margin: 4px 0; color: var(--navy); font-size: 15px; text-transform: capitalize; }
+.rep-fraud-heading small { color: var(--muted); font-size: 10px; }
+.rep-fraud-heading > div:last-child { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.field-hint { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.5; }
+@media (max-width: 900px) {
+  .fraud-intake-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .fraud-evidence { grid-template-columns: 1fr; }
+  .rep-fraud-heading { flex-direction: column; }
+  .rep-fraud-heading > div:last-child { justify-content: flex-start; }
+}

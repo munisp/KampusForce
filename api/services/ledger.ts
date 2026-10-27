@@ -19,6 +19,7 @@ import { randomReference } from "./security";
 import { withholdingKobo } from "./money";
 import { calculateLeadOverride } from "./overrides";
 import { notifyUser } from "./notifications";
+import { assertNoFraudHold, blockingFraudHold } from "./fraud";
 import {
   assessReconciliation,
   MAX_PAYOUT_ATTEMPTS,
@@ -158,6 +159,10 @@ export async function runPayoutBatch(actorUserId?: number) {
       if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch) {
         return { repId, status: "held", reason: "KYC, rep status, or bank name-match pre-flight failed" };
       }
+      const fraudHold = await blockingFraudHold(tx, repId);
+      if (fraudHold) {
+        return { repId, status: "held", reason: `Fraud case ${fraudHold.fraudCase.caseRef} has a ${fraudHold.hold.state} payout hold` };
+      }
       const entitledDeals = await tx.select().from(deals)
         .where(and(eq(deals.repId, repId), eq(deals.state, "payable"), isNull(deals.payoutId))).for("update");
       const entitledOverrides = await tx.select().from(campusLeadOverrides)
@@ -214,6 +219,11 @@ export async function dispatchDuePayouts(actorUserId?: number) {
       const [current] = await tx.select().from(payouts).where(eq(payouts.id, payout.id)).limit(1).for("update");
       if (!current || current.state !== "queued" || (current.nextRetryAt && current.nextRetryAt > new Date())) {
         return { payoutId: payout.id, status: "skipped" as const };
+      }
+      try {
+        await assertNoFraudHold(tx, current.repId);
+      } catch (error) {
+        return { payoutId: current.id, status: "fraud_hold" as const, reason: error instanceof Error ? error.message : "Fraud hold blocks payout dispatch" };
       }
       const attemptNo = current.attempts + 1;
       if (attemptNo > MAX_PAYOUT_ATTEMPTS) {
@@ -289,19 +299,20 @@ export async function recordSandboxPayoutOutcome(input: {
     const entitledOverrides = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.payoutId, payout.id)).for("update");
     const directOutstanding = await repOutstandingKobo(payout.repId, tx);
     const overrideOutstanding = await leadOverrideOutstandingKobo(payout.repId, tx);
-    const valid = rep?.status === "active" && user?.kycState === "verified" && user.bankNameMatch
+    const fraudHold = await blockingFraudHold(tx, payout.repId);
+    const valid = !fraudHold && rep?.status === "active" && user?.kycState === "verified" && user.bankNameMatch
       && entitledDeals.every((deal) => deal.state === "payable")
       && entitledOverrides.every((override) => override.state === "accrued")
       && directOutstanding + overrideOutstanding >= payout.amountGrossKobo;
     if (!valid) {
       await tx.update(payoutAttempts).set({ state: "succeeded", completedAt: new Date() }).where(eq(payoutAttempts.id, attempt.id));
-      await tx.update(payouts).set({ state: "held", lastFailureCode: "settlement_preflight_changed", nextRetryAt: null, updatedAt: new Date() }).where(eq(payouts.id, payout.id));
+      await tx.update(payouts).set({ state: "held", lastFailureCode: fraudHold ? "fraud_hold" : "settlement_preflight_changed", nextRetryAt: null, updatedAt: new Date() }).where(eq(payouts.id, payout.id));
       await tx.insert(auditLogs).values({
         actorUserId: input.actorUserId,
         action: "payout.settlement_held",
         entityType: "payout",
         entityId: String(payout.id),
-        metadataJson: { attemptId: attempt.id, reason: "Linked entitlement or outstanding balance changed before settlement", liveTransferImplied: false },
+        metadataJson: { attemptId: attempt.id, reason: fraudHold ? `Fraud case ${fraudHold.fraudCase.caseRef} blocks settlement` : "Linked entitlement or outstanding balance changed before settlement", liveTransferImplied: false },
       });
       return { payoutId: payout.id, status: "held" as const, userId: user?.id };
     }
@@ -360,6 +371,7 @@ export async function recoverFailedPayout(payoutId: number, actorUserId: number)
     if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch) {
       throw new Error("Rep KYC, status, or bank name-match pre-flight no longer passes");
     }
+    await assertNoFraudHold(tx, failed.repId);
     const linkedDeals = await tx.select().from(deals).where(eq(deals.payoutId, failed.id)).for("update");
     const linkedOverrides = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.payoutId, failed.id)).for("update");
     const directOutstanding = await repOutstandingKobo(failed.repId, tx);

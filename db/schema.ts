@@ -18,6 +18,10 @@ export const userRoleEnum = pgEnum("user_role", ["rep", "vendor", "ops", "financ
 export const kycStateEnum = pgEnum("kyc_state", ["unverified", "pending", "verified", "rejected"]);
 export const repTierEnum = pgEnum("rep_tier", ["starter", "bronze", "silver", "gold", "campus_lead"]);
 export const repStatusEnum = pgEnum("rep_status", ["pending", "active", "held", "suspended"]);
+export const fraudCaseReasonEnum = pgEnum("fraud_case_reason", ["activation_velocity", "operations_review"]);
+export const fraudCaseStateEnum = pgEnum("fraud_case_state", ["open", "released", "upheld", "appeal_open"]);
+export const fraudHoldStateEnum = pgEnum("fraud_hold_state", ["active", "released", "upheld"]);
+export const fraudConductActionEnum = pgEnum("fraud_conduct_action", ["none", "strike", "suspension"]);
 export const vendorStatusEnum = pgEnum("vendor_status", ["pending", "active", "paused"]);
 export const productCategoryEnum = pgEnum("product_category", ["fintech", "airtime_data", "devices", "edtech", "micro_insurance"]);
 export const productStatusEnum = pgEnum("product_status", ["draft", "active", "paused"]);
@@ -130,6 +134,7 @@ export const commissionRules = pgTable("commission_rules", {
   recurrenceMonths: integer("recurrence_months").notNull().default(1),
   confirmDays: integer("confirm_days").notNull().default(30),
   clawbackDays: integer("clawback_days").notNull().default(60),
+  activationCapPerRepDay: integer("activation_cap_per_rep_day").notNull().default(10),
   publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
   supersededAt: timestamp("superseded_at", { withTimezone: true }),
 });
@@ -146,6 +151,7 @@ export const commissionRuleDrafts = pgTable("commission_rule_drafts", {
   recurrenceMonths: integer("recurrence_months").notNull().default(1),
   confirmDays: integer("confirm_days").notNull().default(30),
   clawbackDays: integer("clawback_days").notNull().default(60),
+  activationCapPerRepDay: integer("activation_cap_per_rep_day").notNull().default(10),
   sampleAmountKobo: bigint("sample_amount_kobo", { mode: "number" }),
   vendorCommissionKobo: bigint("vendor_commission_kobo", { mode: "number" }).notNull(),
   repCommissionKobo: bigint("rep_commission_kobo", { mode: "number" }).notNull(),
@@ -187,6 +193,76 @@ export const vendorEvents = pgTable("vendor_events", {
   status: vendorEventStatusEnum("status").notNull().default("processed"),
   quarantineReason: varchar("quarantine_reason", { length: 300 }),
 });
+
+export const activationVelocityBuckets = pgTable(
+  "activation_velocity_buckets",
+  {
+    id: serial("id").primaryKey(),
+    repId: integer("rep_id").notNull().references(() => reps.id),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    cap: integer("cap").notNull().default(10),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("activation_velocity_rep_window_unique").on(t.repId, t.windowStart), index("activation_velocity_window_idx").on(t.windowStart, t.repId)],
+);
+
+export const fraudCases = pgTable(
+  "fraud_cases",
+  {
+    id: serial("id").primaryKey(),
+    caseRef: varchar("case_ref", { length: 40 }).notNull().unique(),
+    repId: integer("rep_id").notNull().references(() => reps.id),
+    reason: fraudCaseReasonEnum("reason").notNull(),
+    state: fraudCaseStateEnum("state").notNull().default("open"),
+    dedupeKey: varchar("dedupe_key", { length: 200 }).notNull().unique(),
+    sourceKey: varchar("source_key", { length: 180 }),
+    reviewDueAt: timestamp("review_due_at", { withTimezone: true }).notNull(),
+    evidenceJson: json("evidence_json").$type<Record<string, unknown>>().notNull().default({}),
+    openedByUserId: integer("opened_by_user_id").references(() => users.id),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewNote: text("review_note"),
+    conductAction: fraudConductActionEnum("conduct_action").notNull().default("none"),
+    priorRepStatus: repStatusEnum("prior_rep_status"),
+    appealNote: text("appeal_note"),
+    appealRequestedAt: timestamp("appeal_requested_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("fraud_case_rep_state_idx").on(t.repId, t.state), index("fraud_case_review_due_idx").on(t.state, t.reviewDueAt), index("fraud_case_source_idx").on(t.sourceKey, t.createdAt)],
+);
+
+export const fraudHolds = pgTable(
+  "fraud_holds",
+  {
+    id: serial("id").primaryKey(),
+    caseId: integer("case_id").notNull().references(() => fraudCases.id).unique(),
+    repId: integer("rep_id").notNull().references(() => reps.id),
+    state: fraudHoldStateEnum("state").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [index("fraud_hold_rep_state_idx").on(t.repId, t.state)],
+);
+
+export const fraudCaseEvents = pgTable(
+  "fraud_case_events",
+  {
+    id: serial("id").primaryKey(),
+    caseId: integer("case_id").notNull().references(() => fraudCases.id),
+    actorUserId: integer("actor_user_id").references(() => users.id),
+    action: varchar("action", { length: 80 }).notNull(),
+    fromState: fraudCaseStateEnum("from_state"),
+    toState: fraudCaseStateEnum("to_state"),
+    note: text("note"),
+    evidenceJson: json("evidence_json").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("fraud_case_event_idx").on(t.caseId, t.createdAt)],
+);
 
 export const deals = pgTable(
   "deals",
@@ -593,3 +669,5 @@ export type Deal = typeof deals.$inferSelect;
 export type VendorEvent = typeof vendorEvents.$inferSelect;
 export type DsarRequest = typeof dsarRequests.$inferSelect;
 export type BreachAssessment = typeof breachAssessments.$inferSelect;
+export type FraudCase = typeof fraudCases.$inferSelect;
+export type FraudHold = typeof fraudHolds.$inferSelect;

@@ -2,6 +2,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { attributionRecords, commissionRules, dealStateHistory, deals, products, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
+import { enforceActivationVelocity } from "./fraud";
 import { reverseDeal } from "./ledger";
 import { hashCustomerRef, hashPhone } from "./security";
 
@@ -19,7 +20,8 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
   const db = getDb();
   const [vendor] = await db.select().from(vendors).where(eq(vendors.webhookKey, vendorKey)).limit(1);
   if (!vendor || vendor.status !== "active") throw new Error("Unknown or inactive vendor");
-  const [duplicate] = await db.select().from(vendorEvents).where(eq(vendorEvents.dedupeKey, `${vendor.id}:${payload.event_id}`)).limit(1);
+  const dedupeKey = `${vendor.id}:${payload.event_id}`;
+  const [duplicate] = await db.select().from(vendorEvents).where(eq(vendorEvents.dedupeKey, dedupeKey)).limit(1);
   if (duplicate) return { status: "duplicate" as const, kf_event_id: duplicate.id };
   const [product] = await db.select().from(products).where(and(eq(products.vendorRef, payload.product_ref), eq(products.vendorId, vendor.id))).limit(1);
   const phoneHash = hashPhone(payload.customer.phone);
@@ -33,7 +35,7 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     amountKobo: payload.amount_kobo || null,
     payloadJson: { ...payload, customer: { phone: "[redacted]", customer_ref: payload.customer.customer_ref ? "[hashed]" : undefined } },
     hmacOk: true,
-    dedupeKey: `${vendor.id}:${payload.event_id}`,
+    dedupeKey,
   };
   if (!product) {
     await db.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "Unknown product_ref" });
@@ -46,26 +48,67 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     const result = await reverseDeal(deal.id, `vendor:${vendor.id}:refund`);
     return { status: "processed" as const, kf_event_id: eventId, ...result };
   }
-  const [attribution] = await db.select().from(attributionRecords).where(and(eq(attributionRecords.customerPhoneHash, phoneHash), eq(attributionRecords.vendorId, vendor.id), eq(attributionRecords.status, "active"))).limit(1);
-  if (!attribution) {
-    await db.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "No active first-touch attribution; eligible for 24h claim review" });
-    return { status: "quarantined" as const, kf_event_id: eventId, reason: "No active attribution" };
-  }
-  const trigger: typeof commissionRules.$inferInsert.triggerEvent = payload.type === "account_created" ? "signup" : payload.type;
-  const [rule] = await db.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
-  if (!rule) {
-    await db.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: "Event does not trigger the active commission rule" });
-    return { status: "ignored" as const, kf_event_id: eventId };
-  }
-  let commission: ReturnType<typeof splitCommission>;
-  try {
-    commission = splitCommission(calculateVendorCommissionKobo(rule, payload.amount_kobo || null));
-  } catch (error) {
-    await db.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: error instanceof Error ? error.message : "Commission calculation failed" });
-    return { status: "quarantined" as const, kf_event_id: eventId };
-  }
-  await db.insert(vendorEvents).values(baseEvent);
-  const [{ id: dealId }] = await db.insert(deals).values({ attributionId: attribution.id, productId: product.id, vendorId: vendor.id, repId: attribution.repId, commissionRuleId: rule.id, customerPhoneHash: phoneHash, triggerEvent: trigger, eventId, state: "pending", ...commission, confirmAt: new Date(Date.now() + rule.confirmDays * 86_400_000) }).returning({ id: deals.id });
-  await db.insert(dealStateHistory).values({ dealId, fromState: null, toState: "pending", actor: `vendor:${vendor.id}`, reason: `Verified ${payload.type} event accepted` });
-  return { status: "accepted" as const, kf_event_id: eventId, deal_id: dealId };
+
+  return db.transaction(async (tx) => {
+    // Serializing the vendor's ingestion transaction makes the dedupe recheck authoritative.
+    await tx.select({ id: vendors.id }).from(vendors).where(eq(vendors.id, vendor.id)).limit(1).for("update");
+    const [concurrentDuplicate] = await tx.select().from(vendorEvents).where(eq(vendorEvents.dedupeKey, dedupeKey)).limit(1);
+    if (concurrentDuplicate) return { status: "duplicate" as const, kf_event_id: concurrentDuplicate.id };
+    const [attribution] = await tx.select().from(attributionRecords).where(and(eq(attributionRecords.customerPhoneHash, phoneHash), eq(attributionRecords.vendorId, vendor.id), eq(attributionRecords.status, "active"))).limit(1);
+    if (!attribution) {
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "No active first-touch attribution; eligible for 24h claim review" });
+      return { status: "quarantined" as const, kf_event_id: eventId, reason: "No active attribution" };
+    }
+    const trigger = (payload.type === "account_created" ? "signup" : payload.type) as typeof commissionRules.$inferInsert.triggerEvent;
+    const [rule] = await tx.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
+    if (!rule) {
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: "Event does not trigger the active commission rule" });
+      return { status: "ignored" as const, kf_event_id: eventId };
+    }
+    let commission: ReturnType<typeof splitCommission>;
+    try {
+      commission = splitCommission(calculateVendorCommissionKobo(rule, payload.amount_kobo || null));
+    } catch (error) {
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: error instanceof Error ? error.message : "Commission calculation failed" });
+      return { status: "quarantined" as const, kf_event_id: eventId };
+    }
+    const velocity = await enforceActivationVelocity(tx, {
+      repId: attribution.repId,
+      productId: product.id,
+      triggerEvent: trigger,
+      eventId,
+      cap: rule.activationCapPerRepDay,
+    });
+    if (velocity.blocked) {
+      await tx.insert(vendorEvents).values({
+        ...baseEvent,
+        status: "quarantined",
+        quarantineReason: `Daily activation cap ${velocity.attemptCount}/${velocity.cap}; fraud case ${velocity.caseRef}`,
+      });
+      return {
+        status: "quarantined" as const,
+        kf_event_id: eventId,
+        reason: "Daily activation cap exceeded; payout hold opened for Operations review",
+        fraud_case_ref: velocity.caseRef,
+        attempt_count: velocity.attemptCount,
+        cap: velocity.cap,
+      };
+    }
+    await tx.insert(vendorEvents).values(baseEvent);
+    const [{ id: dealId }] = await tx.insert(deals).values({
+      attributionId: attribution.id,
+      productId: product.id,
+      vendorId: vendor.id,
+      repId: attribution.repId,
+      commissionRuleId: rule.id,
+      customerPhoneHash: phoneHash,
+      triggerEvent: trigger,
+      eventId,
+      state: "pending",
+      ...commission,
+      confirmAt: new Date(Date.now() + rule.confirmDays * 86_400_000),
+    }).returning({ id: deals.id });
+    await tx.insert(dealStateHistory).values({ dealId, fromState: null, toState: "pending", actor: `vendor:${vendor.id}`, reason: `Verified ${payload.type} event accepted` });
+    return { status: "accepted" as const, kf_event_id: eventId, deal_id: dealId };
+  });
 }

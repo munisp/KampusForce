@@ -1,7 +1,52 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 7 privacy-operations and breach-assessment vertical slice, with the Phase 6, Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion or claim that the full multi-year target architecture is live.
+Scope: executable Phase 8 fraud-controls and conduct-review vertical slice, with the Phase 7, Phase 6, Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion, production AML capability or claim that the full multi-year target architecture is live.
+
+## Phase 8 assessment
+
+The unweighted mean across 16 workstreams is **86/100** (exact mean **85.625**, improved from **85.25** in Phase 7). Phase 8 adds atomic Africa/Lagos activation-velocity controls, quarantined cap breaches, payout-blocking fraud holds, scoped Operations release/uphold decisions, strikes, suspension and representative appeal, append-only case history and 24-hour review monitoring. The modest score increase reflects the remaining live-provider, legal, external-response, real-campus and target-architecture gates; no ML fraud scoring, production AML, regulatory reporting or automatic financial reversal is claimed.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 96 | Exact dry runs, configurable daily activation caps, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, load evidence and vendor team permissions |
+| Vendor funnel & command | 87 | Vendor-scoped escrow, cap-aware event simulation, full funnel, support metrics and quality | Live reconciliation exports and team permissions |
+| Campus recruiting & team management | 91 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment, notifications and sensitive-route throttling | Live identity provider and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, hourly/manual recalculation and row-locked demotion with prior-tier restoration, revocation, notification and audit | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings; demotion preserves history and stops future accrual | Live formal reconciliation and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, support-specific alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 93 | Vendor-specific targets, approved macros, one-time CSAT, durable SLA scheduling and source-linked incident detection | External alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 88 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Token-verification hardening, broader abuse controls and deep-link telemetry |
+| Event ingestion & historical rules | 90 | HMAC/timestamp/dedupe/quarantine, active-rule selection, immutable deal economics, atomic daily cap enforcement and cap-breach quarantine | Durable ingestion queue, retries, key rotation, replay retention and broader fraud signals |
+| Escrow, payout & clawbacks | 97 | Locked reservation, dispatch and settlement; retries/fallback/recovery; refund holds; active/upheld fraud holds across assembly, dispatch, recovery and final pre-flight | Live signed callbacks, provider evidence and configurable production tax policy |
+| Security, privacy & RBAC | 96 | Privacy controls plus atomic velocity buckets, payout holds, scoped release, strikes, suspension/appeal and append-only fraud history | Live identity proofing, production proxy/edge controls, secrets, legal/policy review, penetration test and production AML scope |
+| Offline & installable shell | 70 | Manifest, icons, app-shell cache and offline last-viewed catalog | Install analytics and broader read-only offline support |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived operational telemetry | Real campus cohorts and measured roadmap KPI attainment |
+| Automated verification | 99 | PostgreSQL 16 CI, 37 unit tests, seven database journeys, recovery verification and desktop/mobile fraud/appeal workflows covering concurrency and financial preservation | Load/cross-browser suites and isolated preview-environment evidence |
+| Target architecture & scale services | 53 | PostgreSQL 16, row locks, durable job claims, atomic counters/buckets, health routes and scheduled cleanup/monitoring | NestJS parity, Redis/BullMQ and all later distributed services |
+| Live providers & production operations | 64 | Explicit sandbox finance adapters, health/readiness, recovery drill, record-derived incidents and human fraud/privacy response ownership | Live KYC/payment, real bank statements, external notification delivery, legal review, external monitoring/paging and offsite recovery |
+
+### Phase 8 verification evidence
+
+- Additive migration `0006` creates four fraud enums, four velocity/case/hold/history tables, foreign keys, indexes and an append-only history trigger. It adds activation caps to rules/drafts without dropping or altering financial records destructively.
+- Default-cap submissions 1–10 are accepted; submission 11 is quarantined with no deal and submission 12 reuses the same case. Duplicate events do not increment the bucket. A post-release breach creates a new case.
+- Two concurrent cap-1 submissions produce one accepted event, one quarantine and one case. Concurrent duplicate appeal decisions produce one success and one rejection.
+- Active/upheld holds block payout assembly, dispatch, Finance recovery and final settlement pre-flight. Releasing case A leaves case B blocking. Strike, suspension, appeal and safe prior-status restoration behave as specified.
+- Deal and ledger snapshots are byte-equivalent before and after conduct decisions. Fraud responses report no financial reversal. Automatic evidence excludes raw customer phone/hash values, and direct history update/delete is rejected.
+- Open and appealed cases have exact 24-hour objectives; overdue review emits a critical `fraud_review:{id}` incident. Case history preserves `opened`, `upheld`, `appeal_requested` and `released` transitions with audit records.
+- All 37 unit tests, TypeScript, ESLint, production build, repeated seed, Phase 2–8 journeys, isolated recovery drill and production dependency audit pass. CI includes all seven journeys and the recovery drill.
+- Desktop and 375px browser journeys cover manual case intake, strike uphold, representative appeal and Operations release with complete history. No document-level overflow, console, page or HTTP errors occurred. The standalone production bundle passed root, PWA and health/readiness smoke checks without external `node_modules`.
+
+### Remaining production and architecture gates
+
+1. Treat activation velocity as one review signal, not proof of fraud. Add only reviewed, legally governed controls; this phase provides no ML scoring, device intelligence, sanctions/PEP screening, production AML or regulatory reporting.
+2. Keep financial reversal separate from conduct review. Live void/clawback and settlement require signed provider callbacks, authenticated bank evidence and approved operating procedures.
+3. Implement reviewed source-specific privacy rectification/erasure procedures and live identity proofing; sandbox transitions do not certify statutory compliance.
+4. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
+5. Add external logs/metrics/traces, synthetic checks, alert delivery, on-call escalation and measured response evidence; local desks are not production observability or paging.
+6. Add reviewed proxy/IP trust and edge/distributed abuse controls, production secrets, scheduled offsite recovery and point-in-time recovery.
+7. Replace campus fixtures and sandbox outcomes with real cohort and rollout evidence before claiming roadmap KPI attainment.
+8. Complete fraud/conduct, privacy, security and legal review, DPIA/DPO ownership, privileged-access review and financial-narrative reconciliation before investor or production use.
 
 ## Phase 7 assessment
 
