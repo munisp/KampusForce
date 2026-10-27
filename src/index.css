@@ -688,3 +688,20 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .job-list > div { grid-template-columns: 80px 1fr auto; }
   .job-list > div > span:nth-child(3) { display: none; }
 }
+
+
+/* Phase 7 privacy operations */
+.privacy-intake-grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 18px; align-items: start; }
+.privacy-form { display: grid; gap: 14px; }
+.privacy-form label small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.5; }
+.privacy-form .button { justify-self: start; }
+.privacy-queue-tabs { margin-top: 8px; }
+.privacy-decision-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.overdue-text { display: flex !important; align-items: center; gap: 4px; color: var(--red) !important; font-weight: 800; }
+@media (max-width: 900px) {
+  .privacy-intake-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .privacy-decision-grid { grid-template-columns: 1fr; }
+  .privacy-form .button { width: 100%; justify-content: center; }
+}

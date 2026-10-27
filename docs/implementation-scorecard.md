@@ -1,7 +1,51 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 6 monitoring-and-incident-response vertical slice, with the Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+Scope: executable Phase 7 privacy-operations and breach-assessment vertical slice, with the Phase 6, Phase 5, Phase 4, Phase 3, Phase 2 and Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion or claim that the full multi-year target architecture is live.
+
+## Phase 7 assessment
+
+The unweighted mean across 16 workstreams is **85/100** (exact mean **85.25**, improved from **84.6875** in Phase 6). Phase 7 adds hash-only 30-day DSAR workflows, identity-gated record-scoped evidence exports, 72-hour breach assessments with Operations/Admin notification ownership, append-only privacy histories and two additional incident sources. The unchanged rounded score reflects substantial remaining legal, identity-proofing, external-notification, live-provider, real-campus and target-architecture gates.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 95 | Exact dry runs, expiry worker, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, load evidence and vendor team permissions |
+| Vendor funnel & command | 86 | Vendor-scoped escrow, event simulation, full funnel, support metrics and quality | Live reconciliation exports and team permissions |
+| Campus recruiting & team management | 91 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment, notifications and sensitive-route throttling | Live identity provider and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, hourly/manual recalculation and row-locked demotion with prior-tier restoration, revocation, notification and audit | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings; demotion preserves history and stops future accrual | Live formal reconciliation and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, support-specific alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 93 | Vendor-specific targets, approved macros, one-time CSAT, durable SLA scheduling and source-linked incident detection | External alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 88 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Token-verification hardening, abuse controls and deep-link telemetry |
+| Event ingestion & historical rules | 90 | HMAC/timestamp/dedupe/quarantine, active-rule selection, immutable deal economics and quarantine incident detection | Durable ingestion queue, retries, key rotation and replay retention |
+| Escrow, payout & clawbacks | 96 | Locked reservation, dispatch and settlement; retries/fallback/recovery; refund holds; privacy operations preserve byte-equivalent financial snapshots | Live signed callbacks, provider evidence and configurable production tax policy |
+| Security, privacy & RBAC | 93 | Existing scopes/hashes/redaction/throttling plus 30-day DSARs, identity-gated scoped exports, 72-hour breach decisions, Operations/Admin ownership and append-only histories | Live identity proofing, production proxy/edge controls, secrets, DPIA/DPO, legal review and penetration test |
+| Offline & installable shell | 70 | Manifest, icons, app-shell cache and offline last-viewed catalog | Install analytics and broader read-only offline support |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived operational telemetry | Real campus cohorts and measured roadmap KPI attainment |
+| Automated verification | 99 | PostgreSQL 16 CI, 33 unit tests, six database journeys, recovery verification and desktop/mobile privacy workflows covering money, concurrency, incidents and financial preservation | Load/cross-browser suites and isolated preview-environment evidence |
+| Target architecture & scale services | 53 | PostgreSQL 16, row locks, durable job claims, atomic counters, health routes and scheduled cleanup/monitoring | NestJS parity, Redis/BullMQ and all later distributed services |
+| Live providers & production operations | 64 | Explicit sandbox finance adapters, health/readiness, recovery drill, record-derived incidents and privacy-response ownership | Live KYC/payment, real bank statements, external notification delivery, legal review, external monitoring/paging and offsite recovery |
+
+### Phase 7 verification evidence
+
+- Additive migration `0005` creates five privacy enums, four DSAR/breach tables, foreign keys, indexes and append-only history triggers without altering or dropping financial tables.
+- DSAR creation persists only the salted customer-phone hash and exact 30-day deadline. Export is rejected before identity verification. Concurrent duplicate verification and breach-start attempts each produce one success and one rejection.
+- Evidence exports contain attribution, activation/deal status, support status and consent metadata for the matching hash. Assertions reject raw phone and identity-like values, support free text, commissions, token signatures, payloads and other forbidden keys.
+- Deals, ledger entries, payouts, payout attempts, reconciliations, escrow wallets and Campus Lead overrides are byte-equivalent before and after privacy operations.
+- Breach decisions require risk, rationale and an Operations/Admin owner; a representative is rejected as owner. Decision and closure records explicitly return `externalNotificationSent: false`.
+- Overdue open DSARs generate warning incidents and overdue reported/assessing breaches generate critical incidents with stable deduplication. All lifecycle histories and audit records are present, and direct history mutation is rejected.
+- All 33 unit tests, TypeScript, ESLint, production build, repeated seed, Phase 2–7 journeys, isolated recovery drill and production dependency audit pass. CI includes all six journeys and the recovery drill.
+- Desktop and 375px browser journeys cover DSAR registration, verification, review, JSON download and fulfilment, plus breach intake, triage, Operations-owner decision and closure. No document-level overflow, console errors, page errors or HTTP errors occurred. The standalone production bundle passed root, PWA and health/readiness smoke checks without external `node_modules`.
+
+### Remaining production and architecture gates
+
+1. Implement reviewed source-specific rectification/erasure procedures where required; current DSAR fulfilment records an operational outcome and does not delete financial history or certify statutory compliance.
+2. Connect live KYC/payment providers with signed callback verification and replace sandbox outcome controls and supplied bank figures with authenticated provider/bank evidence.
+3. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
+4. Add external logs/metrics/traces, synthetic checks, alert delivery and on-call escalation; local incident and privacy desks are not production observability, paging or external breach notification.
+5. Add reviewed proxy/IP trust and edge/distributed abuse controls, production secrets, scheduled offsite recovery and point-in-time recovery.
+6. Replace campus fixtures and sandbox outcomes with real cohort and rollout evidence before claiming roadmap KPI attainment.
+7. Complete privacy/security/legal review, DPIA/DPO ownership, live identity-proofing policy, privileged-access review and financial-narrative reconciliation before investor or production use.
 
 ## Phase 6 assessment
 

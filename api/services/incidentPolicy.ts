@@ -1,8 +1,8 @@
-export const INCIDENT_SOURCES = ["job", "payout", "reconciliation", "event_quarantine", "support_sla"] as const;
+export const INCIDENT_SOURCES = ["job", "payout", "reconciliation", "event_quarantine", "support_sla", "dsar_sla", "breach_triage"] as const;
 export type IncidentSource = typeof INCIDENT_SOURCES[number];
 
 export function incidentSeverityForSource(source: IncidentSource) {
-  if (["job", "payout", "reconciliation"].includes(source)) return "critical" as const;
+  if (["job", "payout", "reconciliation", "breach_triage"].includes(source)) return "critical" as const;
   return "warning" as const;
 }
 

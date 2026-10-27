@@ -8,6 +8,8 @@ describe("operational incident policy", () => {
     expect(incidentSeverityForSource("reconciliation")).toBe("critical");
     expect(incidentSeverityForSource("event_quarantine")).toBe("warning");
     expect(incidentSeverityForSource("support_sla")).toBe("warning");
+    expect(incidentSeverityForSource("dsar_sla")).toBe("warning");
+    expect(incidentSeverityForSource("breach_triage")).toBe("critical");
   });
 
   it("deduplicates scheduled monitoring into five-minute slots", () => {

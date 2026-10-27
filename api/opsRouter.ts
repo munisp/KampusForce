@@ -35,6 +35,20 @@ import { activateRecruitment, revokeRecruitment } from "./services/recruiting";
 import { recentJobRuns, runDueJobs } from "./services/jobs";
 import { campusTelemetry } from "./services/telemetry";
 import { acknowledgeOperationalIncident, listOperationalIncidents, monitorOperationalSignals, resolveOperationalIncident } from "./services/incidents";
+import {
+  closeBreachAssessment,
+  createBreachAssessment,
+  createDsarRequest,
+  exportDsarEvidence,
+  fulfilDsarRequest,
+  listPrivacyDesk,
+  recordBreachDecision,
+  rejectDsarRequest,
+  startBreachAssessment,
+  startDsarReview,
+  verifyDsarIdentity,
+} from "./services/privacy";
+import { isBreachTriageOverdue, isDsarOverdue } from "./services/privacyPolicy";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -58,6 +72,7 @@ export const opsRouter = createRouter({
     const attempts = await getDb().select().from(payoutAttempts).orderBy(desc(payoutAttempts.createdAt)).limit(100);
     const reconciliations = await getDb().select().from(reconciliationRuns).orderBy(desc(reconciliationRuns.createdAt)).limit(50);
     const incidentData = await listOperationalIncidents();
+    const privacy = await listPrivacyDesk();
     const rated = supportCases.filter(({ ticket }) => ticket.csat);
     return {
       metrics: {
@@ -70,6 +85,9 @@ export const opsRouter = createRouter({
         failedPayouts: payoutRows.filter(({ payout }) => ["failed", "held"].includes(payout.state)).length,
         openIncidents: incidentData.incidents.filter((incident) => incident.state !== "resolved").length,
         criticalIncidents: incidentData.incidents.filter((incident) => incident.state !== "resolved" && incident.severity === "critical").length,
+        openDsars: privacy.requests.filter((request) => !["fulfilled", "rejected"].includes(request.state)).length,
+        openBreaches: privacy.assessments.filter((assessment) => assessment.state !== "closed").length,
+        overduePrivacy: privacy.requests.filter((request) => isDsarOverdue(request)).length + privacy.assessments.filter((assessment) => isBreachTriageOverdue(assessment)).length,
         quarantined: quarantine.length,
         openDisputes: cases.filter((c) => ["open", "reviewing"].includes(c.dispute.state)).length,
         openSupport: supportCases.filter(({ ticket }) => !["resolved", "closed"].includes(ticket.state)).length,
@@ -92,6 +110,11 @@ export const opsRouter = createRouter({
       reconciliations,
       incidents: incidentData.incidents,
       incidentEvents: incidentData.events,
+      dsarRequests: privacy.requests.map((request) => ({ ...request, overdue: isDsarOverdue(request) })),
+      dsarRequestEvents: privacy.requestEvents,
+      breachAssessments: privacy.assessments.map((assessment) => ({ ...assessment, overdue: isBreachTriageOverdue(assessment) })),
+      breachAssessmentEvents: privacy.assessmentEvents,
+      privacyOwners: privacy.owners,
     };
   }),
   confirmSweep: authedQuery.mutation(async ({ ctx }) => {
@@ -145,6 +168,70 @@ export const opsRouter = createRouter({
   })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return resolveOperationalIncident(input.incidentId, ctx.user.id, input.resolutionNote);
+  }),
+  createDsar: authedQuery.input(z.object({
+    customerPhone: z.string().trim().min(10).max(20),
+    requestType: z.enum(["access", "rectification", "erasure", "objection"]),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return createDsarRequest({ ...input, actorUserId: ctx.user.id });
+  }),
+  verifyDsar: authedQuery.input(z.object({
+    requestId: z.number().int().positive(),
+    verificationNote: z.string().trim().min(10).max(1000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return verifyDsarIdentity(input.requestId, ctx.user.id, input.verificationNote);
+  }),
+  reviewDsar: authedQuery.input(z.object({ requestId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return startDsarReview(input.requestId, ctx.user.id);
+  }),
+  fulfilDsar: authedQuery.input(z.object({
+    requestId: z.number().int().positive(),
+    outcomeNote: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return fulfilDsarRequest(input.requestId, ctx.user.id, input.outcomeNote);
+  }),
+  rejectDsar: authedQuery.input(z.object({
+    requestId: z.number().int().positive(),
+    outcomeNote: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return rejectDsarRequest(input.requestId, ctx.user.id, input.outcomeNote);
+  }),
+  exportDsar: authedQuery.input(z.object({ requestId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return exportDsarEvidence(input.requestId, ctx.user.id);
+  }),
+  createBreach: authedQuery.input(z.object({
+    title: z.string().trim().min(5).max(180),
+    summary: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return createBreachAssessment({ ...input, actorUserId: ctx.user.id });
+  }),
+  startBreach: authedQuery.input(z.object({ assessmentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return startBreachAssessment(input.assessmentId, ctx.user.id);
+  }),
+  decideBreach: authedQuery.input(z.object({
+    assessmentId: z.number().int().positive(),
+    risk: z.enum(["low", "medium", "high"]),
+    notificationDecision: z.enum(["not_required", "required"]),
+    notificationOwnerUserId: z.number().int().positive(),
+    decisionNote: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return recordBreachDecision({ ...input, actorUserId: ctx.user.id });
+  }),
+  closeBreach: authedQuery.input(z.object({
+    assessmentId: z.number().int().positive(),
+    closureNote: z.string().trim().min(10).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return closeBreachAssessment(input.assessmentId, ctx.user.id, input.closureNote);
   }),
   runJobs: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "admin"]);

@@ -1,7 +1,9 @@
-import { and, desc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, notInArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLogs,
+  breachAssessments,
+  dsarRequests,
   jobRuns,
   operationalIncidentEvents,
   operationalIncidents,
@@ -26,7 +28,8 @@ type IncidentSignal = {
 
 export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
   const db = getDb();
-  const [failedJobs, payoutAttention, variances, quarantined, breachedSupport] = await Promise.all([
+  const now = new Date();
+  const [failedJobs, payoutAttention, variances, quarantined, breachedSupport, overdueDsars, overdueBreaches] = await Promise.all([
     db.select().from(jobRuns).where(eq(jobRuns.status, "failed")).orderBy(desc(jobRuns.startedAt)).limit(20),
     db.select().from(payouts).where(inArray(payouts.state, ["failed", "held"])).orderBy(desc(payouts.updatedAt)).limit(50),
     db.select().from(reconciliationRuns).where(eq(reconciliationRuns.state, "variance")).orderBy(desc(reconciliationRuns.createdAt)).limit(50),
@@ -35,6 +38,14 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
       isNotNull(supportTickets.slaBreachedAt),
       notInArray(supportTickets.state, ["resolved", "closed"]),
     )).orderBy(desc(supportTickets.slaBreachedAt)).limit(50),
+    db.select().from(dsarRequests).where(and(
+      notInArray(dsarRequests.state, ["fulfilled", "rejected"]),
+      lt(dsarRequests.dueAt, now),
+    )).orderBy(desc(dsarRequests.dueAt)).limit(50),
+    db.select().from(breachAssessments).where(and(
+      inArray(breachAssessments.state, ["reported", "assessing"]),
+      lt(breachAssessments.triageDueAt, now),
+    )).orderBy(desc(breachAssessments.triageDueAt)).limit(50),
   ]);
 
   return [
@@ -82,6 +93,24 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
       entityType: "support_ticket",
       entityId: String(ticket.id),
       evidence: { ticketRef: ticket.ticketRef, priority: ticket.priority, slaDueAt: ticket.slaDueAt.toISOString() },
+    })),
+    ...overdueDsars.map((request): IncidentSignal => ({
+      dedupeKey: `dsar_sla:${request.id}`,
+      source: "dsar_sla",
+      title: `DSAR response overdue: ${request.requestRef}`,
+      detail: `${request.requestType} request remains in ${request.state.replaceAll("_", " ")} after its 30-day response deadline. No customer identifier is copied into this incident.`,
+      entityType: "dsar_request",
+      entityId: String(request.id),
+      evidence: { requestRef: request.requestRef, requestType: request.requestType, dueAt: request.dueAt.toISOString() },
+    })),
+    ...overdueBreaches.map((assessment): IncidentSignal => ({
+      dedupeKey: `breach_triage:${assessment.id}`,
+      source: "breach_triage",
+      title: `Breach triage overdue: ${assessment.assessmentRef}`,
+      detail: `Assessment remains in ${assessment.state.replaceAll("_", " ")} after its 72-hour triage deadline. Record risk, notification decision and ownership; no external notice is sent here.`,
+      entityType: "breach_assessment",
+      entityId: String(assessment.id),
+      evidence: { assessmentRef: assessment.assessmentRef, triageDueAt: assessment.triageDueAt.toISOString() },
     })),
   ];
 }

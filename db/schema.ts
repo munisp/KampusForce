@@ -43,6 +43,11 @@ export const supportPriorityEnum = pgEnum("support_priority", ["normal", "urgent
 export const supportTicketStateEnum = pgEnum("support_ticket_state", ["rep_triage", "campus_lead_queue", "vendor_queue", "ops_queue", "resolved", "closed"]);
 export const incidentSeverityEnum = pgEnum("incident_severity", ["info", "warning", "critical"]);
 export const incidentStateEnum = pgEnum("incident_state", ["open", "acknowledged", "resolved"]);
+export const dsarRequestTypeEnum = pgEnum("dsar_request_type", ["access", "rectification", "erasure", "objection"]);
+export const dsarStateEnum = pgEnum("dsar_state", ["received", "identity_verified", "in_review", "fulfilled", "rejected"]);
+export const breachAssessmentStateEnum = pgEnum("breach_assessment_state", ["reported", "assessing", "decision_recorded", "closed"]);
+export const breachRiskEnum = pgEnum("breach_risk", ["low", "medium", "high"]);
+export const breachNotificationDecisionEnum = pgEnum("breach_notification_decision", ["pending", "not_required", "required"]);
 
 
 export const campuses = pgTable("campuses", {
@@ -296,6 +301,70 @@ export const operationalIncidentEvents = pgTable("operational_incident_events", 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("operational_incident_event_idx").on(t.incidentId, t.createdAt)]);
 
+export const dsarRequests = pgTable("dsar_requests", {
+  id: serial("id").primaryKey(),
+  requestRef: varchar("request_ref", { length: 40 }).notNull().unique(),
+  customerPhoneHash: varchar("customer_phone_hash", { length: 64 }).notNull(),
+  requestType: dsarRequestTypeEnum("request_type").notNull(),
+  state: dsarStateEnum("state").notNull().default("received"),
+  ownerUserId: integer("owner_user_id").notNull().references(() => users.id),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  verifiedByUserId: integer("verified_by_user_id").references(() => users.id),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  outcomeNote: text("outcome_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("dsar_customer_idx").on(t.customerPhoneHash, t.createdAt),
+  index("dsar_state_due_idx").on(t.state, t.dueAt),
+]);
+
+export const dsarRequestEvents = pgTable("dsar_request_events", {
+  id: serial("id").primaryKey(),
+  requestId: integer("request_id").notNull().references(() => dsarRequests.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  action: varchar("action", { length: 80 }).notNull(),
+  fromState: dsarStateEnum("from_state"),
+  toState: dsarStateEnum("to_state"),
+  note: text("note"),
+  evidenceJson: json("evidence_json"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("dsar_request_event_idx").on(t.requestId, t.createdAt)]);
+
+export const breachAssessments = pgTable("breach_assessments", {
+  id: serial("id").primaryKey(),
+  assessmentRef: varchar("assessment_ref", { length: 40 }).notNull().unique(),
+  title: varchar("title", { length: 180 }).notNull(),
+  summary: text("summary").notNull(),
+  state: breachAssessmentStateEnum("state").notNull().default("reported"),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+  triageDueAt: timestamp("triage_due_at", { withTimezone: true }).notNull(),
+  risk: breachRiskEnum("risk"),
+  notificationDecision: breachNotificationDecisionEnum("notification_decision").notNull().default("pending"),
+  notificationOwnerUserId: integer("notification_owner_user_id").references(() => users.id),
+  decisionNote: text("decision_note"),
+  decisionAt: timestamp("decision_at", { withTimezone: true }),
+  closureNote: text("closure_note"),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("breach_assessment_state_due_idx").on(t.state, t.triageDueAt)]);
+
+export const breachAssessmentEvents = pgTable("breach_assessment_events", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull().references(() => breachAssessments.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  action: varchar("action", { length: 80 }).notNull(),
+  fromState: breachAssessmentStateEnum("from_state"),
+  toState: breachAssessmentStateEnum("to_state"),
+  note: text("note"),
+  evidenceJson: json("evidence_json"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("breach_assessment_event_idx").on(t.assessmentId, t.createdAt)]);
+
 export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   id: serial("id").primaryKey(),
   keyHash: varchar("key_hash", { length: 64 }).notNull().unique(),
@@ -522,3 +591,5 @@ export type Rep = typeof reps.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Deal = typeof deals.$inferSelect;
 export type VendorEvent = typeof vendorEvents.$inferSelect;
+export type DsarRequest = typeof dsarRequests.$inferSelect;
+export type BreachAssessment = typeof breachAssessments.$inferSelect;
