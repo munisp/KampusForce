@@ -47,16 +47,13 @@ export function RepOverview() {
 export function RepCatalog() {
   const { token } = useWorkspace();
   const query = trpc.rep.catalog.useQuery({ token });
-  const [cached, setCached] = useState<NonNullable<typeof query.data>>(() => {
+  const [cached] = useState<NonNullable<typeof query.data>>(() => {
     try { return JSON.parse(localStorage.getItem("kf_offline_catalog") || "[]"); } catch { return []; }
   });
   useEffect(() => {
-    if (query.data) {
-      localStorage.setItem("kf_offline_catalog", JSON.stringify(query.data));
-      setCached(query.data);
-    }
+    if (query.data) localStorage.setItem("kf_offline_catalog", JSON.stringify(query.data));
   }, [query.data]);
-  const rows = query.data || (query.error ? cached : []);
+  const rows = useMemo(() => query.data || (query.error ? cached : []), [query.data, query.error, cached]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const products = useMemo(() => rows.filter(({ product }) => (category === "all" || product.category === category) && `${product.name} ${product.description}`.toLowerCase().includes(search.toLowerCase())), [rows, search, category]);

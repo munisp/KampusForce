@@ -25,6 +25,7 @@ import { ensureAttribution } from "./services/attribution";
 import { getDb } from "./queries/connection";
 import { normalizePhone } from "./services/security";
 import { createSupportTicket, escalateSupportTicket, isSlaBreached, rateSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
+import { createInvitationToken, hashInvitationToken, revokeRecruitment } from "./services/recruiting";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -109,8 +110,15 @@ export const repRouter = createRouter({
     const phoneE164 = normalizePhone(input.phone);
     const [existing] = await getDb().select().from(campusRecruitments).where(and(eq(campusRecruitments.leadRepId, lead.id), eq(campusRecruitments.phoneE164, phoneE164), eq(campusRecruitments.status, "invited"))).limit(1);
     if (existing) throw new TRPCError({ code: "CONFLICT", message: "This recruit already has an open invitation" });
-    const [{ id }] = await getDb().insert(campusRecruitments).values({ leadRepId: lead.id, campusId: lead.campusId, name: input.name, phoneE164, note: input.note || null }).returning({ id: campusRecruitments.id });
-    return { recruitmentId: id, status: "invited" as const, nextStep: "operations_identity_verification" };
+    const invitationToken = createInvitationToken();
+    const [{ id }] = await getDb().insert(campusRecruitments).values({ leadRepId: lead.id, campusId: lead.campusId, name: input.name, phoneE164, note: input.note || null, tokenHash: hashInvitationToken(invitationToken), expiresAt: new Date(Date.now() + 7 * 86_400_000) }).returning({ id: campusRecruitments.id });
+    return { recruitmentId: id, status: "invited" as const, acceptancePath: `/recruit/accept?token=${encodeURIComponent(invitationToken)}`, nextStep: "recruit_phone_verified_acceptance" };
+  }),
+  revokeRecruitment: authedQuery.input(z.object({ recruitmentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    const lead = await currentRep(ctx.user.id);
+    if (lead.tier !== "campus_lead" || lead.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Only an active campus lead can revoke recruiting invitations" });
+    return revokeRecruitment({ recruitmentId: input.recruitmentId, actorUserId: ctx.user.id, leadRepId: lead.id });
   }),
   assignTeamMember: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
@@ -127,6 +135,7 @@ export const repRouter = createRouter({
   share: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string().optional(), source: z.enum(["link", "qr"]).default("link") })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
+    if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations must activate your rep profile before you can share attribution links" });
     const [product] = await getDb().select().from(products).where(eq(products.id, input.productId)).limit(1);
     if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
     let attributed = false;
@@ -140,6 +149,7 @@ export const repRouter = createRouter({
   assistedStart: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
+    if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations must activate your rep profile before assisted onboarding" });
     const { attribution } = await ensureAttribution({ repId: rep.id, productId: input.productId, customerPhone: input.customerPhone, source: "assisted", actorUserId: ctx.user.id });
     const [{ id }] = await getDb().insert(assistedSessions).values({ repId: rep.id, productId: input.productId, customerPhoneHash: attribution.customerPhoneHash, currentStep: 1, consentAt: new Date() }).returning({ id: assistedSessions.id });
     return { sessionId: id, attributionId: attribution.id };

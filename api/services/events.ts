@@ -51,8 +51,8 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     await db.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "No active first-touch attribution; eligible for 24h claim review" });
     return { status: "quarantined" as const, kf_event_id: eventId, reason: "No active attribution" };
   }
-  const trigger = payload.type === "account_created" ? "signup" : payload.type;
-  const [rule] = await db.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger as any), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
+  const trigger: typeof commissionRules.$inferInsert.triggerEvent = payload.type === "account_created" ? "signup" : payload.type;
+  const [rule] = await db.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
   if (!rule) {
     await db.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: "Event does not trigger the active commission rule" });
     return { status: "ignored" as const, kf_event_id: eventId };

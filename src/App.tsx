@@ -8,6 +8,7 @@ import Ops from "@/pages/Ops";
 import Implementation from "@/pages/Implementation";
 import RepSupport from "@/pages/RepSupport";
 import RepTeam from "@/pages/RepTeam";
+import RecruitAccept from "@/pages/RecruitAccept";
 
 function Protected({ children }: { children: ReactNode }) {
   const { token } = useWorkspace();
@@ -17,6 +18,7 @@ function Protected({ children }: { children: ReactNode }) {
 export default function App() {
   return <Routes>
     <Route path="/" element={<Login />} />
+    <Route path="/recruit/accept" element={<RecruitAccept />} />
     <Route path="/rep" element={<Protected><RepOverview /></Protected>} />
     <Route path="/rep/catalog" element={<Protected><RepCatalog /></Protected>} />
     <Route path="/rep/share" element={<Protected><RepShare /></Protected>} />

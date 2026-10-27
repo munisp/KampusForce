@@ -22,14 +22,21 @@ export async function syncSlaBreaches(vendorId?: number) {
   const db = getDb();
   const conditions = [inArray(supportTickets.state, ["vendor_queue", "ops_queue"]), isNull(supportTickets.slaBreachedAt), lte(supportTickets.slaDueAt, new Date())];
   if (vendorId) conditions.push(eq(supportTickets.vendorId, vendorId));
-  const due = await db.select().from(supportTickets).where(and(...conditions));
-  for (const ticket of due) {
-    const now = new Date();
-    await db.update(supportTickets).set({ slaBreachedAt: now, updatedAt: now }).where(and(eq(supportTickets.id, ticket.id), isNull(supportTickets.slaBreachedAt)));
-    await db.insert(supportTicketEvents).values({ ticketId: ticket.id, actorRole: "system", action: "sla_breached", fromState: ticket.state, toState: ticket.state, note: `Vendor SLA of ${ticket.slaDueAt.toISOString()} elapsed without resolution` });
-    await db.insert(auditLogs).values({ action: "support.sla_breached", entityType: "support_ticket", entityId: String(ticket.id), metadataJson: { vendorId: ticket.vendorId, slaDueAt: ticket.slaDueAt } });
+  const due = await db.select({ id: supportTickets.id }).from(supportTickets).where(and(...conditions));
+  let breached = 0;
+  for (const candidate of due) {
+    const changed = await db.transaction(async (tx) => {
+      const [ticket] = await tx.select().from(supportTickets).where(eq(supportTickets.id, candidate.id)).limit(1).for("update");
+      if (!ticket || ticket.slaBreachedAt || !["vendor_queue", "ops_queue"].includes(ticket.state) || ticket.slaDueAt > new Date()) return false;
+      const now = new Date();
+      await tx.update(supportTickets).set({ slaBreachedAt: now, updatedAt: now }).where(eq(supportTickets.id, ticket.id));
+      await tx.insert(supportTicketEvents).values({ ticketId: ticket.id, actorRole: "system", action: "sla_breached", fromState: ticket.state, toState: ticket.state, note: `Vendor SLA of ${ticket.slaDueAt.toISOString()} elapsed without resolution` });
+      await tx.insert(auditLogs).values({ action: "support.sla_breached", entityType: "support_ticket", entityId: String(ticket.id), metadataJson: { vendorId: ticket.vendorId, slaDueAt: ticket.slaDueAt } });
+      return true;
+    });
+    if (changed) breached += 1;
   }
-  return due.length;
+  return breached;
 }
 
 async function activeLeadForRep(repId: number) {

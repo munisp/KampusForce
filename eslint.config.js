@@ -20,4 +20,10 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // These shared modules intentionally colocate a provider/component with its
+    // public hooks, client, and formatting utilities.
+    files: ['src/lib/format.tsx', 'src/providers/trpc.tsx', 'src/providers/workspace.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ])

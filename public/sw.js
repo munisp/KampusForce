@@ -1,4 +1,4 @@
-const CACHE = "kampusforce-shell-v3";
+const CACHE = "kampusforce-shell-v4";
 const CORE = ["/", "/manifest.webmanifest", "/icons/kf.svg"];
 
 self.addEventListener("install", (event) => {

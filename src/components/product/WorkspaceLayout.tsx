@@ -1,6 +1,6 @@
-import { BarChart3, BookOpenCheck, CircleDollarSign, ClipboardCheck, ExternalLink, LayoutDashboard, LifeBuoy, LogOut, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UsersRound } from "lucide-react";
+import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, ClipboardCheck, ExternalLink, LayoutDashboard, LifeBuoy, LogOut, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UsersRound, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Brand } from "./Brand";
 import { useWorkspace } from "@/providers/workspace";
 import { trpc } from "@/providers/trpc";
@@ -19,6 +19,21 @@ const navByRole = {
   ops: [{ to: "/ops", label: "Operations control", icon: ShieldCheck }],
 };
 
+function NotificationCenter() {
+  const { token } = useWorkspace();
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  const inbox = trpc.notification.list.useQuery({ token }, { refetchInterval: 30_000 });
+  const read = trpc.notification.read.useMutation({ onSuccess: () => utils.notification.list.invalidate() });
+  const readAll = trpc.notification.readAll.useMutation({ onSuccess: () => utils.notification.list.invalidate() });
+  const unread = inbox.data?.unread || 0;
+  return <div className="notification-center">
+    <button className="icon-button notification-trigger" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`} aria-expanded={open} onClick={() => setOpen(!open)}><Bell size={18} />{unread > 0 && <span>{unread}</span>}</button>
+    {open && <div className="notification-popover"><div className="notification-head"><strong>In-app notifications</strong><span className="notification-actions"><button className="text-link" disabled={!unread || readAll.isPending} onClick={() => readAll.mutate({ token })}><CheckCheck size={14} />Mark all read</button><button className="icon-button" aria-label="Close notifications" onClick={() => setOpen(false)}><X size={15} /></button></span></div><p className="notification-boundary">Product events only—no SMS or email delivery is implied.</p><div className="notification-list">{inbox.data?.notifications.length ? inbox.data.notifications.map((item) => <button key={item.id} className={item.readAt ? "read" : "unread"} onClick={() => { if (!item.readAt) read.mutate({ token, notificationId: item.id }); if (item.href) { navigate(item.href); setOpen(false); } }}><span><strong>{item.title}</strong><small>{item.body}</small><em>{new Date(item.createdAt).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</em></span>{!item.readAt && <i aria-label="Unread" />}</button>) : <div className="notification-empty">No notifications yet. Recruitment, activation, and payout events will appear here.</div>}</div></div>}
+  </div>;
+}
+
 export function WorkspaceLayout({ children, title, subtitle }: { children: ReactNode; title: string; subtitle: string }) {
   const { user, token, setSession } = useWorkspace();
   const navigate = useNavigate();
@@ -27,7 +42,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
   return <div className="workspace-shell">
     <aside className="sidebar">
       <Brand inverse />
-      <div className="workspace-label">{user.role} workspace<span>Phase 2 · sandbox</span></div>
+      <div className="workspace-label">{user.role} workspace<span>Phase 3 · sandbox</span></div>
       <nav aria-label="Workspace navigation">
         {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={18} />{label}</NavLink>)}
       </nav>
@@ -39,7 +54,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
     <main className="workspace-main">
       <header className="workspace-header">
         <div><p className="eyebrow">{user.name}</p><h1>{title}</h1><p>{subtitle}</p></div>
-        <div className="header-status"><span className="live-dot" />Systems operational<small>Sandbox adapters</small></div>
+        <div className="header-actions"><div className="header-status"><span className="live-dot" />Systems operational<small>Sandbox adapters</small></div><NotificationCenter /></div>
       </header>
       {children}
     </main>

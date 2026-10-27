@@ -29,7 +29,8 @@ export const attributionStatusEnum = pgEnum("attribution_status", ["active", "ex
 export const vendorEventTypeEnum = pgEnum("vendor_event_type", ["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund"]);
 export const vendorEventStatusEnum = pgEnum("vendor_event_status", ["processed", "ignored", "quarantined"]);
 export const dealStateEnum = pgEnum("deal_state", ["pending", "confirmed", "payable", "paid", "disputed", "void", "clawed_back", "failed"]);
-export const recruitmentStatusEnum = pgEnum("recruitment_status", ["invited", "activated", "revoked"]);
+export const recruitmentStatusEnum = pgEnum("recruitment_status", ["invited", "accepted", "activated", "revoked", "expired"]);
+export const jobRunStatusEnum = pgEnum("job_run_status", ["running", "succeeded", "failed"]);
 export const overrideStateEnum = pgEnum("override_state", ["accrued", "paid", "reversed"]);
 export const ledgerAccountEnum = pgEnum("ledger_account", ["rep_payable", "lead_override_payable", "platform_revenue", "vendor_escrow", "clawback_reserve", "withholding_tax", "external_bank"]);
 export const ledgerDirectionEnum = pgEnum("ledger_direction", ["debit", "credit"]);
@@ -229,9 +230,42 @@ export const campusRecruitments = pgTable("campus_recruitments", {
   phoneE164: varchar("phone_e164", { length: 20 }).notNull(),
   note: varchar("note", { length: 300 }),
   status: recruitmentStatusEnum("status").notNull().default("invited"),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   invitedAt: timestamp("invited_at", { withTimezone: true }).notNull().defaultNow(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  acceptedUserId: integer("accepted_user_id").references(() => users.id),
   activatedAt: timestamp("activated_at", { withTimezone: true }),
-});
+  activatedByUserId: integer("activated_by_user_id").references(() => users.id),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedByUserId: integer("revoked_by_user_id").references(() => users.id),
+}, (t) => [uniqueIndex("campus_recruitment_token_unique").on(t.tokenHash), index("campus_recruitment_status_idx").on(t.status, t.expiresAt)]);
+
+export const jobRuns = pgTable("job_runs", {
+  id: serial("id").primaryKey(),
+  jobKey: varchar("job_key", { length: 80 }).notNull(),
+  slotKey: varchar("slot_key", { length: 100 }).notNull(),
+  trigger: varchar("trigger", { length: 20 }).notNull().default("manual"),
+  status: jobRunStatusEnum("status").notNull().default("running"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  processedCount: integer("processed_count").notNull().default(0),
+  resultJson: json("result_json"),
+  error: varchar("error", { length: 1000 }),
+}, (t) => [uniqueIndex("job_run_slot_unique").on(t.jobKey, t.slotKey), index("job_run_started_idx").on(t.startedAt)]);
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  type: varchar("type", { length: 60 }).notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  body: varchar("body", { length: 1000 }).notNull(),
+  href: varchar("href", { length: 300 }),
+  entityType: varchar("entity_type", { length: 60 }),
+  entityId: varchar("entity_id", { length: 100 }),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt)]);
 
 export const campusLeadOverrides = pgTable(
   "campus_lead_overrides",

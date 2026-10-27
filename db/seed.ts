@@ -5,11 +5,29 @@ import { getDb } from "../api/queries/connection";
 
 async function main() {
   const db = getDb();
-  let [campus] = await db.select().from(campuses).where(eq(campuses.name, "University of Lagos")).limit(1);
-  if (!campus) {
-    const [{ id }] = await db.insert(campuses).values({ name: "University of Lagos", state: "Lagos", status: "live", launchDate: new Date() }).returning({ id: campuses.id });
-    [campus] = await db.select().from(campuses).where(eq(campuses.id, id)).limit(1);
+  const campusSeeds = [
+    { name: "University of Lagos", state: "Lagos", status: "live" as const },
+    { name: "University of Ibadan", state: "Oyo", status: "launching" as const },
+    { name: "Obafemi Awolowo University", state: "Osun", status: "launching" as const },
+    { name: "University of Nigeria Nsukka", state: "Enugu", status: "planned" as const },
+    { name: "Ahmadu Bello University", state: "Kaduna", status: "planned" as const },
+    { name: "University of Benin", state: "Edo", status: "planned" as const },
+    { name: "University of Ilorin", state: "Kwara", status: "planned" as const },
+    { name: "Covenant University", state: "Ogun", status: "planned" as const },
+    { name: "Babcock University", state: "Ogun", status: "planned" as const },
+    { name: "University of Port Harcourt", state: "Rivers", status: "planned" as const },
+    { name: "Bayero University Kano", state: "Kano", status: "planned" as const },
+    { name: "Lagos State University", state: "Lagos", status: "planned" as const },
+    { name: "Federal University of Technology Akure", state: "Ondo", status: "planned" as const },
+    { name: "Nnamdi Azikiwe University", state: "Anambra", status: "planned" as const },
+    { name: "University of Jos", state: "Plateau", status: "planned" as const },
+  ];
+  for (const seed of campusSeeds) {
+    const [existing] = await db.select().from(campuses).where(eq(campuses.name, seed.name)).limit(1);
+    if (!existing) await db.insert(campuses).values({ ...seed, launchDate: seed.status === "live" ? new Date() : null });
   }
+  const [campus] = await db.select().from(campuses).where(eq(campuses.name, "University of Lagos")).limit(1);
+  if (!campus) throw new Error("University of Lagos fixture could not be seeded");
   const userSeeds = [
     { phoneE164: "+2348000000001", name: "Ada Okafor", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_ada", ninLast4: "0001", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0001", bankAccountName: "Ada Okafor", bankNameMatch: true },
     { phoneE164: "+2348000000002", name: "CampusSave Partnerships", role: "vendor" as const, kycState: "verified" as const },
@@ -79,7 +97,7 @@ async function main() {
   const [campusSave] = await db.select().from(vendors).where(eq(vendors.webhookKey, "campussave_sandbox")).limit(1);
   const [macro] = await db.select().from(supportResolutionMacros).where(and(eq(supportResolutionMacros.vendorId, campusSave.id), eq(supportResolutionMacros.title, "Activation evidence rechecked"))).limit(1);
   if (!macro) await db.insert(supportResolutionMacros).values({ vendorId: campusSave.id, title: "Activation evidence rechecked", body: "We rechecked the signed activation evidence and confirmed the outcome shown in this case. The rep can review the resolution and submit CSAT.", approvedByUserId: createdUsers[1].id });
-  console.log("KampusForce sandbox seed complete, including Phase 2 campus team and support fixtures");
+  console.log("KampusForce sandbox seed complete, including Phase 3 fifteen-campus, recruiting, team and support fixtures");
   process.exit(0);
 }
 

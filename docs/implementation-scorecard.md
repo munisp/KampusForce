@@ -1,7 +1,46 @@
 # KampusForce implementation scorecard
 
-Assessment date: 2026-10-27  
-Scope: executable Phase 2 campus-scale vertical slice, with the Phase 1 baseline retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+Assessment date: 2026-10-28
+Scope: executable Phase 3 operational vertical slice, with the Phase 2 and Phase 1 assessments retained below. This is not a production certification or a claim that the full multi-year target architecture is live.
+
+## Phase 3 assessment
+
+The unweighted mean across 16 workstreams is **81/100**. Phase 3 adds verified recruiting acceptance/activation, campus telemetry, durable jobs, in-app notifications, database immutability, concurrency controls and CI. The mean still includes real-rollout, NestJS/Redis and live-provider gaps.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 95 | Exact dry runs, expiry worker, typed publication, row-locked supersession and concurrent-publication acceptance | Product onboarding, load evidence and vendor team permissions |
+| Vendor funnel & command | 86 | Vendor-scoped escrow, event simulation, full funnel, support metrics and quality | Live reconciliation exports and team permissions |
+| Campus recruiting & team management | 90 | Hashed one-time invites, invited-phone acceptance, contractor consent, revocation, sandbox Ops activation, assignment and notifications | Live identity provider, throttling and production onboarding policy |
+| Top-decile lead designation | 82 | Campus-specific confirmed-performance ranking, deterministic ties, top-decile slots and signed-contractor gate | Periodic eligibility recalculation, demotion policy and real cohorts |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined payout, reversal/netting, append-only postings and concurrent-payout proof | Formal reconciliation, backup/restore and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped rep/lead/vendor/Ops queues, timelines, resolution controls and idempotent breach events | Attachments, support-specific alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 91 | Vendor-specific targets, approved macros, one-time CSAT, quality updates and durable idempotent SLA scheduling | Alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 88 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Token-verification hardening, abuse controls and deep-link telemetry |
+| Event ingestion & historical rules | 90 | HMAC/timestamp/dedupe/quarantine, active-rule selection and immutable historical deal economics | Durable ingestion queue, retries, key rotation and replay retention |
+| Escrow, payout & clawbacks | 93 | Locked confirmation/refund/payout transactions; five concurrent batches produced one recipient payout; all prior money invariants passed | Live callbacks, 09:00 WAT scheduling, failure recovery and tax configuration |
+| Security, privacy & RBAC | 78 | Role/ownership scopes, token/session hashes, redaction, phone-bound invites and database append-only triggers | Production secrets, throttling, DPIA/DPO evidence and penetration test |
+| Offline & installable shell | 70 | Manifest, icons, app-shell cache and offline last-viewed catalog | Install analytics and broader read-only offline support |
+| Fifteen-campus rollout & KPI telemetry | 68 | Fifteen honest campus fixtures and record-derived health, rep, activation, commission, support and breach telemetry | Real campus cohorts and measured roadmap KPI attainment |
+| Automated verification | 96 | PostgreSQL 16 CI, type/build/unit checks, two live acceptance journeys, concurrency and immutability tests | Browser/load/cross-browser suites and isolated preview-environment evidence |
+| Target architecture & scale services | 50 | PostgreSQL 16, transactional locks, unique durable job claims and minute scheduler | NestJS parity, Redis/BullMQ and all later distributed services |
+| Live providers & production operations | 38 | Explicit sandbox identity/payment adapters and in-app-only notifications | Live KYC/payment, SMS/email, reconciliation, monitoring and incident response |
+
+### Phase 3 verification evidence
+
+- Additive PostgreSQL migration and repeated idempotent fifteen-campus seed passed.
+- `npx tsx scripts/verify-phase3.ts` passed phone binding, token hashing, acceptance/activation/revocation/expiry, telemetry, job dedupe, append-only rejection, concurrency and notifications.
+- Three concurrent confirmation sweeps produced five expected postings for one team deal; five concurrent payout batches produced exactly one new-recruit payout; two concurrent draft publications produced one winner.
+- The Phase 2 database regression and all 19 unit tests passed after the Phase 3 changes.
+- `.github/workflows/verify.yml` provisions PostgreSQL 16 and runs install, type check, unit tests, build, migration, repeated seed, both acceptance journeys and production dependency audit.
+
+### Remaining production and architecture gates
+
+1. Replace Hono/tRPC with the specified NestJS boundary if strict architecture parity is required; add Redis/BullMQ rather than relabelling the PostgreSQL minute worker.
+2. Connect live KYC/payment providers with callback reconciliation, idempotent retry/failure handling and a 09:00 WAT payout schedule.
+3. Add production rate limiting, secrets management, monitoring, backup/restore, incident response and privileged-access review.
+4. Replace campus fixtures and sandbox outcomes with real cohort evidence before claiming rollout or roadmap KPI attainment.
+5. Complete privacy/security/legal review and reconcile financial narratives before investor or production use.
 
 ## Phase 2 assessment
 

@@ -1,0 +1,50 @@
+name: Verify KampusForce
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: kampusforce-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgresql-acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kampusforce
+          POSTGRES_PASSWORD: kampusforce_test
+          POSTGRES_DB: kampusforce_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kampusforce -d kampusforce_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_URL: postgresql://kampusforce:kampusforce_test@localhost:5432/kampusforce_test
+      NODE_ENV: test
+      AUTH_SECRET: ci-only-auth-secret-not-for-production
+      PHONE_HASH_SALT: ci-only-phone-salt-not-for-production
+      VENDOR_WEBHOOK_SECRETS: "{}"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm run db:seed
+      - run: npx tsx scripts/verify-phase2.ts
+      - run: npx tsx scripts/verify-phase3.ts
+      - run: npm audit --omit=dev

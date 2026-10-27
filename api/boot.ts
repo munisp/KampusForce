@@ -10,6 +10,7 @@ import { handleClientLog } from "./lib/clientlog";
 import { REQUEST_ID_HEADER, runWithRequestId } from "./lib/requestcontext";
 import { webhookRoutes } from "./routes/webhooks";
 import { linkRoutes } from "./routes/links";
+import { startDurableWorker } from "./services/jobs";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -104,5 +105,6 @@ if (env.isProduction) {
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port }, () => {
     log.info(`Server running on http://localhost:${port}/`);
+    startDurableWorker();
   });
 }

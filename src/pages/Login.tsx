@@ -70,7 +70,7 @@ export default function Login() {
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="otp-block">
           <div><UsersRound size={22} /><span><strong>New rep phone sign-in</strong><small>Sandbox SMS returns the OTP directly on screen.</small></span></div>
-          <form onSubmit={(e) => { e.preventDefault(); sandboxCode ? verifyOtp.mutate({ phone, code, name }) : requestOtp.mutate({ phone }); }}>
+          <form onSubmit={(e) => { e.preventDefault(); if (sandboxCode) verifyOtp.mutate({ phone, code, name }); else requestOtp.mutate({ phone }); }}>
             <label>Phone number<input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0800 000 0000" required /></label>
             {sandboxCode && <><label>Your name<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" required /></label><label>Sandbox code<input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} required /></label></>}
             <button className="button primary" disabled={requestOtp.isPending || verifyOtp.isPending}>{sandboxCode ? "Verify & enter" : "Send sandbox OTP"}<ArrowRight size={16} /></button>
@@ -78,6 +78,6 @@ export default function Login() {
         </div>
       </section>
     </main>
-    <footer className="entry-footer"><span>Phase 2 campus scale · Nigeria</span><span>Rules → teams → support → settlement</span></footer>
+    <footer className="entry-footer"><span>Phase 3 operations · Nigeria</span><span>Rules → teams → support → settlement</span></footer>
   </div>;
 }

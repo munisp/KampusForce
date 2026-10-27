@@ -1,0 +1,67 @@
+import { and, desc, eq, lte } from "drizzle-orm";
+import { commissionRuleDrafts, jobRuns } from "@db/schema";
+import { getDb } from "../queries/connection";
+import { confirmDueDeals } from "./ledger";
+import { expireRecruitments } from "./recruiting";
+import { syncSlaBreaches } from "./support";
+import { log } from "../lib/logger";
+
+export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry"] as const;
+export type JobKey = typeof JOB_KEYS[number];
+
+export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
+  const db = getDb();
+  const claimed = await db.insert(jobRuns).values({ jobKey, slotKey, trigger }).onConflictDoNothing().returning({ id: jobRuns.id });
+  if (!claimed.length) return { jobKey, status: "skipped_duplicate" as const, processedCount: 0 };
+  const runId = claimed[0].id;
+  try {
+    let result: Record<string, unknown>;
+    let processedCount = 0;
+    if (jobKey === "confirmation_sweep") {
+      const sweep = await confirmDueDeals();
+      result = sweep;
+      processedCount = sweep.confirmed;
+    } else if (jobKey === "draft_expiry") {
+      const expired = await db.update(commissionRuleDrafts).set({ state: "expired" })
+        .where(and(eq(commissionRuleDrafts.state, "draft"), lte(commissionRuleDrafts.expiresAt, new Date())))
+        .returning({ id: commissionRuleDrafts.id });
+      result = { expired: expired.length };
+      processedCount = expired.length;
+    } else if (jobKey === "sla_breach") {
+      const breached = await syncSlaBreaches();
+      result = { breached };
+      processedCount = breached;
+    } else {
+      result = await expireRecruitments();
+      processedCount = Number(result.expired || 0);
+    }
+    await db.update(jobRuns).set({ status: "succeeded", finishedAt: new Date(), processedCount, resultJson: result }).where(eq(jobRuns.id, runId));
+    return { jobKey, runId, status: "succeeded" as const, processedCount, result };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await db.update(jobRuns).set({ status: "failed", finishedAt: new Date(), error: message.slice(0, 1000) }).where(eq(jobRuns.id, runId));
+    log.error("durable job failed", { jobKey, runId, error: message });
+    throw error;
+  }
+}
+
+export async function runDueJobs(trigger: "manual" | "schedule" = "manual") {
+  const slot = trigger === "schedule" ? new Date().toISOString().slice(0, 16) : crypto.randomUUID();
+  const results = [];
+  for (const jobKey of JOB_KEYS) results.push(await runDurableJob(jobKey, trigger, slot));
+  return { trigger, slot, results };
+}
+
+export async function recentJobRuns() {
+  return getDb().select().from(jobRuns).orderBy(desc(jobRuns.startedAt)).limit(40);
+}
+
+let worker: ReturnType<typeof setInterval> | undefined;
+export function startDurableWorker() {
+  if (worker) return;
+  worker = setInterval(() => {
+    runDueJobs("schedule").catch((error) => log.error("scheduled worker pass failed", { error: error instanceof Error ? error.message : String(error) }));
+  }, 60_000);
+  worker.unref();
+  log.info("durable PostgreSQL worker started", { intervalSeconds: 60, jobs: JOB_KEYS });
+}

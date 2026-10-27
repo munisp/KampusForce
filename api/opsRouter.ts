@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import {
   auditLogs,
   campusLeadOverrides,
+  campusRecruitments,
   campuses,
   deals,
   disputes,
@@ -20,6 +21,9 @@ import { getDb } from "./queries/connection";
 import { confirmDueDeals, runPayoutBatch } from "./services/ledger";
 import { rankTopDecile } from "./services/overrides";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
+import { activateRecruitment, revokeRecruitment } from "./services/recruiting";
+import { recentJobRuns, runDueJobs } from "./services/jobs";
+import { campusTelemetry } from "./services/telemetry";
 
 async function campusLeadRankings() {
   const db = getDb();
@@ -50,6 +54,10 @@ export const opsRouter = createRouter({
       .innerJoin(reps, eq(campusLeadOverrides.leadRepId, reps.id)).orderBy(desc(campusLeadOverrides.createdAt)).limit(40);
     const leadRankings = await campusLeadRankings();
     const audit = await getDb().select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(30);
+    const recruitments = await getDb().select({ recruitment: campusRecruitments, campusName: campuses.name, leadCode: reps.code }).from(campusRecruitments)
+      .innerJoin(campuses, eq(campusRecruitments.campusId, campuses.id)).innerJoin(reps, eq(campusRecruitments.leadRepId, reps.id)).orderBy(desc(campusRecruitments.invitedAt)).limit(50);
+    const jobs = await recentJobRuns();
+    const telemetry = await campusTelemetry();
     const rated = supportCases.filter(({ ticket }) => ticket.csat);
     return {
       metrics: {
@@ -71,6 +79,9 @@ export const opsRouter = createRouter({
       overrides,
       leadRankings,
       audit,
+      recruitments,
+      jobs,
+      telemetry,
     };
   }),
   confirmSweep: authedQuery.mutation(async ({ ctx }) => {
@@ -86,6 +97,18 @@ export const opsRouter = createRouter({
   payoutBatch: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "finance", "admin"]);
     return runPayoutBatch(ctx.user.id);
+  }),
+  runJobs: authedQuery.mutation(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return runDueJobs("manual");
+  }),
+  activateRecruitment: authedQuery.input(z.object({ recruitmentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return activateRecruitment(input.recruitmentId, ctx.user.id);
+  }),
+  revokeRecruitment: authedQuery.input(z.object({ recruitmentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return revokeRecruitment({ recruitmentId: input.recruitmentId, actorUserId: ctx.user.id });
   }),
   promoteLead: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);

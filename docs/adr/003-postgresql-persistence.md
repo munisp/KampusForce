@@ -38,7 +38,7 @@ Use PostgreSQL 16 throughout the delivered Phase 2 runtime and verification path
 - Hono/tRPC remains instead of NestJS; this decision does not claim NestJS parity.
 - Redis/BullMQ, Kubernetes and later distributed services remain unimplemented.
 - PostgreSQL adoption alone does not prove production concurrency, backup/restore, high availability or load capacity.
-- Ledger and audit append-only guarantees still require database-level enforcement.
+- Ledger and audit append-only guarantees still required database-level enforcement at this decision point; ADR 004 subsequently added triggers for the named history tables.
 
 ## Verification
 

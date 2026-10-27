@@ -16,15 +16,19 @@ import { getDb } from "../queries/connection";
 import { randomReference } from "./security";
 import { withholdingKobo } from "./money";
 import { calculateLeadOverride } from "./overrides";
+import { notifyUser } from "./notifications";
 
 const db = () => getDb();
+type Database = ReturnType<typeof getDb>;
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+type LedgerClient = Database | Transaction;
 
-async function stateChange(tx: any, dealId: number, fromState: string | null, toState: string, actor: string, reason?: string) {
-  await tx.update(deals).set({ state: toState as any, updatedAt: new Date() }).where(eq(deals.id, dealId));
+async function stateChange(tx: Transaction, dealId: number, fromState: string | null, toState: NonNullable<typeof deals.$inferInsert.state>, actor: string, reason?: string) {
+  await tx.update(deals).set({ state: toState, updatedAt: new Date() }).where(eq(deals.id, dealId));
   await tx.insert(dealStateHistory).values({ dealId, fromState, toState, actor, reason });
 }
 
-async function accrueCampusLeadOverride(tx: any, deal: typeof deals.$inferSelect, group: string) {
+async function accrueCampusLeadOverride(tx: Transaction, deal: typeof deals.$inferSelect, group: string) {
   const [assignment] = await tx.select({ assignment: campusLeadAssignments, lead: reps }).from(campusLeadAssignments)
     .innerJoin(reps, eq(campusLeadAssignments.leadRepId, reps.id))
     .where(and(eq(campusLeadAssignments.repId, deal.repId), isNull(campusLeadAssignments.revokedAt), eq(reps.tier, "campus_lead"), eq(reps.status, "active")))
@@ -85,10 +89,9 @@ export async function confirmDueDeals(actorUserId?: number) {
 }
 
 export async function reverseDeal(dealId: number, actor = "vendor:refund") {
-  const [deal] = await db().select().from(deals).where(eq(deals.id, dealId)).limit(1);
-  if (!deal || ["void", "clawed_back"].includes(deal.state)) return { reversed: false };
-  if (["pending", "confirmed", "payable", "paid"].includes(deal.state) === false) return { reversed: false };
-  await db().transaction(async (tx) => {
+  return db().transaction(async (tx) => {
+    const [deal] = await tx.select().from(deals).where(eq(deals.id, dealId)).limit(1).for("update");
+    if (!deal || ["void", "clawed_back"].includes(deal.state) || !["pending", "confirmed", "payable", "paid"].includes(deal.state)) return { reversed: false };
     if (deal.state !== "pending") {
       const [wallet] = await tx.select().from(escrowWallets).where(eq(escrowWallets.vendorId, deal.vendorId)).limit(1).for("update");
       if (wallet) await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo + deal.vendorCommissionKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, deal.vendorId));
@@ -108,12 +111,12 @@ export async function reverseDeal(dealId: number, actor = "vendor:refund") {
       }
     }
     await stateChange(tx, deal.id, deal.state, deal.state === "paid" ? "clawed_back" : "void", actor, deal.state === "paid" ? "Refund inside clawback window; negative balances net future payouts, including paid lead overrides" : "Refund before payout; commission and any lead override reversed");
+    return { reversed: true };
   });
-  return { reversed: true };
 }
 
-async function repOutstandingKobo(repId: number): Promise<number> {
-  const entries = await db()
+async function repOutstandingKobo(repId: number, client: LedgerClient = db()): Promise<number> {
+  const entries: { amount: number; direction: string }[] = await client
     .select({ amount: ledgerEntries.amountKobo, direction: ledgerEntries.direction })
     .from(ledgerEntries)
     .leftJoin(deals, eq(ledgerEntries.dealId, deals.id))
@@ -122,8 +125,8 @@ async function repOutstandingKobo(repId: number): Promise<number> {
   return entries.reduce((total, entry) => total + (entry.direction === "credit" ? entry.amount : -entry.amount), 0);
 }
 
-async function leadOverrideOutstandingKobo(leadRepId: number): Promise<number> {
-  const entries = await db()
+async function leadOverrideOutstandingKobo(leadRepId: number, client: LedgerClient = db()): Promise<number> {
+  const entries: { amount: number; direction: string }[] = await client
     .select({ amount: ledgerEntries.amountKobo, direction: ledgerEntries.direction })
     .from(ledgerEntries)
     .leftJoin(campusLeadOverrides, eq(ledgerEntries.dealId, campusLeadOverrides.dealId))
@@ -135,50 +138,52 @@ async function leadOverrideOutstandingKobo(leadRepId: number): Promise<number> {
 export async function runPayoutBatch(actorUserId: number) {
   const payable = await db().select().from(deals).where(eq(deals.state, "payable"));
   const accruedOverrides = await db().select().from(campusLeadOverrides).where(eq(campusLeadOverrides.state, "accrued"));
-  const byRep = new Map<number, { deals: typeof payable; overrides: typeof accruedOverrides }>();
-  const bucket = (repId: number) => {
-    if (!byRep.has(repId)) byRep.set(repId, { deals: [], overrides: [] });
-    return byRep.get(repId)!;
-  };
-  payable.forEach((deal) => bucket(deal.repId).deals.push(deal));
-  accruedOverrides.forEach((override) => bucket(override.leadRepId).overrides.push(override));
+  const repIds = [...new Set([...payable.map((deal) => deal.repId), ...accruedOverrides.map((override) => override.leadRepId)])];
   const results: { repId: number; status: string; grossKobo?: number; netKobo?: number; overrideKobo?: number; reason?: string }[] = [];
-  for (const [repId, entitlements] of byRep) {
-    const [rep] = await db().select().from(reps).where(eq(reps.id, repId)).limit(1);
-    const [user] = rep ? await db().select().from(users).where(eq(users.id, rep.userId)).limit(1) : [];
-    if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch) {
-      results.push({ repId, status: "held", reason: "KYC, rep status, or bank name-match pre-flight failed" });
-      continue;
+  for (const repId of repIds) {
+    const completed = await db().transaction(async (tx) => {
+      // The rep lock serializes payout batches for this recipient. All eligible
+      // rows and balance calculations are re-read after the lock is acquired.
+      const [rep] = await tx.select().from(reps).where(eq(reps.id, repId)).limit(1).for("update");
+      const [user] = rep ? await tx.select().from(users).where(eq(users.id, rep.userId)).limit(1) : [];
+      if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch) {
+        return { repId, status: "held", reason: "KYC, rep status, or bank name-match pre-flight failed" };
+      }
+      const entitledDeals = await tx.select().from(deals).where(and(eq(deals.repId, repId), eq(deals.state, "payable"))).for("update");
+      const entitledOverrides = await tx.select().from(campusLeadOverrides).where(and(eq(campusLeadOverrides.leadRepId, repId), eq(campusLeadOverrides.state, "accrued"))).for("update");
+      const directGross = entitledDeals.reduce((total, deal) => total + deal.repCommissionKobo, 0);
+      const overrideGross = entitledOverrides.reduce((total, override) => total + override.overrideKobo, 0);
+      const gross = directGross + overrideGross;
+      const directOutstanding = await repOutstandingKobo(repId, tx);
+      const overrideOutstanding = await leadOverrideOutstandingKobo(repId, tx);
+      const adjustedGross = Math.min(gross, Math.max(0, directOutstanding + overrideOutstanding));
+      if (adjustedGross < 50_000) {
+        return { repId, status: "rolled", grossKobo: adjustedGross, overrideKobo: overrideGross, reason: "Below ₦500 minimum after clawback netting" };
+      }
+      const tax = withholdingKobo(adjustedGross);
+      const net = adjustedGross - tax;
+      const batchId = `KF-${new Date().toISOString().slice(0, 10)}-${randomReference("batch").slice(-8)}`;
+      const providerRef = randomReference("sandbox_paystack");
+      const [payout] = await tx.insert(payouts).values({ repId, amountGrossKobo: adjustedGross, amountNetKobo: net, withholdingKobo: tax, provider: "paystack_sandbox", providerRef, state: "paid", batchId, attempts: 1, paidAt: new Date() }).returning({ id: payouts.id });
+      const group = randomReference("payout");
+      const directDebit = Math.min(Math.max(0, directOutstanding), adjustedGross);
+      const overrideDebit = adjustedGross - directDebit;
+      const entries: (typeof ledgerEntries.$inferInsert)[] = [
+        { payoutId: payout.id, account: "external_bank", direction: "credit", amountKobo: net, entryGroup: group },
+        { payoutId: payout.id, account: "withholding_tax", direction: "credit", amountKobo: tax, entryGroup: group },
+      ];
+      if (directDebit) entries.push({ payoutId: payout.id, account: "rep_payable", direction: "debit", amountKobo: directDebit, entryGroup: group });
+      if (overrideDebit) entries.push({ payoutId: payout.id, account: "lead_override_payable", direction: "debit", amountKobo: overrideDebit, entryGroup: group });
+      await tx.insert(ledgerEntries).values(entries);
+      for (const deal of entitledDeals) await stateChange(tx, deal.id, "payable", "paid", `staff:${actorUserId}`, `Sandbox transfer ${providerRef}`);
+      for (const override of entitledOverrides) await tx.update(campusLeadOverrides).set({ state: "paid", payoutId: payout.id }).where(eq(campusLeadOverrides.id, override.id));
+      await tx.insert(auditLogs).values({ actorUserId, action: "payout.batch_completed", entityType: "payout", entityId: String(payout.id), metadataJson: { provider: "paystack_sandbox", adjustedGross, net, tax, directGross, overrideGross, directDebit, overrideDebit, concurrencyControl: "rep_row_lock" } });
+      return { repId, status: "paid", grossKobo: adjustedGross, netKobo: net, overrideKobo: overrideGross, payoutId: payout.id, userId: user.id };
+    });
+    if (completed.status === "paid" && "userId" in completed) {
+      await notifyUser({ userId: completed.userId as number, type: "payout_paid", title: "Sandbox payout completed", body: `Your sandbox payout of ₦${((completed.netKobo || 0) / 100).toLocaleString("en-NG")} was recorded. No live bank transfer is implied.`, href: "/rep/earnings", entityType: "payout", entityId: completed.payoutId as number });
     }
-    const directGross = entitlements.deals.reduce((total, deal) => total + deal.repCommissionKobo, 0);
-    const overrideGross = entitlements.overrides.reduce((total, override) => total + override.overrideKobo, 0);
-    const gross = directGross + overrideGross;
-    const directOutstanding = await repOutstandingKobo(repId);
-    const overrideOutstanding = await leadOverrideOutstandingKobo(repId);
-    const adjustedGross = Math.min(gross, Math.max(0, directOutstanding + overrideOutstanding));
-    if (adjustedGross < 50_000) {
-      results.push({ repId, status: "rolled", grossKobo: adjustedGross, overrideKobo: overrideGross, reason: "Below ₦500 minimum after clawback netting" });
-      continue;
-    }
-    const tax = withholdingKobo(adjustedGross);
-    const net = adjustedGross - tax;
-    const batchId = `KF-${new Date().toISOString().slice(0, 10)}-${randomReference("batch").slice(-8)}`;
-    const providerRef = randomReference("sandbox_paystack");
-    const [payoutId] = await db().insert(payouts).values({ repId, amountGrossKobo: adjustedGross, amountNetKobo: net, withholdingKobo: tax, provider: "paystack_sandbox", providerRef, state: "paid", batchId, attempts: 1, paidAt: new Date() }).returning({ id: payouts.id });
-    const group = randomReference("payout");
-    const directDebit = Math.min(Math.max(0, directOutstanding), adjustedGross);
-    const overrideDebit = adjustedGross - directDebit;
-    const entries: (typeof ledgerEntries.$inferInsert)[] = [
-      { payoutId: payoutId.id, account: "external_bank", direction: "credit", amountKobo: net, entryGroup: group },
-      { payoutId: payoutId.id, account: "withholding_tax", direction: "credit", amountKobo: tax, entryGroup: group },
-    ];
-    if (directDebit) entries.push({ payoutId: payoutId.id, account: "rep_payable", direction: "debit", amountKobo: directDebit, entryGroup: group });
-    if (overrideDebit) entries.push({ payoutId: payoutId.id, account: "lead_override_payable", direction: "debit", amountKobo: overrideDebit, entryGroup: group });
-    await db().insert(ledgerEntries).values(entries);
-    for (const deal of entitlements.deals) await stateChange(db(), deal.id, "payable", "paid", `staff:${actorUserId}`, `Sandbox transfer ${providerRef}`);
-    for (const override of entitlements.overrides) await db().update(campusLeadOverrides).set({ state: "paid", payoutId: payoutId.id }).where(eq(campusLeadOverrides.id, override.id));
-    await db().insert(auditLogs).values({ actorUserId, action: "payout.batch_completed", entityType: "payout", entityId: String(payoutId.id), metadataJson: { provider: "paystack_sandbox", adjustedGross, net, tax, directGross, overrideGross, directDebit, overrideDebit } });
-    results.push({ repId, status: "paid", grossKobo: adjustedGross, netKobo: net, overrideKobo: overrideGross });
+    results.push(completed);
   }
   return { eligibleDeals: payable.length, eligibleOverrides: accruedOverrides.length, results };
 }
