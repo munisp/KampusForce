@@ -1,5 +1,5 @@
-const CACHE = "kampusforce-shell-v1";
-const CORE = ["/", "/manifest.webmanifest", "/icons/kf-192.png", "/icons/kf-512.png"];
+const CACHE = "kampusforce-shell-v2";
+const CORE = ["/", "/manifest.webmanifest", "/icons/kf.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting()));
