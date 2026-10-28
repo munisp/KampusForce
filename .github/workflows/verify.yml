@@ -38,7 +38,13 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
       - run: npm ci
+      - run: python3 -m pip install -r data_platform/requirements.txt
+      - run: python3 data_platform/acceptance.py --output /tmp/kampusforce-data-platform-acceptance
       - run: npm run check
       - run: npm run lint
       - run: npm test
@@ -57,6 +63,9 @@ jobs:
       - run: npx tsx scripts/verify-phase10.ts
       - run: npx tsx scripts/verify-phase11.ts
       - run: npx tsx scripts/verify-phase12.ts
+      - run: npx tsx scripts/record-data-platform-evidence.ts /tmp/kampusforce-data-platform-acceptance/run_manifest.json /tmp/kampusforce-data-platform-acceptance/ray_manifest.json
+      - run: npx tsx scripts/verify-phase13.ts
+      - run: npx tsx scripts/verify-phase14.ts
       - name: Verify non-destructive backup and isolated restore
         run: |
           npm run db:backup -- /tmp/kampusforce-ci-recovery.dump

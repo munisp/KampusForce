@@ -1,5 +1,6 @@
 import {
   bigint,
+  bigserial,
   boolean,
   date,
   index,
@@ -77,6 +78,9 @@ export const integrationModeEnum = pgEnum("integration_mode", ["sandbox", "live"
 export const integrationStateEnum = pgEnum("integration_state", ["configured", "verified", "degraded", "disabled"]);
 export const recommendationStateEnum = pgEnum("recommendation_state", ["suggested", "accepted", "dismissed", "converted"]);
 export const studentReferralStateEnum = pgEnum("student_referral_state", ["suggested", "invited", "declined"]);
+export const financialPostingStateEnum = pgEnum("financial_posting_state", ["pending", "submitting", "submitted", "reconciled", "failed", "blocked"]);
+export const mojaloopIntentStateEnum = pgEnum("mojaloop_intent_state", ["disabled", "party_resolved", "quoted", "transfer_pending", "settled", "failed"]);
+export const dataPlatformRunStateEnum = pgEnum("data_platform_run_state", ["running", "succeeded", "failed", "blocked"]);
 
 
 export const campuses = pgTable("campuses", {
@@ -1077,8 +1081,175 @@ export const recruitmentEvents = pgTable("recruitment_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("recruitment_event_idx").on(t.recruitmentId, t.createdAt)]);
 
+export const analyticsSnapshots = pgTable("analytics_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotRef: varchar("snapshot_ref", { length: 64 }).notNull().unique(),
+  windowDays: integer("window_days").notNull(),
+  payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+  payloadJson: json("payload_json").$type<Record<string, unknown>>().notNull(),
+  sourceCountsJson: json("source_counts_json").$type<Record<string, number>>().notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("analytics_snapshot_window_idx").on(t.windowDays, t.createdAt), index("analytics_snapshot_hash_idx").on(t.payloadHash)]);
+
+export const dataPlatformRuns = pgTable("data_platform_runs", {
+  id: serial("id").primaryKey(),
+  runRef: varchar("run_ref", { length: 80 }).notNull().unique(),
+  layer: varchar("layer", { length: 60 }).notNull(),
+  engine: varchar("engine", { length: 60 }).notNull(),
+  mode: integrationModeEnum("mode").notNull().default("sandbox"),
+  state: dataPlatformRunStateEnum("state").notNull(),
+  inputHash: varchar("input_hash", { length: 64 }),
+  outputHash: varchar("output_hash", { length: 64 }),
+  rowsProcessed: integer("rows_processed").notNull().default(0),
+  quarantinedRows: integer("quarantined_rows").notNull().default(0),
+  detailsJson: json("details_json").$type<Record<string, unknown>>().notNull().default({}),
+  deletionEvidenceJson: json("deletion_evidence_json").$type<Record<string, unknown>>(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [index("data_platform_run_layer_idx").on(t.layer, t.startedAt), index("data_platform_run_state_idx").on(t.state, t.mode)]);
+
+export const datasetLineage = pgTable("dataset_lineage", {
+  id: serial("id").primaryKey(),
+  datasetKey: varchar("dataset_key", { length: 100 }).notNull(),
+  version: integer("version").notNull(),
+  sourceDatasets: json("source_datasets").$type<string[]>().notNull(),
+  transform: text("transform").notNull(),
+  consentPolicy: varchar("consent_policy", { length: 160 }).notNull(),
+  accessScope: varchar("access_scope", { length: 160 }).notNull(),
+  outputHash: varchar("output_hash", { length: 64 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("dataset_lineage_version_unique").on(t.datasetKey, t.version), index("dataset_lineage_created_idx").on(t.createdAt)]);
+
+export const financialPostingOutbox = pgTable("financial_posting_outbox", {
+  id: serial("id").primaryKey(),
+  entryGroup: varchar("entry_group", { length: 64 }).notNull().unique(),
+  operation: varchar("operation", { length: 40 }).notNull(),
+  payloadJson: json("payload_json").$type<Record<string, unknown>>().notNull(),
+  payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+  state: financialPostingStateEnum("state").notNull().default("pending"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  externalBatchRef: varchar("external_batch_ref", { length: 100 }),
+  lastErrorCode: varchar("last_error_code", { length: 160 }),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+}, (t) => [index("financial_outbox_dispatch_idx").on(t.state, t.nextRetryAt, t.createdAt), index("financial_outbox_external_idx").on(t.externalBatchRef)]);
+
+export const mojaloopRailIntents = pgTable("mojaloop_rail_intents", {
+  id: serial("id").primaryKey(),
+  intentRef: varchar("intent_ref", { length: 80 }).notNull().unique(),
+  payoutId: integer("payout_id").references(() => payouts.id),
+  idempotencyKey: varchar("idempotency_key", { length: 100 }).notNull().unique(),
+  partyRefHash: varchar("party_ref_hash", { length: 64 }).notNull(),
+  amountNetKobo: bigint("amount_net_kobo", { mode: "number" }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull().default("NGN"),
+  state: mojaloopIntentStateEnum("state").notNull().default("disabled"),
+  quoteJson: json("quote_json").$type<Record<string, unknown>>(),
+  transferRef: varchar("transfer_ref", { length: 100 }).unique(),
+  lastErrorCode: varchar("last_error_code", { length: 160 }),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("mojaloop_intent_payout_idx").on(t.payoutId, t.createdAt), index("mojaloop_intent_state_idx").on(t.state, t.updatedAt)]);
+
+export const identityCaseTypeEnum = pgEnum("identity_case_type", ["representative_kyc", "campus_lead_kyc", "vendor_kyb", "operations_kyc", "customer_handoff"]);
+export const identityCaseStateEnum = pgEnum("identity_case_state", ["draft", "submitted", "processing", "needs_more_info", "manual_review", "approved", "rejected", "expired", "revoked"]);
+export const identitySubjectTypeEnum = pgEnum("identity_subject_type", ["user", "vendor", "customer_handoff"]);
+export const identityEvidenceKindEnum = pgEnum("identity_evidence_kind", ["document_ocr", "document_structure", "vlm_extraction", "registry_kyb", "bank_name_match", "liveness", "deepfake", "face_match", "capture_integrity", "reviewer_attestation"]);
+export const identityEvidenceStateEnum = pgEnum("identity_evidence_state", ["recorded", "passed", "failed", "review_required", "invalidated"]);
+export const identityReviewDecisionEnum = pgEnum("identity_review_decision", ["approve", "request_info", "reject", "revoke"]);
+export const identityEventExportStateEnum = pgEnum("identity_event_export_state", ["pending", "exported", "quarantined"]);
+
+export const identityCases = pgTable("identity_cases", {
+  id: serial("id").primaryKey(),
+  caseRef: varchar("case_ref", { length: 48 }).notNull().unique(),
+  caseType: identityCaseTypeEnum("case_type").notNull(),
+  subjectType: identitySubjectTypeEnum("subject_type").notNull(),
+  subjectId: integer("subject_id").notNull(),
+  requestedByUserId: integer("requested_by_user_id").references(() => users.id),
+  vendorId: integer("vendor_id").references(() => vendors.id),
+  campusId: integer("campus_id").references(() => campuses.id),
+  state: identityCaseStateEnum("state").notNull().default("draft"),
+  providerMode: integrationModeEnum("provider_mode").notNull().default("sandbox"),
+  policyVersion: varchar("policy_version", { length: 40 }).notNull().default("identity-v1"),
+  riskLevel: varchar("risk_level", { length: 20 }).notNull().default("standard"),
+  triggerEvent: varchar("trigger_event", { length: 100 }).notNull(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+  decisionReason: varchar("decision_reason", { length: 500 }),
+  reviewDueAt: timestamp("review_due_at", { withTimezone: true }),
+  validUntil: timestamp("valid_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("identity_case_subject_idx").on(t.subjectType, t.subjectId, t.caseType, t.state),
+  index("identity_case_review_idx").on(t.state, t.reviewDueAt),
+  index("identity_case_expiry_idx").on(t.state, t.validUntil),
+]);
+
+export const identityEvidenceMetadata = pgTable("identity_evidence_metadata", {
+  id: serial("id").primaryKey(),
+  caseId: integer("case_id").notNull().references(() => identityCases.id),
+  kind: identityEvidenceKindEnum("kind").notNull(),
+  provider: varchar("provider", { length: 80 }).notNull(),
+  providerReferenceHash: varchar("provider_reference_hash", { length: 64 }),
+  modelVersion: varchar("model_version", { length: 100 }),
+  state: identityEvidenceStateEnum("state").notNull(),
+  score: numeric("score", { precision: 7, scale: 6 }),
+  threshold: numeric("threshold", { precision: 7, scale: 6 }),
+  qualityFlags: json("quality_flags").$type<string[]>().notNull().default([]),
+  findings: json("findings").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+  inputSha256: varchar("input_sha256", { length: 64 }),
+  capturedAt: timestamp("captured_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("identity_evidence_case_idx").on(t.caseId, t.kind, t.createdAt), index("identity_evidence_provider_idx").on(t.provider, t.state)]);
+
+export const identityReviews = pgTable("identity_reviews", {
+  id: serial("id").primaryKey(),
+  caseId: integer("case_id").notNull().references(() => identityCases.id),
+  actorUserId: integer("actor_user_id").notNull().references(() => users.id),
+  decision: identityReviewDecisionEnum("decision").notNull(),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  previousState: identityCaseStateEnum("previous_state").notNull(),
+  resultingState: identityCaseStateEnum("resulting_state").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("identity_review_case_idx").on(t.caseId, t.createdAt), index("identity_review_actor_idx").on(t.actorUserId, t.createdAt)]);
+
+export const identityConsents = pgTable("identity_consents", {
+  id: serial("id").primaryKey(),
+  caseId: integer("case_id").notNull().references(() => identityCases.id),
+  subjectUserId: integer("subject_user_id").references(() => users.id),
+  purpose: varchar("purpose", { length: 100 }).notNull(),
+  noticeVersion: varchar("notice_version", { length: 40 }).notNull(),
+  channel: varchar("channel", { length: 40 }).notNull(),
+  noticeHash: varchar("notice_hash", { length: 64 }).notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+  withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+}, (t) => [index("identity_consent_case_idx").on(t.caseId, t.purpose, t.withdrawnAt), index("identity_consent_subject_idx").on(t.subjectUserId, t.withdrawnAt)]);
+
+export const identityLifecycleEvents = pgTable("identity_lifecycle_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  eventId: varchar("event_id", { length: 36 }).notNull().unique(),
+  caseId: integer("case_id").references(() => identityCases.id),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  subjectType: identitySubjectTypeEnum("subject_type").notNull(),
+  subjectToken: varchar("subject_token", { length: 64 }).notNull(),
+  caseType: identityCaseTypeEnum("case_type").notNull(),
+  caseState: identityCaseStateEnum("case_state").notNull(),
+  providerMode: integrationModeEnum("provider_mode").notNull(),
+  payload: json("payload").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+  exportState: identityEventExportStateEnum("export_state").notNull().default("pending"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  exportedAt: timestamp("exported_at", { withTimezone: true }),
+}, (t) => [index("identity_event_export_idx").on(t.exportState, t.occurredAt), index("identity_event_subject_idx").on(t.subjectToken, t.occurredAt)]);
+
 export type User = typeof users.$inferSelect;
 export type Rep = typeof reps.$inferSelect;
+export type IdentityCase = typeof identityCases.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Deal = typeof deals.$inferSelect;
 export type VendorEvent = typeof vendorEvents.$inferSelect;

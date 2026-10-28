@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 12 case-management, CRM, sales-training, campaign, vendor-service and growth vertical slice**, preserving the Phase 11 campus-cohort and rollout controls. It is not external-channel delivery, a connected live vendor/financial integration, a real campus result, production or legal-compliance certification, or completion of the NestJS/Redis target architecture.
+This repository contains an executable **Phase 14 stakeholder-onboarding and identity-control slice**, building on Phase 13 analytics, lakehouse, Ray and financial-core robustness while preserving the Phase 12 case-management, CRM, sales-training, campaign, vendor-service and growth workflows. Identity providers fail closed; Delta Lake and Ray are local executable references; TigerBeetle is an outbox/official-client adapter; Mojaloop is a post-MVP fail-closed contract. It is not live KYC/KYB, external-channel delivery, a connected live vendor/financial integration, a real campus result, production or legal-compliance certification, or completion of the distributed target architecture.
 
 ## Product thesis
 
@@ -46,7 +46,7 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 ### Phase 3 operational controls
 
 - Secure one-time recruiting links: only SHA-256 token hashes persist, acceptance requires the exact invited phone and contractor consent, and invitations expire after seven days.
-- Separate Campus Lead/Operations revocation and Operations sandbox identity activation, with audited campus-team assignment and no raw NIN/BVN storage.
+- Separate Campus Lead/Operations revocation and approval-gated representative activation, with audited campus-team assignment and no raw NIN/BVN storage.
 - Fifteen campus fixtures with record-derived health, active/pending reps, confirmed activations/commission, support load and SLA breaches. Fixture status is not a rollout claim.
 - Durable PostgreSQL job runs for confirmation, draft expiry, SLA breaches and invitation expiry. Unique job/slot claims suppress duplicate scheduled passes across app instances.
 - Recipient-scoped in-app notifications with read tracking; no SMS or email delivery is implied.
@@ -137,6 +137,24 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Consent-confirmed student referrals become ordinary recruiting invitations with durable follow-up and event history. The invitation transaction locks the referral row; no external message is sent automatically.
 - See the [robustness and innovation assessment](docs/sales-case-crm-robustness.md) for the complete mapping and remaining gaps.
 
+### Phase 13 analytics, data platform and financial-core robustness
+
+- Operations analytics use database-grouped current-state metrics, each deal's first confirmation for event-time trends and mature seven-day cohorts, confirmed-only economics, window-scoped reconciliation findings and immutable SHA-256 snapshots.
+- The local Delta Lake Bronze/Silver/Gold reference enforces strict field allowlisting, raw-identifier rejection, timezone-aware events, immutable replay, conflict quarantine, consent/HMAC tokenization, confirmed-only Gold economics, coarse geo cells and DSAR rebuild evidence.
+- Real Ray batch scoring uses history-only features and temporal holdouts with AUC, average-precision/prevalence and Brier calibration diagnostics. Approval-gated Ray Serve validates complete model and numeric-input contracts; local models remain unapproved.
+- A PostgreSQL financial outbox creates deterministic TigerBeetle u128 IDs and balanced linked transfers, supports two-phase builders, retries transient failures and blocks conflicting, partial or unproven-backfill evidence. PostgreSQL remains the sandbox ledger.
+- Mojaloop remains post-MVP. Party → quote → transfer preparation enforces live gates at transport execution, keyed party-reference hashing support, economics/expiry checks and independent settlement evidence. Preparation never marks a payout settled.
+- The Operations → Analytics & architecture workspace exposes metric definitions, lineage, model diagnostics, outbox state and every external production blocker. See the [architecture robustness assessment](docs/architecture-robustness.md) and [data-platform runbook](data_platform/README.md).
+
+### Phase 14 stakeholder onboarding and identity controls
+
+- Representative, Campus Lead, vendor KYB and Operations/Finance onboarding share consent-gated cases, bounded evidence metadata, independent manual review, expiry, reverification and consent-withdrawal controls. Reviewers cannot approve their own case. Subject locks and a partial unique index prevent duplicate open cases; append-only triggers protect evidence, reviews and lifecycle content.
+- Recruitment acceptance opens representative KYC; recruitment activation requires current approval and bank-name match. Vendor approval activates the vendor, while withdrawal pauses it. Payout assembly and settlement recheck current identity eligibility. Eligibility is derived from all current applicable approvals rather than the latest case transition alone.
+- Transient PaddleOCR/Docling/VLM processing returns only bounded metadata. Separate hosted liveness, capture-integrity, face-match and deepfake contracts fail closed; attack signals override nominal provider success, and missing OCR confidence, VLM booleans or required anti-attack signals cannot pass. Real models/providers have not been called.
+- Fourteen trigger definitions connect onboarding, document/evidence processing, review, payout, risk, expiry, consent and vendor-regulated customer handoff workflows. Customer KYC decisions and customer identifiers remain outside the platform.
+- Pseudonymized identity lifecycle events integrate with consent-filtered lakehouse Bronze/Silver/Gold tables and subject-token tombstones. Documents, OCR text, NIN/BVN, biometrics, templates, evidence findings and review reasons are excluded.
+- See the [identity and onboarding runbook](docs/identity-onboarding-runbook.md) for trigger semantics, provider controls, live gates, verification and external production requirements.
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -164,7 +182,7 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # all 66 policy and security unit tests
+npm test                       # all 96 policy, identity, analytics and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
@@ -178,11 +196,18 @@ npx tsx scripts/verify-phase9.ts # credential, retry, retention and replay accep
 npx tsx scripts/verify-phase10.ts # launch review and signed provider-outcome acceptance
 npx tsx scripts/verify-phase11.ts # cohort, full-quarter KPI and national evidence acceptance
 npx tsx scripts/verify-phase12.ts # case, CRM, training, campaign, integration and growth acceptance
+python3 -m pip install --target /tmp/kampusforce-python-deps -r data_platform/requirements.txt
+PYTHONPATH=/tmp/kampusforce-python-deps python3 data_platform/acceptance.py --output /tmp/kampusforce-data-platform-acceptance
+npx tsx scripts/record-data-platform-evidence.ts /tmp/kampusforce-data-platform-acceptance/run_manifest.json /tmp/kampusforce-data-platform-acceptance/ray_manifest.json
+npx tsx scripts/verify-phase13.ts # analytics, evidence, outbox and partner-rail acceptance
+npx tsx scripts/verify-phase14.ts # stakeholder identity, expiry, consent and financial-preservation acceptance
 npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
 python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
 python scripts/verify-phase10-browser.py # launch/mobile/provider-guard gate; server required
 python scripts/verify-phase11-browser.py # rollout-evidence/mobile gate; server required
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase12-browser.py # sales/mobile gate; production server required
+KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase13-browser.py # architecture/mobile gate; local Delta/Ray evidence required
+KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase14-browser.py # identity/mobile gate; run the Phase 14 database journey first
 npm run db:backup -- backups/sandbox.dump
 KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
@@ -211,8 +236,9 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - SMS/OTP, NIN status, escrow top-up, event simulation, time advancement and bank transfer are **explicit sandbox adapters**.
 - No real payment, KYC, tax remittance or regulatory approval is created by this software.
 - Raw NIN/BVN must never be persisted. Customer KYC remains in the vendor’s regulated flow.
+- PaddleOCR, Docling and VLM controls do not prove liveness or deepfake resistance. Hosted biometric execution is disabled until provider, independent-evaluation, privacy-tokenization, legal/security and explicit-live-authorization gates all pass. Synthetic identity approvals are test fixtures only.
 - Customer phone numbers are normalized and salted-hashed for attribution and structured support records; stored webhook payloads redact phone values.
-- Durable minute-based jobs cover confirmation, draft expiry, SLA breaches, invite expiry, payout retries, rate-limit cleanup, hourly lead eligibility, five-minute incident monitoring, ingestion retries, 30-day event-payload retention and a deduplicated 09:00 WAT assembly slot. This is not Redis/BullMQ or external alert delivery.
+- Durable minute-based jobs cover confirmation, draft expiry, SLA breaches, invite expiry, payout retries, rate-limit cleanup, hourly lead eligibility, five-minute incident monitoring, ingestion retries, 30-day event-payload retention, identity-approval expiry and a deduplicated 09:00 WAT assembly slot. This is not Redis/BullMQ or external alert delivery.
 - Rate limiting uses atomic PostgreSQL fixed windows and hashed local subjects. It is not a distributed edge/WAF control, and production proxy/IP trust still requires review.
 - Backup/restore evidence is a local sandbox drill, not offsite storage, point-in-time recovery or high availability. Incident detection uses local records and in-app notifications, not external monitoring, paging or incident-response certification.
 - Payout outcomes and reconciliation bank totals are explicit sandbox inputs. They are not signed live-provider callbacks or actual bank statements.
@@ -220,7 +246,7 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - Fraud controls are deterministic activation-velocity rules and human review. They are not ML scoring, production AML, identity certification, regulatory reporting or automatic financial reversal. Active/upheld holds stop payout progress; releasing or upholding a case never voids deals or posts ledger entries.
 - Webhook rotation, durable retries and payload retention run against local PostgreSQL sandbox records. They are not external secrets management, distributed queueing, live-provider certification or proof of production capacity.
 - Offline snapshots are read-only browser data on the current device. Private earnings snapshots clear on logout/user change; no offline financial/support mutation is synchronized. Local 3G/CPU and HTTP measurements are not real-device, staging, campus-network or production results.
-- Recruiting acceptance does not itself activate a recruit; Operations activation uses a sandbox identity adapter. Seeded Campus Lead status and campus fixtures are workflow evidence—not real performance or rollout outcomes.
+- Recruiting acceptance opens an identity case but does not itself activate a recruit. Activation requires current approved representative KYC and bank-name match. Seeded/synthetic approvals are workflow evidence—not live identity assurance, real performance or rollout outcomes.
 - Rollout system snapshots and synthetic acceptance attestations are control-test data, not real campus or national outcomes. External evidence completion is a register result only; it does not change campus status, certify KPI attainment in the real world or authorize national expansion.
 - CRM drafts require human approval and external sharing is only an attestation. Campaigns and recruiting send no external messages. Vendor-service configuration, tests and synchronization are local sandbox controls, not connected production services. Training is internal and unaccredited; leaderboard rank and recommendations are not commission entitlements.
 - Replace fallback sandbox secrets and disable demo login, event simulation, time advancement and sandbox transfers before production.
@@ -249,18 +275,21 @@ Key paths:
 - `src/components/product/FraudDesk.tsx` and `RepFraudCases.tsx` — Operations review and representative appeal workflows
 - `api/services/caseManagement.ts`, `crm.ts`, `training.ts`, `campaigns.ts`, `vendorServices.ts` and `growth.ts` — Phase 12 sales workflows and boundaries
 - `src/pages/Sales.tsx` and `src/components/sales/` — role-scoped case, pipeline, training, campaign, growth and integration workspaces
-- `scripts/verify-phase2.ts` through `scripts/verify-phase12.ts` — repeatable database-backed acceptance journeys
+- `scripts/verify-phase2.ts` through `scripts/verify-phase14.ts` — repeatable database-backed acceptance journeys
 - `scripts/load-phase9.ts` and `scripts/verify-phase9-browser.py` — signed HTTP, throttled-onboarding, offline, rotation and mobile acceptance
 - `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — Phase 12 scores plus preserved Phase 11 through Phase 1 baselines
+- `docs/implementation-scorecard.md` — Phase 14 scores plus preserved Phase 12 through Phase 1 baselines
+- `docs/identity-onboarding-runbook.md` — identity triggers, stakeholder workflows, provider gates, privacy and operations
 - `docs/sales-case-crm-robustness.md` — ten case innovations, ten CRM innovations, training/growth mapping and remaining gaps
 
 ## Verification status
 
-- TypeScript check: passed.
-- Production build and bundled-server smoke: passed.
-- Unit tests: 66 passed.
+Latest combined Phase 13–14 checkpoint: TypeScript, ESLint, Python syntax, patch checks and **96 unit tests across 20 files passed**. The production build and isolated bundled-server smoke also passed; root, manifest, service worker and liveness returned 200, while unavailable-database readiness correctly failed closed with 503. The new Phase 14 PostgreSQL/browser journeys and updated Phase 13 acceptance have not run in the resumed environment because PostgreSQL is unavailable; Delta/Ray acceptance remains unexecuted because its pinned packages are unavailable. No passing result is inferred from the prepared scripts. The bullets below retain earlier phase evidence and are not a substitute for the combined rerun.
+
+- TypeScript check: passed at the latest static checkpoint.
+- Combined Phase 13–14 production build and bundled-server smoke: passed; database-backed readiness remains blocked by the unavailable local PostgreSQL server.
+- Unit tests: 96 passed at the latest static checkpoint.
 - Live PostgreSQL 16 Phase 2 regression: historical rules, publication, overrides, combined payout, paid reversal, support, CSAT, SLA and redaction passed.
 - Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, seeded-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
 - Live PostgreSQL 16 Phase 4 journey: reservation without settlement, duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback, Finance recovery, idempotent success, reconciliation and refund-before-settlement hold passed.

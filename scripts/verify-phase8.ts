@@ -31,6 +31,7 @@ import {
   reviewFraudCase,
 } from "../api/services/fraud";
 import { dispatchDuePayouts, runPayoutBatch } from "../api/services/ledger";
+import { completeSyntheticIdentityWorkflow } from "../api/services/identityFixtures";
 import { monitorOperationalSignals } from "../api/services/incidents";
 
 const db = getDb();
@@ -76,6 +77,7 @@ async function main() {
     bankNameMatch: true,
   }).returning();
   const [rep] = await db.insert(reps).values({ userId: user.id, campusId: campus.id, code: `P8-${suffix.slice(0, 8)}`, status: "active" }).returning();
+  await completeSyntheticIdentityWorkflow({ caseType: "representative_kyc", subjectType: "user", subjectId: user.id, requestUserId: user.id, reviewerUserId: ops.id, campusId: campus.id });
   const { attribution } = await ensureAttribution({ repId: rep.id, productId: product.id, customerPhone, source: "link", actorUserId: user.id });
   assert.ok(attribution);
 

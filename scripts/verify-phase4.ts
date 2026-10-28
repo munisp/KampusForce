@@ -25,6 +25,7 @@ import {
   reverseDeal,
   runPayoutBatch,
 } from "../api/services/ledger";
+import { completeSyntheticIdentityWorkflow } from "../api/services/identityFixtures";
 
 const db = getDb();
 const uniquePhone = () => `+2348${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-9)}`;
@@ -50,6 +51,8 @@ async function createActiveRep(label: string) {
     code: `KF-TEST-${suffix}`,
     status: "active",
   }).returning({ id: reps.id });
+  const [ops] = await db.select().from(users).where(eq(users.phoneE164, "+2348000000003")).limit(1);
+  await completeSyntheticIdentityWorkflow({ caseType: "representative_kyc", subjectType: "user", subjectId: userId, requestUserId: userId, reviewerUserId: ops.id, campusId: campus.campusId });
   return { repId, userId };
 }
 

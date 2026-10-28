@@ -2,6 +2,7 @@ import "dotenv/config";
 import { and, eq } from "drizzle-orm";
 import { campusLeadAssignments, campuses, commissionRules, escrowWallets, products, reps, supportResolutionMacros, users, vendors } from "./schema";
 import { getDb } from "../api/queries/connection";
+import { completeSyntheticIdentityWorkflow } from "../api/services/identityFixtures";
 
 async function main() {
   const db = getDb();
@@ -81,6 +82,11 @@ async function main() {
     }
     vendorIds.push(vendor.id);
   }
+
+  await completeSyntheticIdentityWorkflow({ caseType: "campus_lead_kyc", subjectType: "user", subjectId: repUser.id, requestUserId: repUser.id, reviewerUserId: createdUsers[2].id, campusId: campus.id, triggerEvent: "seed.campus_lead_onboarding" });
+  await completeSyntheticIdentityWorkflow({ caseType: "representative_kyc", subjectType: "user", subjectId: teamUser.id, requestUserId: teamUser.id, reviewerUserId: createdUsers[2].id, campusId: campus.id, triggerEvent: "seed.representative_onboarding" });
+  const [campusSaveVendor] = await db.select().from(vendors).where(eq(vendors.webhookKey, "campussave_sandbox")).limit(1);
+  await completeSyntheticIdentityWorkflow({ caseType: "vendor_kyb", subjectType: "vendor", subjectId: campusSaveVendor.id, requestUserId: createdUsers[1].id, reviewerUserId: createdUsers[2].id, vendorId: campusSaveVendor.id, triggerEvent: "seed.vendor_onboarding" });
 
   const productSeeds = [
     { vendorRef: "savings-01", name: "CampusSave funded account", category: "fintech" as const, description: "A regulated partner savings account activated with an initial deposit.", priceKobo: 500000, pitchScript: "Open and fund your account inside CampusSave’s regulated flow. KampusForce never takes your BVN, NIN, or cash.", rule: { basis: "flat" as const, flatAmountKobo: 100000, triggerEvent: "funded" as const } },

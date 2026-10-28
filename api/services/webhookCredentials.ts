@@ -29,6 +29,19 @@ export async function rotateVendorWebhookCredential(actorUserId: number, vendorI
       .where(eq(vendorWebhookCredentials.vendorId, vendorId)).orderBy(desc(vendorWebhookCredentials.keyVersion)).for("update");
     const now = new Date();
     const graceExpiresAt = new Date(now.getTime() + WEBHOOK_CREDENTIAL_GRACE_MS);
+    // Vendors created after the credential-table migration still have a legacy
+    // secret. Bring that secret under versioned rotation before replacing it;
+    // otherwise the first rotation would skip v1 and break the overlap promise.
+    if (!credentials.length) {
+      if (!vendor.webhookSecret) throw new Error("Vendor has no existing webhook credential to rotate");
+      await tx.insert(vendorWebhookCredentials).values({
+        vendorId,
+        keyVersion: 1,
+        secret: vendor.webhookSecret,
+        state: "retiring",
+        expiresAt: graceExpiresAt,
+      });
+    }
     for (const credential of credentials) {
       if (credential.state === "active") {
         await tx.update(vendorWebhookCredentials).set({ state: "retiring", expiresAt: graceExpiresAt }).where(eq(vendorWebhookCredentials.id, credential.id));
@@ -36,7 +49,7 @@ export async function rotateVendorWebhookCredential(actorUserId: number, vendorI
         await tx.update(vendorWebhookCredentials).set({ state: "revoked", revokedAt: now }).where(eq(vendorWebhookCredentials.id, credential.id));
       }
     }
-    const keyVersion = (credentials[0]?.keyVersion || 0) + 1;
+    const keyVersion = credentials.length ? (credentials[0]?.keyVersion || 0) + 1 : 2;
     const secret = randomBytes(48).toString("hex");
     const [credential] = await tx.insert(vendorWebhookCredentials).values({ vendorId, keyVersion, secret, state: "active" }).returning();
     await tx.update(vendors).set({ webhookSecret: secret }).where(eq(vendors.id, vendorId));

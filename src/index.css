@@ -910,3 +910,98 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .sales-footer { align-items: flex-start; text-align: left; line-height: 1.6; }
   .sales-view-tabs ~ .button, .sales-view-tabs ~ div .button.small { min-height: 44px; }
 }
+
+/* Phase 13: analytics, data-platform and financial-core evidence */
+.architecture-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.window-selector { display: flex; border: 1px solid var(--line); background: var(--paper); padding: 3px; }
+.window-selector button { min-height: 34px; border: 0; background: transparent; padding: 7px 13px; color: var(--muted); font: 9px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.window-selector button.active { background: var(--navy); color: var(--paper); }
+.architecture-analytics-grid, .architecture-lanes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.architecture-analytics-grid .panel, .architecture-lanes .panel { min-width: 0; }
+.architecture-chart { height: 310px; padding: 12px 4px 0; }
+.architecture-findings { display: grid; }
+.architecture-findings > div { display: grid; grid-template-columns: 22px 1fr auto; align-items: start; gap: 10px; border-bottom: 1px solid var(--line); padding: 13px 0; }
+.architecture-findings > div > svg { margin-top: 2px; color: var(--mustard); }
+.architecture-findings > div.critical > svg { color: var(--danger); }
+.architecture-findings p { margin: 0; }
+.architecture-findings strong, .architecture-findings small { display: block; text-transform: capitalize; }
+.architecture-findings small { margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.55; text-transform: none; }
+.metric-contracts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+.metric-contracts strong { font-size: 12px; }
+.metric-contracts p { margin: 7px 0 0; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.snapshot-line { display: block; margin-bottom: 5px; color: var(--navy); font-size: 9px; }
+.architecture-lanes .panel { margin-bottom: 0; }
+.architecture-lead { min-height: 52px; margin: 0 0 16px; color: var(--ink); font-size: 12px; line-height: 1.65; }
+.architecture-lanes h3 { margin: 18px 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.evidence-stamp { display: grid; gap: 5px; border-left: 3px solid var(--teal); background: var(--teal-soft); padding: 14px; }
+.evidence-stamp > span { color: var(--teal); font: 8px "IBM Plex Mono", monospace; letter-spacing: .12em; }
+.evidence-stamp > strong { font-size: 12px; }
+.evidence-stamp > small { overflow-wrap: anywhere; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.architecture-blockers { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.architecture-blockers li { display: flex; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.architecture-blockers svg { flex: 0 0 auto; margin-top: 1px; color: var(--mustard); }
+.medallion-flow { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 20px; border-block: 1px solid var(--line); }
+.medallion-flow > div { position: relative; display: grid; gap: 6px; border-right: 1px solid var(--line); padding: 18px 16px; }
+.medallion-flow > div:last-child { border-right: 0; }
+.medallion-flow > div:not(:last-child)::after { position: absolute; right: -5px; top: 27px; width: 8px; height: 8px; border-top: 1px solid var(--navy); border-right: 1px solid var(--navy); background: var(--paper); content: ""; transform: rotate(45deg); z-index: 1; }
+.medallion-flow span { color: var(--teal); font: 8px "IBM Plex Mono", monospace; letter-spacing: .13em; }
+.medallion-flow strong { font-size: 12px; }
+.medallion-flow small { color: var(--muted); font-size: 9px; line-height: 1.5; }
+.readiness-checks { display: grid; margin-bottom: 16px; }
+.readiness-checks > div { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); padding: 8px 0; }
+.readiness-checks > div > span { color: var(--mustard); }
+.readiness-checks p { margin: 0; }
+.readiness-checks strong, .readiness-checks small { display: block; }
+.readiness-checks strong { font-size: 10px; text-transform: capitalize; }
+.readiness-checks small { margin-top: 2px; color: var(--muted); font-size: 8px; line-height: 1.4; }
+.financial-outbox-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.financial-outbox-summary > div { min-width: 74px; border: 1px solid var(--line); padding: 8px; }
+.financial-outbox-summary span, .financial-outbox-summary strong { display: block; }
+.financial-outbox-summary span { color: var(--muted); font: 8px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.financial-outbox-summary strong { margin-top: 4px; font-size: 18px; }
+.mojaloop-preflight { display: grid; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.mojaloop-preflight label { display: grid; gap: 5px; color: var(--muted); font-size: 9px; font-weight: 700; }
+.mojaloop-preflight input { width: 100%; border: 1px solid var(--line); background: var(--paper); padding: 10px; color: var(--navy); font-size: 10px; }
+.mojaloop-preflight .button { justify-self: start; }
+@media (max-width: 1100px) {
+  .metric-contracts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 900px) {
+  .architecture-analytics-grid, .architecture-lanes { grid-template-columns: 1fr; }
+  .architecture-lead { min-height: 0; }
+}
+@media (max-width: 680px) {
+  .architecture-toolbar { align-items: stretch; flex-direction: column; }
+  .window-selector { overflow-x: auto; }
+  .window-selector button { flex: 1 0 auto; min-height: 44px; }
+  .metric-contracts, .medallion-flow { grid-template-columns: 1fr; }
+  .medallion-flow > div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .medallion-flow > div:not(:last-child)::after { display: none; }
+  .architecture-chart { height: 280px; }
+  .architecture-tabs ~ div .button.small, .architecture-toolbar .button { min-height: 44px; }
+}
+
+/* Phase 14: privacy-bounded identity and onboarding workflows */
+.identity-grid { align-items: start; }
+.identity-case-list { display: grid; gap: 8px; max-height: 520px; overflow: auto; }
+.identity-case-list button { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); text-align: left; cursor: pointer; }
+.identity-case-list button.active { border-color: var(--teal); background: var(--teal-soft); }
+.identity-case-list button span { display: grid; gap: 4px; min-width: 0; }
+.identity-case-list button strong { font-size: 13px; }
+.identity-case-list button small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.identity-detail { display: grid; gap: 16px; }
+.identity-case-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.identity-case-summary div { display: grid; gap: 4px; padding: 10px; border-radius: 8px; background: var(--surface-soft, #f6f4ee); }
+.identity-case-summary span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.identity-case-summary strong { font-size: 12px; overflow-wrap: anywhere; }
+.identity-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.identity-review { display: grid; gap: 8px; }
+.identity-review label { font-size: 12px; font-weight: 700; }
+.identity-review textarea { min-height: 86px; resize: vertical; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: inherit; font: inherit; font-size: 12px; }
+.identity-trigger-list { display: grid; gap: 0; max-height: 520px; overflow: auto; }
+.identity-trigger-list div { display: grid; gap: 3px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.identity-trigger-list strong { font-size: 12px; overflow-wrap: anywhere; }
+.identity-trigger-list span { font-size: 11px; color: var(--teal); text-transform: capitalize; }
+.identity-trigger-list small { color: var(--muted); font-size: 10px; text-transform: capitalize; }
+.table-subtitle { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+@media (max-width: 640px) { .identity-case-summary { grid-template-columns: 1fr 1fr; } .identity-actions .button { flex: 1 1 100%; justify-content: center; } }

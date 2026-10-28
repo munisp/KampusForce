@@ -18,8 +18,10 @@ import { getDb } from "../queries/connection";
 import { randomReference } from "./security";
 import { withholdingKobo } from "./money";
 import { calculateLeadOverride } from "./overrides";
+import { enqueueFinancialPosting } from "./tigerBeetle";
 import { notifyUser } from "./notifications";
 import { assertNoFraudHold, blockingFraudHold } from "./fraud";
+import { currentIdentityApproval } from "./identity";
 import {
   assessReconciliation,
   MAX_PAYOUT_ATTEMPTS,
@@ -82,6 +84,16 @@ export async function confirmDueDeals(actorUserId?: number) {
       ]);
       const override = await accrueCampusLeadOverride(tx, current, group);
       if (override) overridesAccrued += 1;
+      await enqueueFinancialPosting(tx, {
+        entryGroup: group,
+        operation: "activation_confirmation",
+        accountRefs: {
+          vendor_escrow: `vendor:${current.vendorId}`,
+          rep_payable: `rep:${current.repId}`,
+          platform_revenue: "platform",
+          ...(override ? { lead_override_payable: `rep:${override.leadRepId}` } : {}),
+        },
+      });
       const clawbackUntil = rule ? new Date(Date.now() + rule.clawbackDays * 86_400_000) : null;
       await tx.update(deals).set({ clawbackUntil, updatedAt: new Date() }).where(eq(deals.id, current.id));
       await stateChange(tx, current.id, "pending", "confirmed", actorUserId ? `staff:${actorUserId}` : "system:confirmation", "Refund-free window elapsed; escrow reserved");
@@ -118,6 +130,16 @@ export async function reverseDeal(dealId: number, actor = "vendor:refund") {
         ]);
         await tx.update(campusLeadOverrides).set({ state: "reversed", reversedAt: new Date() }).where(eq(campusLeadOverrides.id, override.id));
       }
+      await enqueueFinancialPosting(tx, {
+        entryGroup: group,
+        operation: "activation_reversal",
+        accountRefs: {
+          vendor_escrow: `vendor:${deal.vendorId}`,
+          rep_payable: `rep:${deal.repId}`,
+          platform_revenue: "platform",
+          ...(override ? { lead_override_payable: `rep:${override.leadRepId}` } : {}),
+        },
+      });
     }
     await stateChange(tx, deal.id, deal.state, deal.state === "paid" ? "clawed_back" : "void", actor, deal.state === "paid" ? "Refund inside clawback window; negative balances net future payouts, including paid lead overrides" : "Refund before payout; commission and any lead override reversed");
     return { reversed: true };
@@ -156,8 +178,9 @@ export async function runPayoutBatch(actorUserId?: number) {
       // same entitlement. Money and paid states move only on success below.
       const [rep] = await tx.select().from(reps).where(eq(reps.id, repId)).limit(1).for("update");
       const [user] = rep ? await tx.select().from(users).where(eq(users.id, rep.userId)).limit(1) : [];
-      if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch) {
-        return { repId, status: "held", reason: "KYC, rep status, or bank name-match pre-flight failed" };
+      const identityApproval = user ? await currentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx) : null;
+      if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch || !identityApproval) {
+        return { repId, status: "held", reason: "Current identity approval, KYC, rep status, or bank name-match pre-flight failed" };
       }
       const fraudHold = await blockingFraudHold(tx, repId);
       if (fraudHold) {
@@ -313,13 +336,14 @@ async function recordPayoutOutcome(input: {
     const directOutstanding = await repOutstandingKobo(payout.repId, tx);
     const overrideOutstanding = await leadOverrideOutstandingKobo(payout.repId, tx);
     const fraudHold = await blockingFraudHold(tx, payout.repId);
-    const valid = !fraudHold && rep?.status === "active" && user?.kycState === "verified" && user.bankNameMatch
+    const identityApproval = user ? await currentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx) : null;
+    const valid = !fraudHold && rep?.status === "active" && user?.kycState === "verified" && user.bankNameMatch && !!identityApproval
       && entitledDeals.every((deal) => deal.state === "payable")
       && entitledOverrides.every((override) => override.state === "accrued")
       && directOutstanding + overrideOutstanding >= payout.amountGrossKobo;
     if (!valid) {
       await tx.update(payoutAttempts).set({ state: "succeeded", completedAt: new Date() }).where(eq(payoutAttempts.id, attempt.id));
-      await tx.update(payouts).set({ state: "held", lastFailureCode: fraudHold ? "fraud_hold" : "settlement_preflight_changed", nextRetryAt: null, updatedAt: new Date() }).where(eq(payouts.id, payout.id));
+      await tx.update(payouts).set({ state: "held", lastFailureCode: fraudHold ? "fraud_hold" : !identityApproval ? "identity_approval_invalid" : "settlement_preflight_changed", nextRetryAt: null, updatedAt: new Date() }).where(eq(payouts.id, payout.id));
       await tx.insert(auditLogs).values({
         actorUserId: input.actorUserId,
         action: "payout.settlement_held",
@@ -340,6 +364,16 @@ async function recordPayoutOutcome(input: {
     if (directDebit) entries.push({ payoutId: payout.id, account: "rep_payable", direction: "debit", amountKobo: directDebit, entryGroup: group });
     if (overrideDebit) entries.push({ payoutId: payout.id, account: "lead_override_payable", direction: "debit", amountKobo: overrideDebit, entryGroup: group });
     await tx.insert(ledgerEntries).values(entries);
+    await enqueueFinancialPosting(tx, {
+      entryGroup: group,
+      operation: "payout_settlement",
+      accountRefs: {
+        rep_payable: `rep:${payout.repId}`,
+        lead_override_payable: `rep:${payout.repId}`,
+        withholding_tax: "platform:withholding",
+        external_bank: `payout:${payout.id}`,
+      },
+    });
     for (const deal of entitledDeals) {
       await stateChange(tx, deal.id, "payable", "paid", input.actorUserId ? `staff:${input.actorUserId}` : "system:provider_webhook", input.mode === "live"
         ? `Verified provider success ${attempt.providerRef}; event ${input.providerEventId || "recorded"}`

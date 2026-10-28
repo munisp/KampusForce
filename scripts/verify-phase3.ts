@@ -32,6 +32,7 @@ import {
 } from "../api/services/recruiting";
 import { calculateRuleDryRun, publishRuleDraft } from "../api/services/rules";
 import { campusTelemetry } from "../api/services/telemetry";
+import { completeSyntheticIdentityWorkflow } from "../api/services/identityFixtures";
 
 const db = getDb();
 const uniquePhone = () => `+2348${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-9)}`;
@@ -79,14 +80,17 @@ async function main() {
   const [storedInvitation] = await db.select().from(campusRecruitments).where(eq(campusRecruitments.id, recruitmentId)).limit(1);
   assert.notEqual(storedInvitation.tokenHash, token);
   assert.equal(storedInvitation.tokenHash.length, 64);
+  await assert.rejects(() => activateRecruitment(recruitmentId, ops.id), /approved identity case/);
+  await completeSyntheticIdentityWorkflow({ caseType: "representative_kyc", subjectType: "user", subjectId: recruitUserId, requestUserId: recruitUserId, reviewerUserId: ops.id, triggerEvent: "recruitment.invitation_accepted" });
   const activated = await activateRecruitment(recruitmentId, ops.id);
-  assert.equal(activated.mode, "sandbox_identity");
+  assert.equal(activated.mode, "identity_case");
   const [activeRep] = await db.select().from(reps).where(eq(reps.id, activated.repId)).limit(1);
   const [activeUser] = await db.select().from(users).where(eq(users.id, recruitUserId)).limit(1);
   const [assignment] = await db.select().from(campusLeadAssignments).where(eq(campusLeadAssignments.repId, activeRep.id)).limit(1);
   assert.equal(activeRep.status, "active");
   assert.equal(activeUser.kycState, "verified");
-  assert.ok(activeUser.ninToken?.startsWith("sandbox_identity_"));
+  assert.equal(activeUser.ninToken, null);
+  assert.ok(activated.identityCaseRef.startsWith("ID-"));
   assert.equal(assignment.leadRepId, lead.id);
   await assert.rejects(() => activateRecruitment(recruitmentId, ops.id));
 

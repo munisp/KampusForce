@@ -13,6 +13,7 @@ import {
 import { getDb } from "../queries/connection";
 import { notifyUser } from "./notifications";
 import { randomReference } from "./security";
+import { assertCurrentIdentityApproval, ensureIdentityCase } from "./identity";
 
 export const hashInvitationToken = (token: string) => createHash("sha256").update(`kf-recruit:${token}`).digest("hex");
 export const createInvitationToken = () => randomBytes(32).toString("base64url");
@@ -69,7 +70,15 @@ export async function acceptRecruitment(userId: number, token: string, contracto
     const acceptedAt = new Date();
     await tx.update(campusRecruitments).set({ status: "accepted", acceptedAt, acceptedUserId: user.id }).where(eq(campusRecruitments.id, invitation.id));
     await tx.insert(auditLogs).values({ actorUserId: user.id, action: "recruitment.accepted", entityType: "campus_recruitment", entityId: String(invitation.id), metadataJson: { repId: rep.id, campusId: invitation.campusId, contractorAgreementAccepted: true } });
-    return { recruitmentId: invitation.id, repId: rep.id, leadRepId: invitation.leadRepId, acceptedAt };
+    const identity = await ensureIdentityCase({
+      caseType: "representative_kyc",
+      subjectType: "user",
+      subjectId: user.id,
+      requestedByUserId: user.id,
+      campusId: invitation.campusId,
+      triggerEvent: "recruitment.invitation_accepted",
+    }, tx);
+    return { recruitmentId: invitation.id, repId: rep.id, leadRepId: invitation.leadRepId, acceptedAt, identityCaseRef: identity.identityCase.caseRef };
   });
   const [lead] = await getDb().select({ userId: reps.userId }).from(reps).where(eq(reps.id, result.leadRepId)).limit(1);
   if (lead) await notifyUser({ userId: lead.userId, type: "recruitment_accepted", title: "Recruit accepted the invitation", body: "The contractor terms were accepted. Operations can now complete identity activation.", href: "/rep/team", entityType: "campus_recruitment", entityId: result.recruitmentId });
@@ -98,18 +107,18 @@ export async function activateRecruitment(recruitmentId: number, actorUserId: nu
     if (!user || !rep || rep.campusId !== invitation.campusId || rep.status !== "pending") throw new TRPCError({ code: "CONFLICT", message: "The accepted rep profile is missing or no longer pending" });
     if (!rep.contractorAgreementSignedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Contractor terms must be accepted before activation" });
     const activatedAt = new Date();
-    // Explicit sandbox identity adapter: no raw NIN/BVN is collected or persisted.
-    await tx.update(users).set({ kycState: "verified", ninToken: `sandbox_identity_${randomBytes(12).toString("hex")}`, bankNameMatch: true }).where(eq(users.id, user.id));
+    const identityApproval = await assertCurrentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc"] }, tx);
+    if (user.kycState !== "verified" || !user.bankNameMatch) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Identity approval and bank-name match must be current before recruitment activation" });
     await tx.update(reps).set({ status: "active" }).where(eq(reps.id, rep.id));
     const [assignment] = await tx.select().from(campusLeadAssignments).where(eq(campusLeadAssignments.repId, rep.id)).limit(1).for("update");
     if (assignment) await tx.update(campusLeadAssignments).set({ leadRepId: invitation.leadRepId, campusId: invitation.campusId, assignedByUserId: actorUserId, assignedAt: activatedAt, revokedAt: null }).where(eq(campusLeadAssignments.id, assignment.id));
     else await tx.insert(campusLeadAssignments).values({ leadRepId: invitation.leadRepId, repId: rep.id, campusId: invitation.campusId, assignedByUserId: actorUserId, assignedAt: activatedAt });
     await tx.update(campusRecruitments).set({ status: "activated", activatedAt, activatedByUserId: actorUserId }).where(eq(campusRecruitments.id, invitation.id));
-    await tx.insert(auditLogs).values({ actorUserId, action: "recruitment.activated_sandbox", entityType: "campus_recruitment", entityId: String(invitation.id), metadataJson: { repId: rep.id, campusId: invitation.campusId, identityAdapter: "sandbox", rawIdentityDocumentsStored: false } });
-    return { repId: rep.id, userId: user.id, campusId: invitation.campusId, activatedAt };
+    await tx.insert(auditLogs).values({ actorUserId, action: "recruitment.activated", entityType: "campus_recruitment", entityId: String(invitation.id), metadataJson: { repId: rep.id, campusId: invitation.campusId, identityCaseRef: identityApproval.caseRef, rawIdentityDocumentsStored: false } });
+    return { repId: rep.id, userId: user.id, campusId: invitation.campusId, activatedAt, identityCaseRef: identityApproval.caseRef };
   });
-  await notifyUser({ userId: result.userId, type: "rep_activated", title: "Your rep workspace is active", body: "Sandbox identity activation and campus-team assignment are complete.", href: "/rep", entityType: "rep", entityId: result.repId });
-  return { recruitmentId, repId: result.repId, status: "activated" as const, mode: "sandbox_identity" as const, activatedAt: result.activatedAt };
+  await notifyUser({ userId: result.userId, type: "rep_activated", title: "Your rep workspace is active", body: "Approved identity controls and campus-team assignment are complete.", href: "/rep", entityType: "rep", entityId: result.repId });
+  return { recruitmentId, repId: result.repId, status: "activated" as const, mode: "identity_case" as const, identityCaseRef: result.identityCaseRef, activatedAt: result.activatedAt };
 }
 
 export async function expireRecruitments() {

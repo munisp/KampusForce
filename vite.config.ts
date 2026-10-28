@@ -22,8 +22,14 @@ export default defineConfig({
     },
   },
   envDir: path.resolve(__dirname),
+  publicDir: path.resolve(__dirname, "public"),
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
-    emptyOutDir: true,
+    // The delivery mount can transiently report ENOTEMPTY/ENOENT during recursive
+    // cleanup. CI removes dist before building; avoid a second racy recursive wipe.
+    emptyOutDir: false,
+    rollupOptions: {
+      maxParallelFileOps: 1,
+    },
   },
 });

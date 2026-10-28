@@ -10,8 +10,9 @@ import { log } from "../lib/logger";
 import { monitorOperationalSignals } from "./incidents";
 import { monitoringSlotKey } from "./incidentPolicy";
 import { processDueIngestionRetries, purgeExpiredVendorEventPayloads } from "./ingestionRetries";
+import { expireIdentityApprovals } from "./identity";
 
-export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup", "ingestion_retry", "event_retention"] as const;
+export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup", "ingestion_retry", "event_retention", "identity_expiry"] as const;
 export type JobKey = typeof JOB_KEYS[number] | "payout_batch" | "lead_eligibility" | "monitoring_sweep";
 
 export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
@@ -64,6 +65,9 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
       const retention = await purgeExpiredVendorEventPayloads();
       result = retention;
       processedCount = retention.purged;
+    } else if (jobKey === "identity_expiry") {
+      result = await expireIdentityApprovals();
+      processedCount = Number(result.expired || 0);
     } else {
       result = await expireRecruitments();
       processedCount = Number(result.expired || 0);
