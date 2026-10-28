@@ -11,9 +11,9 @@ EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
 REPORT = {"mode": "local_sandbox_production_browser_acceptance", "externalRequestMade": False, "productionReady": False}
 
 
-def login_operations(page):
+def login_architecture(page, workspace="Operations"):
     page.goto(BASE_URL, wait_until="networkidle")
-    page.get_by_role("button", name="Operations", exact=False).click()
+    page.get_by_role("button", name=workspace, exact=False).click()
     page.locator(".workspace-shell").wait_for(timeout=30_000)
     page.locator('a[href="/architecture"]:visible').first.click()
     page.get_by_role("button", name="Advanced analytics", exact=True).wait_for(timeout=30_000)
@@ -32,7 +32,7 @@ with sync_playwright() as playwright:
         context = browser.new_context(viewport={"width": 1440, "height": 1000})
         page = context.new_page()
         page.on("pageerror", lambda error: errors.append(f"desktop pageerror: {error}"))
-        login_operations(page)
+        login_architecture(page)
         page.get_by_role("button", name="365 days", exact=True).click()
         page.get_by_text("Activation & confirmation trend", exact=True).wait_for(timeout=30_000)
         page.get_by_text("Seven-day conversion cohorts", exact=True).wait_for(timeout=30_000)
@@ -48,20 +48,26 @@ with sync_playwright() as playwright:
         page.screenshot(path=str(EVIDENCE_DIR / "lakehouse-ray-desktop.png"), full_page=True)
         REPORT["dataPlatform"] = {"status": "passed", "localDeltaEvidence": True, "localRayEvidence": True, "temporalHoldoutVisible": True, "modelApprovalLocked": True}
 
-        page.get_by_role("button", name="TigerBeetle & Mojaloop", exact=True).click()
-        page.get_by_role("button", name="Run gated outbox worker", exact=True).click()
-        page.locator(".success-message").get_by_text("dispatch remains blocked", exact=False).wait_for(timeout=30_000)
-        page.get_by_role("button", name="Reconcile posted balances", exact=True).click()
-        page.locator(".success-message").get_by_text("reconciliation remains blocked", exact=False).wait_for(timeout=30_000)
-        page.get_by_text("Transfer preparation is not settlement", exact=False).wait_for(timeout=30_000)
-        page.screenshot(path=str(EVIDENCE_DIR / "financial-desktop.png"), full_page=True)
-        REPORT["financial"] = {"status": "passed", "dispatchFailClosed": True, "reconciliationFailClosed": True, "settlementBoundaryVisible": True}
         context.close()
+
+        finance_context = browser.new_context(viewport={"width": 1440, "height": 1000})
+        finance = finance_context.new_page()
+        finance.on("pageerror", lambda error: errors.append(f"finance pageerror: {error}"))
+        login_architecture(finance, "Finance")
+        finance.get_by_role("button", name="TigerBeetle & Mojaloop", exact=True).click()
+        finance.get_by_role("button", name="Run gated outbox worker", exact=True).click()
+        finance.locator(".success-message").get_by_text("dispatch remains blocked", exact=False).wait_for(timeout=30_000)
+        finance.get_by_role("button", name="Reconcile posted balances", exact=True).click()
+        finance.locator(".success-message").get_by_text("reconciliation remains blocked", exact=False).wait_for(timeout=30_000)
+        finance.get_by_text("Transfer preparation is not settlement", exact=False).wait_for(timeout=30_000)
+        finance.screenshot(path=str(EVIDENCE_DIR / "financial-desktop.png"), full_page=True)
+        REPORT["financial"] = {"status": "passed", "authorizedFinanceWorkspace": True, "dispatchFailClosed": True, "reconciliationFailClosed": True, "settlementBoundaryVisible": True}
+        finance_context.close()
 
         mobile_context = browser.new_context(viewport={"width": 375, "height": 812}, is_mobile=True)
         mobile = mobile_context.new_page()
         mobile.on("pageerror", lambda error: errors.append(f"mobile pageerror: {error}"))
-        login_operations(mobile)
+        login_architecture(mobile)
         mobile.get_by_text("Activation & confirmation trend", exact=True).wait_for(timeout=30_000)
         analytics_dimensions = no_horizontal_overflow(mobile)
         mobile.screenshot(path=str(EVIDENCE_DIR / "analytics-mobile-375.png"), full_page=True)

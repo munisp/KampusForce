@@ -47,7 +47,7 @@ export const authRouter = createRouter({
     const rep = user.role === "rep" ? await createRepIfNeeded(user.id) : null;
     return { ...(await issueToken(user.id)), user, rep };
   }),
-  demoLogin: publicQuery.input(z.object({ role: z.enum(["rep", "vendor", "ops"]), repCode: z.string().max(32).optional() })).mutation(async ({ input }) => {
+  demoLogin: publicQuery.input(z.object({ role: z.enum(["rep", "vendor", "ops", "finance"]), repCode: z.string().max(32).optional() })).mutation(async ({ input }) => {
     const [user] = input.repCode
       ? await getDb().select({ user: users }).from(users).innerJoin(reps, eq(reps.userId, users.id)).where(and(eq(users.role, input.role), eq(reps.code, input.repCode))).limit(1).then((rows) => rows.map((row) => row.user))
       : await getDb().select().from(users).where(eq(users.role, input.role)).limit(1);

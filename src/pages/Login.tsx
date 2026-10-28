@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Check, KeyRound, ShieldCheck, Store, UserRound, UsersRound } from "lucide-react";
+import { ArrowRight, Check, KeyRound, Landmark, ShieldCheck, Store, UserRound, UsersRound } from "lucide-react";
 import { useNavigate } from "react-router";
 import { Brand } from "@/components/product/Brand";
 import { trpc } from "@/providers/trpc";
@@ -10,7 +10,10 @@ const roles = [
   { role: "rep" as const, repCode: "KF-UNILAG-0002", title: "Team rep", detail: "Tobi · share offers, open tickets and track earnings.", icon: UserRound, path: "/rep" },
   { role: "vendor" as const, title: "Vendor partner", detail: "Dry-run rules, fund escrow and resolve support.", icon: Store, path: "/vendor" },
   { role: "ops" as const, title: "Operations", detail: "Monitor SLAs, promote leads and run settlement.", icon: ShieldCheck, path: "/ops" },
+  { role: "finance" as const, title: "Finance", detail: "Complete onboarding and review financial-core readiness.", icon: Landmark, path: "/ops" },
 ];
+
+const workspacePath = (role: string) => role === "rep" ? "/rep" : role === "vendor" ? "/vendor" : "/ops";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -32,7 +35,7 @@ export default function Login() {
     onError: (e) => setError(e.message),
   });
   const verifyOtp = trpc.auth.verifyOtp.useMutation({
-    onSuccess: (data) => { setSession({ token: data.token, user: data.user }); navigate(data.user.role === "rep" ? "/rep" : `/${data.user.role}`); },
+    onSuccess: (data) => { setSession({ token: data.token, user: data.user }); navigate(workspacePath(data.user.role)); },
     onError: (e) => setError(e.message),
   });
 
@@ -61,7 +64,7 @@ export default function Login() {
 
       <section className="sandbox-section" id="sandbox">
         <div className="section-intro"><p className="eyebrow">Executable product slice</p><h2>Choose a workspace.</h2><p>Use seeded sandbox identities to exercise the same database-backed activation, escrow and settlement records. No real money or KYC checks occur.</p></div>
-        {token && user && <button className="continue-session" onClick={() => navigate(user.role === "rep" ? "/rep" : `/${user.role}`)}>Continue as {user.name}<ArrowRight size={17} /></button>}
+        {token && user && <button className="continue-session" onClick={() => navigate(workspacePath(user.role))}>Continue as {user.name}<ArrowRight size={17} /></button>}
         <div className="role-grid">
           {roles.map(({ role, repCode, title, detail, icon: Icon }) => <button className="role-card" key={title} onClick={() => { setError(""); demo.mutate({ role, repCode }); }} disabled={demo.isPending}>
             <span className="role-icon"><Icon size={22} /></span><span><strong>{title}</strong><small>{detail}</small></span><ArrowRight size={18} />

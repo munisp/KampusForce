@@ -49,17 +49,17 @@ export const identityRouter = createRouter({
 
   openCase: authedQuery.input(z.object({
     caseType: z.enum(["representative_kyc", "campus_lead_kyc", "vendor_kyb", "operations_kyc"]),
-  }).strict()).mutation(async ({ ctx, input }) => openScopedCase(ctx.user, input.caseType)),
+  })).mutation(async ({ ctx, input }) => openScopedCase(ctx.user, input.caseType)),
 
   consent: authedQuery.input(z.object({
     caseId: z.number().int().positive(),
     purpose: z.enum(["identity_verification", "biometric_liveness"]),
     noticeAcknowledged: z.literal(true),
-  }).strict()).mutation(async ({ ctx, input }) => recordIdentityConsent({ caseId: input.caseId, actorUserId: ctx.user.id, purpose: input.purpose })),
+  })).mutation(async ({ ctx, input }) => recordIdentityConsent({ caseId: input.caseId, actorUserId: ctx.user.id, purpose: input.purpose })),
 
-  submit: authedQuery.input(z.object({ caseId: z.number().int().positive() }).strict()).mutation(async ({ ctx, input }) => submitIdentityCase(input.caseId, ctx.user.id)),
+  submit: authedQuery.input(z.object({ caseId: z.number().int().positive() })).mutation(async ({ ctx, input }) => submitIdentityCase(input.caseId, ctx.user.id)),
 
-  processSandbox: authedQuery.input(z.object({ caseId: z.number().int().positive() }).strict()).mutation(async ({ ctx, input }) => {
+  processSandbox: authedQuery.input(z.object({ caseId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return processSyntheticIdentityCase(input.caseId, ctx.user.id);
   }),
@@ -76,12 +76,12 @@ export const identityRouter = createRouter({
     modelVersion: z.string().max(100).nullable().optional(),
     qualityFlags: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,39}$/)).max(12).optional(),
     findings: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
-  }).strict()).mutation(async ({ ctx, input }) => {
+  })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return recordIdentityEvidence({ ...input, actorUserId: ctx.user.id });
   }),
 
-  routeReview: authedQuery.input(z.object({ caseId: z.number().int().positive() }).strict()).mutation(async ({ ctx, input }) => {
+  routeReview: authedQuery.input(z.object({ caseId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return routeIdentityCaseToReview(input.caseId, ctx.user.id);
   }),
@@ -90,14 +90,14 @@ export const identityRouter = createRouter({
     caseId: z.number().int().positive(),
     decision: z.enum(["approve", "request_info", "reject", "revoke"]),
     reason: z.string().trim().min(10).max(500),
-  }).strict()).mutation(async ({ ctx, input }) => {
+  })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return reviewIdentityCase({ ...input, actorUserId: ctx.user.id });
   }),
 
-  reverify: authedQuery.input(z.object({ caseId: z.number().int().positive() }).strict()).mutation(async ({ ctx, input }) => requestIdentityReverification(input.caseId, ctx.user.id)),
+  reverify: authedQuery.input(z.object({ caseId: z.number().int().positive() })).mutation(async ({ ctx, input }) => requestIdentityReverification(input.caseId, ctx.user.id)),
 
-  withdrawConsent: authedQuery.input(z.object({ caseId: z.number().int().positive() }).strict()).mutation(async ({ ctx, input }) => withdrawIdentityConsent(input.caseId, ctx.user.id)),
+  withdrawConsent: authedQuery.input(z.object({ caseId: z.number().int().positive() })).mutation(async ({ ctx, input }) => withdrawIdentityConsent(input.caseId, ctx.user.id)),
 
   customerHandoff: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["vendor"]);
@@ -113,7 +113,7 @@ export const identityRouter = createRouter({
     return { status: "vendor_regulated_flow", vendorId: vendor.id, platformKycDecision: false, rawCustomerIdentityAccepted: false };
   }),
 
-  events: authedQuery.input(z.object({ limit: z.number().int().min(1).max(500).default(200) }).strict()).query(async ({ ctx, input }) => {
+  events: authedQuery.input(z.object({ limit: z.number().int().min(1).max(500).default(200) })).query(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return listIdentityLifecycleEvents(input.limit);
   }),

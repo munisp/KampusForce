@@ -34,6 +34,7 @@ async function main() {
     { phoneE164: "+2348000000002", name: "CampusSave Partnerships", role: "vendor" as const, kycState: "verified" as const },
     { phoneE164: "+2348000000003", name: "KampusForce Operations", role: "ops" as const, kycState: "verified" as const },
     { phoneE164: "+2348000000004", name: "Tobi Bello", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_tobi", ninLast4: "0004", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0004", bankAccountName: "Tobi Bello", bankNameMatch: true },
+    { phoneE164: "+2348000000005", name: "KampusForce Finance", role: "finance" as const },
   ];
   const createdUsers = [];
   for (const seed of userSeeds) {

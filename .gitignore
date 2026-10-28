@@ -40,3 +40,6 @@ build/
 # Test coverage
 coverage/
 .nyc_output/
+# Python runtime artifacts
+__pycache__/
+*.py[cod]

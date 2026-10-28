@@ -319,7 +319,7 @@ def run_identity_events(payload: dict[str, Any], output_path: Path, key: bytes) 
         "event_date": row["event_date"], "subject_type": row["subject_type"], "subject_token": row["subject_token"],
         "case_type": row["case_type"], "case_state": row["case_state"], "provider_mode": row["provider_mode"],
         "consent_policy": "consented_identity_lifecycle_v1",
-    } for row in bronze if row["event_id"] not in {event["event_id"] for event in new_quarantined}]
+    } for row in bronze]
     silver_path = output_path / "silver" / "identity_lifecycle_events"
     write(silver_path, silver, schema=identity_silver_schema())
     if tombstones:
@@ -413,10 +413,10 @@ def run_pipeline(input_path: Path, output_path: Path) -> dict[str, Any]:
     new_quarantined = []
     rejection_keys = set()
     for item in quarantined:
-        key = (item["event_hash"], item["reason"])
-        if key not in existing_rejections and key not in rejection_keys:
+        rejection_key = (item["event_hash"], item["reason"])
+        if rejection_key not in existing_rejections and rejection_key not in rejection_keys:
             new_quarantined.append(item)
-            rejection_keys.add(key)
+            rejection_keys.add(rejection_key)
     if new_quarantined:
         write(quarantine_path, new_quarantined, mode="append")
 

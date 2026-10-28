@@ -20,7 +20,7 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 
 ### Core attribution and settlement
 
-- Sandbox OTP and 12-hour JWT sessions; role-gated rep, vendor and operations workspaces.
+- Sandbox OTP and 12-hour JWT sessions; role-gated representative, vendor, Operations and Finance workspaces.
 - Catalog across five product verticals with versioned flat/percentage rules and transparent terms.
 - Signed links, QR kits, WhatsApp sharing and first-touch attribution using salted phone hashes.
 - Six-step assisted onboarding that records consent and telemetry, never customer NIN/BVN/OTP fields.
@@ -150,7 +150,7 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 
 - Representative, Campus Lead, vendor KYB and Operations/Finance onboarding share consent-gated cases, bounded evidence metadata, independent manual review, expiry, reverification and consent-withdrawal controls. Reviewers cannot approve their own case. Subject locks and a partial unique index prevent duplicate open cases; append-only triggers protect evidence, reviews and lifecycle content.
 - Recruitment acceptance opens representative KYC; recruitment activation requires current approval and bank-name match. Vendor approval activates the vendor, while withdrawal pauses it. Payout assembly and settlement recheck current identity eligibility. Eligibility is derived from all current applicable approvals rather than the latest case transition alone.
-- Transient PaddleOCR/Docling/VLM processing returns only bounded metadata. Separate hosted liveness, capture-integrity, face-match and deepfake contracts fail closed; attack signals override nominal provider success, and missing OCR confidence, VLM booleans or required anti-attack signals cannot pass. Real models/providers have not been called.
+- Transient PaddleOCR/Docling/VLM processing returns only bounded metadata. Separate hosted liveness, capture-integrity, face-match and deepfake contracts fail closed; attack signals override nominal provider success, and missing OCR confidence, VLM booleans or required anti-attack signals cannot pass. PaddleOCR 3.7.0/PaddlePaddle 3.3.1 and Docling 2.144.0 passed local synthetic-document checks; no VLM or hosted biometric provider has been called.
 - Fourteen trigger definitions connect onboarding, document/evidence processing, review, payout, risk, expiry, consent and vendor-regulated customer handoff workflows. Customer KYC decisions and customer identifiers remain outside the platform.
 - Pseudonymized identity lifecycle events integrate with consent-filtered lakehouse Bronze/Silver/Gold tables and subject-token tombstones. Documents, OCR text, NIN/BVN, biometrics, templates, evidence findings and review reasons are excluded.
 - See the [identity and onboarding runbook](docs/identity-onboarding-runbook.md) for trigger semantics, provider controls, live gates, verification and external production requirements.
@@ -169,12 +169,13 @@ npm run dev
 
 Use a separate empty PostgreSQL sandbox database for the supplied verification journey. The migration creates the PostgreSQL baseline; it does not copy or destructively convert the earlier MySQL data. Any historical data migration requires a separate backed-up, reconciled runbook. Never force a schema push over existing financial records.
 
-Open `http://localhost:3000`. The workspace selector provides four seeded identities:
+Open `http://localhost:3000`. The workspace selector provides five seeded identities:
 
 - **Campus Lead:** Ada, with team, recruiting, override and support-triage views.
 - **Team rep:** Tobi, with attribution, earnings and owned-support workflows.
 - **Vendor partner:** CampusSave, with Rule Studio, escrow, event simulation and support resolution.
 - **Operations:** settlement, support escalation, campus rollout/activation, durable jobs, top-decile designation/recalculation, demotion, override monitoring, incident response, privacy workflows and fraud/conduct review.
+- **Finance:** financial-core readiness and controls plus the user's own Operations/Finance identity-onboarding journey, without identity-review permission.
 
 The OTP form is also a sandbox adapter and displays its code on screen. Seeded verified status is not live NIN verification.
 
@@ -196,8 +197,9 @@ npx tsx scripts/verify-phase9.ts # credential, retry, retention and replay accep
 npx tsx scripts/verify-phase10.ts # launch review and signed provider-outcome acceptance
 npx tsx scripts/verify-phase11.ts # cohort, full-quarter KPI and national evidence acceptance
 npx tsx scripts/verify-phase12.ts # case, CRM, training, campaign, integration and growth acceptance
-python3 -m pip install --target /tmp/kampusforce-python-deps -r data_platform/requirements.txt
+UV_HTTP_TIMEOUT=180 uv pip install --target /tmp/kampusforce-python-deps --no-cache -r data_platform/requirements.txt
 PYTHONPATH=/tmp/kampusforce-python-deps python3 data_platform/acceptance.py --output /tmp/kampusforce-data-platform-acceptance
+UV_HTTP_TIMEOUT=180 uv pip install --target /tmp/kampusforce-identity-deps --no-cache -r identity_platform/requirements.txt
 npx tsx scripts/record-data-platform-evidence.ts /tmp/kampusforce-data-platform-acceptance/run_manifest.json /tmp/kampusforce-data-platform-acceptance/ray_manifest.json
 npx tsx scripts/verify-phase13.ts # analytics, evidence, outbox and partner-rail acceptance
 npx tsx scripts/verify-phase14.ts # stakeholder identity, expiry, consent and financial-preservation acceptance
@@ -213,6 +215,8 @@ KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
 
 The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. The browser gate requires Python Playwright with Chromium installed; run `npm run build` and `npm start` first. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
+
+For non-root/non-Docker sandboxes, PostgreSQL 16.15 was provisioned by downloading PGDG packages through an isolated apt configuration, extracting them with `dpkg-deb -x`, and initializing a separate data directory and loopback port. This is a development/acceptance workaround, not a production database deployment. When ordinary package downloads stall, `uv pip install --target ... --no-cache` with an explicit HTTP timeout provides a faster isolated route; keep the data and identity dependency targets separate to avoid binary-package conflicts.
 
 ## End-to-end sandbox exercise
 
@@ -285,11 +289,12 @@ Key paths:
 
 ## Verification status
 
-Latest combined Phase 13–14 checkpoint: TypeScript, ESLint, Python syntax, patch checks and **96 unit tests across 20 files passed**. The production build and isolated bundled-server smoke also passed; root, manifest, service worker and liveness returned 200, while unavailable-database readiness correctly failed closed with 503. The new Phase 14 PostgreSQL/browser journeys and updated Phase 13 acceptance have not run in the resumed environment because PostgreSQL is unavailable; Delta/Ray acceptance remains unexecuted because its pinned packages are unavailable. No passing result is inferred from the prepared scripts. The bullets below retain earlier phase evidence and are not a substitute for the combined rerun.
+Latest combined Phase 13–14 checkpoint: PostgreSQL 16.15 was installed in user space from isolated PGDG packages, all 13 additive migrations and repeated seed ran, and ordered Phase 2–14 database acceptance passed. Real Delta Lake/Ray acceptance, Phase 9–14 production-browser journeys, signed HTTP load, custom-format backup and isolated restore also passed. The final consolidated checkpoint also passed: TypeScript, ESLint, Python syntax, patch checks, 96 unit tests across 20 files, production build and a production dependency audit with zero known vulnerabilities at assessment time; the earlier isolated bundled-server smoke remains passing evidence. All results are local sandbox evidence, not staging, managed-cluster, live-provider or production certification.
 
-- TypeScript check: passed at the latest static checkpoint.
-- Combined Phase 13–14 production build and bundled-server smoke: passed; database-backed readiness remains blocked by the unavailable local PostgreSQL server.
-- Unit tests: 96 passed at the latest static checkpoint.
+- PostgreSQL runtime: local user-space PostgreSQL 16.15 on `127.0.0.1:55432`; migrations and repeated seed passed without Docker or root. Local commands override both database URL variables so an external configured database is never selected accidentally.
+- Package-download workaround: pinned Delta/Ray and document dependencies installed with `uv` into separate `/tmp` targets. Docling models required an alternate Hugging Face endpoint in this sandbox; production must use reviewed, pre-cached artifacts rather than depending on a public mirror.
+- Combined Phase 13–14 production build and bundled-server smoke: passed; database-backed acceptance subsequently ran against the local PostgreSQL server.
+- Unit tests: all 96 tests across 20 files passed in the final consolidated rerun.
 - Live PostgreSQL 16 Phase 2 regression: historical rules, publication, overrides, combined payout, paid reversal, support, CSAT, SLA and redaction passed.
 - Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, seeded-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
 - Live PostgreSQL 16 Phase 4 journey: reservation without settlement, duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback, Finance recovery, idempotent success, reconciliation and refund-before-settlement hold passed.
@@ -298,7 +303,7 @@ Latest combined Phase 13–14 checkpoint: TypeScript, ESLint, Python syntax, pat
 - Live PostgreSQL 16 Phase 7 journey: hash-only DSAR persistence, exact deadlines, identity-gated export, concurrent-transition rejection, scoped evidence sections, sensitive-value exclusion, Operations/Admin owner enforcement, privacy incident severity/deduplication, append-only histories and byte-equivalent financial preservation passed.
 - Live PostgreSQL 16 Phase 8 journey: default/custom cap boundaries, duplicate-event exclusion, concurrent cap serialization, case dedupe, post-release case creation, scoped payout blocking, suspension/appeal restoration, concurrent-decision rejection, immutable history, financial preservation and critical overdue monitoring passed.
 - Live PostgreSQL 16 Phase 9 journey: credential overlap/expiry, secret-free audit metadata, transient retry recovery, permanent dead letters, concurrent retry resolution, 30-day payload purging, replay preservation and byte-equivalent financial snapshots passed.
-- Signed HTTP load acceptance: 100/100 events accepted at 60.63 events/second with p50/p95/p99 latency of 344/775/841 ms at concurrency 25. Local sandbox measurement only.
+- Signed HTTP load acceptance: 100/100 events accepted at 66.96 events/second with p50/p95/p99 latency of 303/615/636 ms at concurrency 25. Local sandbox measurement only; the earlier Phase 9 baseline remains preserved below.
 - Phase 9 production-browser acceptance: six-step onboarding completed in 16.7 seconds under 400 ms RTT, 500 Kbps down/up and 4× CPU throttling; offline earnings/catalog reload, disabled mutations, private-snapshot cleanup, one-time credential rotation and 375px layout passed with zero runtime errors.
 - Live PostgreSQL 16 Phase 10 journey: 25/24 launch catalog, independent review, self-approval/credential-text rejection, fail-closed provider guards, exact signed outcome settlement, duplicate prevention, mismatch/reversal quarantine and raw-bank-value exclusion passed. No live provider request occurred.
 - Phase 10 production-browser acceptance: evidence submission, self-approval rejection, secret-free configuration, `productionReady: false`, sandbox HTTP 403 and 375px layout passed with zero runtime errors.
@@ -306,7 +311,12 @@ Latest combined Phase 13–14 checkpoint: TypeScript, ESLint, Python syntax, pat
 - Phase 11 production-browser acceptance: cohort registration, ineligible snapshots, external submission, self-approval rejection, unchanged campus status, uncertified national launch and 375px layout passed with zero runtime errors.
 - Live PostgreSQL 16 Phase 12 journey: case ownership collision, public/internal collaboration, snooze/wake, reopen history, links/watchers/views, CRM activity/tasks/drafts, verified-won gating, training, independent campaign review, integration boundaries, leaderboard/targeting and consent-led recruiting passed. Deals and ledger entries remained byte-equivalent.
 - Phase 12 production-browser acceptance: Operations, representative, Campus Lead and vendor workflows passed with zero runtime errors. Cases, campaigns, CRM, training and growth each measured exactly 375px document width at a 375px viewport. No external message or live integration request occurred.
-- Backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts across all eleven migrations; source counts remained unchanged.
+- Live PostgreSQL 16 Phase 13 journey: operational analytics, immutable evidence, TigerBeetle outbox controls and fail-closed Mojaloop contracts passed; real Delta/Ray manifests recorded four lineage runs in sandbox-reference mode.
+- Phase 13 production-browser acceptance: Operations analytics and separately authorized Finance financial-core controls passed on desktop and mobile with zero browser runtime errors. Operations correctly received HTTP 403 for Finance-only mutations.
+- Live PostgreSQL 16 Phase 14 journey: representative, Campus Lead, vendor KYB, Operations/Finance, independent review, expiry/reverification, consent withdrawal, tombstones, financial preservation and concurrency controls passed.
+- Phase 14 production-browser acceptance: Operations, Finance, representative, vendor and Campus Lead workflows passed at desktop/375px with zero runtime errors and zero external requests. Finance could submit and withdraw its own case but was not offered synthetic processing or self-approval.
+- Document-runtime acceptance: PaddleOCR 3.7.0/PaddlePaddle 3.3.1 detected all six synthetic image lines with mean confidence 0.992596; Docling 2.144.0 converted the one-page synthetic PDF and detected its marker. No real identity document, VLM or hosted biometric provider was used.
+- Backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts across all 13 migrations; source records remained unchanged. The retained restore contained 55 users, 35 representatives, 10 products, 125 deals, 58 ledger entries, 540 audit logs and 19 user triggers.
 - Five simultaneous payout batches produced exactly one reservation for the new test rep; two concurrent publishers produced one winner. Duplicate success outcomes did not duplicate ledger postings.
 - Cross-vendor support resolution and duplicate CSAT were rejected.
 - Browser Rule Studio dry run/publication and role workspaces passed. The full recruiting journey also passed: private public inspection, phone-bound OTP, consent-gated acceptance, separate Operations activation, team assignment and activation notification.

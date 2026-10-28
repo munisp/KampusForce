@@ -6,7 +6,7 @@ Assessment date: 2026-10-29
 
 Phase 14 adds event-driven onboarding for representatives, Campus Leads, vendors, Operations/Finance reviewers and vendor-regulated customer handoffs. It integrates identity eligibility with recruitment, vendor activation, payout assembly/settlement, consent, durable expiry, audit and privacy-safe lakehouse events.
 
-This is an executable control implementation, not proof of live identity verification or full production readiness. Synthetic providers are control fixtures. No real PaddleOCR, Docling, VLM, liveness or deepfake provider has been called in the local assessment. No PAD, injection-attack, deepfake, demographic-performance, legal, security or managed-deployment certification is claimed.
+This is an executable control implementation, not proof of live identity verification or full production readiness. Synthetic providers are control fixtures. PaddleOCR and Docling ran locally against synthetic, non-sensitive documents; no VLM, liveness or deepfake provider has been called. No PAD, injection-attack, deepfake, demographic-performance, legal, security or managed-deployment certification is claimed.
 
 ## Non-negotiable data boundaries
 
@@ -85,7 +85,11 @@ The durable `identity_expiry` job expires due approvals and revokes associated u
 
 The VLM prompt forbids returning names, identity numbers, dates, addresses, document text or explanations. OCR/structured text may be processed only under the approved transient processor contract. The output contract rejects raw fields, nested findings and unbounded values. OCR cannot pass without an explicit confidence of at least 0.75. VLM cross-check and tamper outcomes must be explicit booleans; missing or unknown values fail closed rather than becoming successful evidence.
 
-Production deployment must pre-cache and pin models, scan/disarm malicious documents, isolate the worker with no persistent volume, restrict egress, test resource limits and verify temporary-file cleanup under failure and concurrency.
+Install the exact local runtime with `UV_HTTP_TIMEOUT=180 uv pip install --target /tmp/kampusforce-identity-deps --no-cache -r identity_platform/requirements.txt`, then invoke the worker with that target on `PYTHONPATH`. Keep it separate from the Delta/Ray target because native numerical packages can differ. PaddleOCR defaults to portable native CPU execution (`enable_mkldnn=False`) after Paddle 3.3.1 oneDNN rejected valid PP-OCR runtime attributes; acceleration is opt-in only after deployment-specific verification. `PADDLEOCR_DEVICE` and `PADDLEOCR_ENABLE_MKLDNN` control that runtime path.
+
+Local synthetic acceptance passed: PaddleOCR 3.7.0/PaddlePaddle 3.3.1 detected all six image lines with mean confidence 0.992596, and Docling 2.144.0 converted a one-page text PDF with the expected synthetic marker. The default Hugging Face route timed out for Docling artifacts; `HF_ENDPOINT=https://hf-mirror.com` with XET disabled was a sandbox download workaround, not an approved production model supply chain. No real identity document or extracted identity text was used or persisted.
+
+Production deployment must pre-cache and pin models and artifact hashes in an approved registry, scan/disarm malicious documents, isolate the worker with no persistent volume, restrict egress, test resource limits and verify temporary-file cleanup under failure and concurrency. Package pins alone do not pin mutable external model artifacts or certify provider accuracy.
 
 ### Hosted liveness and deepfake providers
 
@@ -116,16 +120,17 @@ Logical Delta deletion is not physical erasure. Schedule and evidence Delta `VAC
 
 ## Verification
 
-Latest local static checkpoint:
+Latest local runtime checkpoint:
 
-- TypeScript and ESLint passed.
-- 96 unit tests across 20 files passed, including identity policy and adapter contracts.
-- The production build and isolated bundled-server smoke passed; root, manifest, service worker and liveness returned 200, while unavailable-database readiness correctly failed closed with 503.
-- Python syntax and `git diff --check` passed.
-- The Phase 14 PostgreSQL journey and desktop/375px browser gate are implemented but have not run in the resumed local environment because PostgreSQL is unavailable.
-- Delta/Ray acceptance has not run because `deltalake`, `pyarrow` and `ray` are unavailable. No replacement result has been fabricated and no further heavyweight installation was attempted.
+- A user-space PostgreSQL 16.15 server ran all 13 migrations and repeated seed; ordered Phase 2–14 database journeys passed. The Phase 10 legacy payout fixture now completes independent synthetic representative KYC rather than bypassing the settlement identity gate.
+- Real Delta/Ray acceptance passed and its manifests were recorded in PostgreSQL. Phase 9–14 production-browser journeys passed; the identity browser report had zero runtime errors and zero external requests.
+- Finance now has a seeded sandbox login and workspace route. Its own-case journey supports consent, submission and withdrawal but offers neither processing nor approval controls. Operations/Admin review permissions remain separate.
+- Router-level browser execution found inherited session-token fields were incompatible with `.strict()` on secondary identity inputs; field-level Zod validation remains, while those secondary objects now compose correctly with the tRPC token middleware. The privileged own-case action boundary was also corrected.
+- Signed HTTP load accepted 100/100 events at concurrency 25. Backup manifest validation and isolated restore passed across 13 migrations with unchanged source records.
+- PaddleOCR and Docling synthetic runtime checks passed as described above. VLM, hosted liveness/deepfake, malicious-document, concurrency and managed staging execution remain open.
+- The final consolidated TypeScript, ESLint, Python syntax, patch, 96-unit-test, production-build and production dependency-audit checks passed. The earlier isolated bundled-server smoke also passed.
 
-Run against a dedicated sandbox after supplying PostgreSQL and the pinned data-platform dependencies:
+The following commands remain the repeatable sandbox journey:
 
 ```bash
 npm run db:migrate
@@ -154,7 +159,7 @@ The database journey checks incomplete-evidence rejection, independent review, p
 
 ## External production gates
 
-1. Execute real document, liveness and deepfake providers in an isolated staging environment and independently evaluate security, PAD/injection/deepfake resistance, accessibility and demographic performance.
+1. Execute the complete document pipeline with an approved VLM plus hosted liveness/deepfake providers in isolated staging, and independently evaluate security, PAD/injection/deepfake resistance, accessibility and demographic performance. Local PaddleOCR/Docling synthetic checks do not satisfy this gate.
 2. Complete DPIA/privacy notices, consent and withdrawal policy, retention/erasure schedules, processor contracts, redress and legal/security approvals.
 3. Integrate approved secrets management, malware scanning, container/egress isolation, authenticated risk callbacks, monitoring, incident response and evidence retention without sensitive-data logging.
 4. Prove migration, repeated seed, ordered Phase 2–14 regressions, lakehouse replay/tombstones, browser journeys, standalone bundle, backup/isolated restore and load/failure behavior in staging.

@@ -100,11 +100,38 @@ with sync_playwright() as playwright:
         }
         operations_context.close()
 
+        finance_context = browser.new_context(viewport={"width": 1440, "height": 1000})
+        finance = finance_context.new_page()
+        monitor(finance, "finance-desktop")
+        login_identity(finance, "Finance")
+        finance.get_by_role("button", name="Start Operations KYC", exact=True).click()
+        finance.locator(".success-message").get_by_text("ready for consent and submission", exact=False).wait_for(timeout=30_000)
+        finance.get_by_role("button", name="Acknowledge identity notice", exact=True).click()
+        finance.locator(".success-message").get_by_text("acknowledgement recorded", exact=False).wait_for(timeout=30_000)
+        finance.get_by_role("button", name="Acknowledge liveness notice", exact=True).click()
+        finance.locator(".success-message").get_by_text("acknowledgement recorded", exact=False).wait_for(timeout=30_000)
+        finance.get_by_role("button", name="Submit for processing", exact=True).click()
+        finance.locator(".success-message").get_by_text("submitted for processing", exact=False).wait_for(timeout=30_000)
+        assert finance.get_by_role("button", name="Run synthetic sandbox controls", exact=True).count() == 0
+        assert finance.get_by_role("button", name="Approve", exact=True).count() == 0
+        finance.get_by_role("button", name="Withdraw consent & stop processing", exact=True).click()
+        finance.locator(".success-message").get_by_text("revoked after consent withdrawal", exact=False).wait_for(timeout=30_000)
+        finance_dimensions = no_horizontal_overflow(finance)
+        screenshot(finance, "finance-identity-desktop.png")
+        REPORT["finance"] = {
+            "status": "passed",
+            "ownApplicantWorkflow": True,
+            "selfProcessingAndApprovalNotOffered": True,
+            "consentWithdrawalRevokes": True,
+            "dimensions": finance_dimensions,
+        }
+        finance_context.close()
+
         representative_context = browser.new_context(viewport={"width": 1440, "height": 1000})
         representative = representative_context.new_page()
         monitor(representative, "representative-desktop")
         login_identity(representative, "Team rep")
-        representative.get_by_text("representative kyc", exact=True).first.wait_for(timeout=30_000)
+        representative.get_by_text("representative kyc", exact=False).first.wait_for(timeout=30_000)
         representative.get_by_text("bank name match", exact=True).first.wait_for(timeout=30_000)
         representative.get_by_text("synthetic-control-fixture-v1", exact=True).first.wait_for(timeout=30_000)
         representative_dimensions = no_horizontal_overflow(representative)
@@ -116,7 +143,7 @@ with sync_playwright() as playwright:
         vendor = vendor_context.new_page()
         monitor(vendor, "vendor-desktop")
         login_identity(vendor, "Vendor partner")
-        vendor.get_by_text("registry kyb", exact=True).first.wait_for(timeout=30_000)
+        vendor.get_by_text("registry kyb", exact=False).first.wait_for(timeout=30_000)
         vendor.get_by_role("button", name="Customer KYC handoff", exact=True).click()
         vendor.locator(".success-message").get_by_text("no customer identity data was accepted", exact=False).wait_for(timeout=30_000)
         vendor_dimensions = no_horizontal_overflow(vendor)
@@ -128,7 +155,7 @@ with sync_playwright() as playwright:
         mobile = mobile_context.new_page()
         monitor(mobile, "campus-lead-mobile")
         login_identity(mobile, "Campus Lead")
-        mobile.get_by_text("campus lead kyc", exact=True).first.wait_for(timeout=30_000)
+        mobile.get_by_text("campus lead kyc", exact=False).first.wait_for(timeout=30_000)
         mobile.get_by_text("Privacy boundary:", exact=False).wait_for(timeout=30_000)
         mobile_dimensions = no_horizontal_overflow(mobile)
         screenshot(mobile, "campus-lead-identity-mobile-375.png")

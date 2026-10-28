@@ -16,7 +16,8 @@ Local execution does not certify production object storage, Flink, Spark, Sedona
 Use an isolated Python environment or target directory. Keep the versions in `requirements.txt` pinned.
 
 ```bash
-python3 -m pip install --target /tmp/kampusforce-python-deps -r data_platform/requirements.txt
+UV_HTTP_TIMEOUT=180 uv pip install --target /tmp/kampusforce-python-deps \
+  --no-cache -r data_platform/requirements.txt
 PYTHONPATH=/tmp/kampusforce-python-deps python3 data_platform/acceptance.py \
   --output /tmp/kampusforce-data-platform-acceptance
 ```
@@ -45,6 +46,8 @@ npx tsx scripts/record-data-platform-evidence.ts \
 ```
 
 Each run reference is immutable. A repeated run reference is rejected rather than overwriting evidence.
+
+Latest local acceptance passed with the pinned `deltalake`, `pyarrow`, Ray and scikit-learn stack, including real Ray tasks, immutable replay, conflict quarantine, consent/DSAR rebuilds and identity lifecycle tables. Execution exposed and fixed two defects: quarantine deduplication no longer shadows the byte-valued HMAC key, and identity Silver is rebuilt from accepted Bronze history rather than looking for an `event_id` inside hash/reason-only quarantine records. The resulting run and Ray manifests were recorded in PostgreSQL as `sandbox_reference_only`; this remains local evidence.
 
 ## Privacy and financial semantics
 

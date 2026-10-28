@@ -5,7 +5,7 @@ Scope: executable Phase 14 stakeholder onboarding and identity controls, Phase 1
 
 ## Phase 14 assessment
 
-The unweighted mean across the 16 longstanding workstreams is **92/100** (exact mean **92.4375**). The increase reflects event-driven onboarding, independent KYC/KYB review, recruitment/payout integration, privacy-safe lifecycle events and the Phase 13 architecture controls. It does not earn live-provider, real-campus, managed-cluster or legal/security credit. TypeScript, ESLint and 96 unit tests pass; the new PostgreSQL, Delta/Ray and browser journeys remain unexecuted in the resumed local environment and are not counted as passing evidence.
+The unweighted mean across the 16 longstanding workstreams is **93/100** (exact mean **92.75**). The increase reflects event-driven onboarding, independent KYC/KYB review, recruitment/payout integration, privacy-safe lifecycle events, Phase 13 architecture controls and the now-executed local PostgreSQL, Delta/Ray, browser, load and recovery evidence. It does not earn live-provider, real-campus, managed-cluster or legal/security credit. The final consolidated TypeScript, ESLint, Python syntax, patch, 96-unit-test, production-build and zero-known-vulnerability production-audit checks passed.
 
 | Workstream | Score | Implemented controls | Principal remaining gap |
 |---|---:|---|---|
@@ -22,8 +22,8 @@ The unweighted mean across the 16 longstanding workstreams is **92/100** (exact 
 | Security, privacy & RBAC | 98 | Independent review, self-approval denial, fail-closed live gates, bounded metadata and consent tombstones | Independent provider evaluation, secrets/edge controls, legal review and penetration test |
 | Offline & installable shell | 90 | Existing read-only offline controls | Device-lab and broader read-only coverage |
 | Fifteen-campus rollout & KPI telemetry | 88 | Existing external-evidence and rollout registers | Real campus outcomes and national decision |
-| Automated verification | 96 | 96 unit tests, static/build/smoke checks, PostgreSQL CI through Phase 14 and prepared browser/lakehouse acceptance | Execute new journeys locally/staging; cross-browser, load and property evidence |
-| Target architecture & scale services | 72 | Phase 13 Delta/Ray references, TigerBeetle outbox and Mojaloop contract plus identity lifecycle marts | Managed deployment and strict NestJS/Redis/polyglot parity |
+| Automated verification | 99 | Unit/static/build/smoke checks, ordered Phase 2–14 PostgreSQL journeys, real Delta/Ray, Phase 9–14 browser, signed load, backup and isolated restore | Staging, cross-browser, failure/HA and broader property evidence |
+| Target architecture & scale services | 74 | Executed local Delta/Ray references, TigerBeetle outbox and Mojaloop contract plus identity lifecycle marts | Managed deployment and strict NestJS/Redis/polyglot parity |
 | Live providers & production operations | 82 | Guarded payment and fail-closed document/biometric adapters with explicit readiness gates | Real providers, independent evaluation, connectivity and production approvals |
 
 ### Phase 14 identity implementation scores
@@ -34,12 +34,22 @@ The unweighted mean across the 16 longstanding workstreams is **92/100** (exact 
 | Campus Lead reverification | 90 | Separate case type and current-approval controls; real promotion policy and provider evaluation open |
 | Vendor KYB and customer handoff | 92 | Registry evidence contract, vendor activation/pause and identifier-free customer handoff; real registry/signatory verification open |
 | Operations/Finance reviewer onboarding | 90 | Own-applicant workflow, role scopes and self-approval prevention; production privileged-access process open |
-| PaddleOCR/Docling/VLM adapter | 86 | Transient isolated worker and strict bounded-output contract; real models, malicious-document testing and staging execution open |
+| PaddleOCR/Docling/VLM adapter | 90 | Transient isolated worker, strict bounded-output contract and passing synthetic PaddleOCR/Docling execution; VLM, malicious-document and staging execution open |
 | Liveness/deepfake adapter | 82 | Separate fail-closed hosted controls with attack-signal precedence; no real provider or independent PAD/injection/deepfake evaluation |
-| Privacy and lakehouse lifecycle | 90 | HMAC subject tokens, strict allowlists, consent export and tombstone rebuild definitions; Delta acceptance and physical-erasure operations open |
-| Event/payout/middleware integration | 94 | Fourteen triggers, recruitment/vendor/payout gates, durable expiry, audit and lifecycle events; full database/browser rerun open |
+| Privacy and lakehouse lifecycle | 94 | HMAC subject tokens, strict allowlists, consent export and executed Delta tombstone rebuilds; physical-erasure operations open |
+| Event/payout/middleware integration | 97 | Fourteen triggers, recruitment/vendor/payout gates, durable expiry, audit/lifecycle events and executed database/browser journeys; staging and external risk callbacks open |
 
-The identity-area mean is **90/100** (exact **89.625**). These are code/control-depth scores. `productionReady` remains false.
+The identity-area mean is **91/100** (exact **91.0**). These are code/control-depth scores. `productionReady` remains false.
+
+### Phase 13–14 executed local evidence
+
+- PostgreSQL 16.15 was provisioned in user space from isolated PGDG packages without root or Docker. All 13 additive migrations, repeated seed and ordered Phase 2–14 database journeys passed. Local commands override both database URL variables to prevent accidental use of the externally configured database.
+- Pinned Delta/Ray dependencies installed through `uv`; real Delta tables, Ray tasks, temporal evaluation, Serve contracts, immutable replay, conflict quarantine and identity DSAR/tombstone rebuilds passed. Two execution defects were fixed: HMAC-key shadowing during quarantine dedupe and an invalid attempt to read event IDs from hash/reason-only quarantine records. Four sandbox-reference lineage runs were recorded.
+- Phase 9–14 production-browser journeys passed. Finance received its own seeded workspace and completed own-applicant onboarding/withdrawal without processing or self-approval controls; Operations was correctly denied Finance-only financial mutations. Identity router composition and own-case action defects found by the browser were fixed.
+- Signed HTTP load accepted 100/100 events at concurrency 25, 66.96 accepted events/second and p50/p95/p99 latency of 303/615/636 ms. This is a local sandbox measurement only.
+- Custom-format backup and isolated restore passed with unchanged source records, 13 migrations and 19 user triggers; restored counts included 55 users, 35 representatives, 125 deals, 58 ledger entries and 540 audit logs.
+- Pinned PaddleOCR 3.7.0/PaddlePaddle 3.3.1 and Docling 2.144.0 installed through `uv`. PaddleOCR passed a six-line synthetic image at mean confidence 0.992596 after native CPU execution replaced the incompatible default oneDNN path. Docling passed a one-page synthetic PDF after an alternate model-download route. No real identity document, VLM or hosted biometric provider was used.
+- These checks close local environment and regression gaps only. Managed infrastructure, production capacity/HA, external VLM/biometrics, independent PAD/injection/deepfake evaluation, legal/security approval and live financial-provider operations remain open.
 
 ## Phase 12 assessment
 

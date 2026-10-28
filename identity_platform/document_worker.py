@@ -56,6 +56,11 @@ def run_paddleocr(source: Path) -> tuple[str, list[str], float | None, str]:
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
+        device=os.environ.get("PADDLEOCR_DEVICE", "cpu"),
+        # Paddle 3.3 oneDNN can reject valid PP-OCR attributes on CPU. Keep the
+        # portable native CPU path as the default; acceleration is opt-in after
+        # deployment-specific verification.
+        enable_mkldnn=os.environ.get("PADDLEOCR_ENABLE_MKLDNN", "false").lower() == "true",
     )
     prediction = engine.predict(str(source))
     texts, scores = _walk_strings(prediction)

@@ -80,6 +80,10 @@ The scores below assess implementation depth and verified local controls. They a
 
 - Vendors created after the credential-table migration now bring their existing legacy secret into retiring version 1 before activating version 2. This preserves the 15-minute rotation overlap and fixes first-rotation behavior on a fresh database.
 
+## Executed local runtime update
+
+The pinned Delta/Ray acceptance has now run successfully against real local Delta tables and Ray tasks, and its manifests were recorded in PostgreSQL as sandbox-reference evidence. Execution fixed two pipeline defects: a quarantine loop had shadowed the byte-valued HMAC key with a tuple, and identity Silver rebuilding had incorrectly expected `event_id` inside quarantine records that intentionally contain only `event_hash` and `reason`. Silver now rebuilds from accepted Bronze history. Ordered Phase 2–14 database journeys and Phase 9–14 production-browser journeys also passed against a user-space PostgreSQL 16.15 installation. These results strengthen the local-reference evidence but do not change the managed-deployment, model-approval, ledger-cutover or scheme-participation boundaries above.
+
 ## Production cutover gates
 
 1. Deploy and independently validate production object storage, streaming/batch/geospatial roles, scoped serving, scheduled retention and recovery.

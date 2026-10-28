@@ -24,6 +24,7 @@ import {
 } from "../api/services/launchReadiness";
 import { initiateLiveProviderPayout } from "../api/services/payoutProviders";
 import { processProviderWebhook } from "../api/services/providerWebhooks";
+import { completeSyntheticIdentityWorkflow } from "../api/services/identityFixtures";
 
 const db = getDb();
 const suffix = crypto.randomUUID().replaceAll("-", "");
@@ -112,6 +113,14 @@ async function main() {
 
     const [campus] = await db.select().from(campuses).orderBy(campuses.id).limit(1);
     const [rep] = await db.insert(reps).values({ userId: repUser.id, campusId: campus.id, code: `P10-${suffix.slice(0, 8)}`, status: "active" }).returning();
+    await completeSyntheticIdentityWorkflow({
+      caseType: "representative_kyc",
+      subjectType: "user",
+      subjectId: repUser.id,
+      requestUserId: repUser.id,
+      reviewerUserId: submitter.id,
+      campusId: campus.id,
+    });
     const successRef = reference("provider_success");
     const [payout] = await db.insert(payouts).values({
       repId: rep.id,
