@@ -56,6 +56,15 @@ import {
   rejectLaunchGate,
   submitLaunchGateEvidence,
 } from "./services/launchReadiness";
+import {
+  captureCampusCohortSnapshot,
+  captureRolloutQuarterSnapshot,
+  createCampusCohort,
+  createRolloutQuarter,
+  getRolloutReadiness,
+  reviewRolloutEvidence,
+  submitExternalRolloutEvidence,
+} from "./services/rolloutReadiness";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -338,6 +347,61 @@ export const opsRouter = createRouter({
   })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "finance", "admin"]);
     return rejectLaunchGate({ ...input, actorUserId: ctx.user.id });
+  }),
+  rolloutReadiness: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return getRolloutReadiness();
+  }),
+  createCampusCohort: authedQuery.input(z.object({
+    campusId: z.number().int().positive(),
+    label: z.string().trim().min(3).max(120),
+    cohortStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    monthOneEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return createCampusCohort({ ...input, actorUserId: ctx.user.id });
+  }),
+  createRolloutQuarter: authedQuery.input(z.object({
+    phase: z.number().int().min(1).max(3),
+    label: z.string().trim().min(3).max(120),
+    quarterStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    quarterEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return createRolloutQuarter({ ...input, actorUserId: ctx.user.id });
+  }),
+  submitRolloutEvidence: authedQuery.input(z.object({
+    subjectType: z.enum(["campus_cohort", "phase_quarter"]),
+    subjectId: z.number().int().positive(),
+    metricKey: z.string().trim().min(2).max(100),
+    metricValue: z.number().finite(),
+    periodStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    periodEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    evidenceReference: z.string().trim().min(3).max(500),
+    note: z.string().trim().min(10).max(2000),
+    realWorldAttested: z.literal(true),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return submitExternalRolloutEvidence({ ...input, actorUserId: ctx.user.id });
+  }),
+  reviewRolloutEvidence: authedQuery.input(z.object({
+    evidenceId: z.number().int().positive(),
+    decision: z.enum(["approved", "rejected"]),
+    reviewReference: z.string().trim().min(3).max(500),
+    note: z.string().trim().min(10).max(2000),
+    realWorldReviewAttested: z.literal(true),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return reviewRolloutEvidence({ ...input, actorUserId: ctx.user.id });
+  }),
+  captureRolloutSnapshot: authedQuery.input(z.object({
+    subjectType: z.enum(["campus_cohort", "phase_quarter"]),
+    subjectId: z.number().int().positive(),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "finance", "admin"]);
+    return input.subjectType === "campus_cohort"
+      ? captureCampusCohortSnapshot(input.subjectId, ctx.user.id)
+      : captureRolloutQuarterSnapshot(input.subjectId, ctx.user.id);
   }),
   resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);

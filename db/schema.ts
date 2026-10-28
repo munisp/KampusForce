@@ -1,9 +1,11 @@
 import {
   bigint,
   boolean,
+  date,
   index,
   integer,
   json,
+  numeric,
   pgEnum,
   pgTable,
   serial,
@@ -57,6 +59,10 @@ export const breachNotificationDecisionEnum = pgEnum("breach_notification_decisi
 export const launchTrackEnum = pgEnum("launch_track", ["legal", "finance", "ops", "engineering", "product"]);
 export const launchGateStateEnum = pgEnum("launch_gate_state", ["not_started", "evidence_submitted", "approved", "rejected"]);
 export const providerWebhookStateEnum = pgEnum("provider_webhook_state", ["processed", "ignored", "quarantined"]);
+export const rolloutSubjectTypeEnum = pgEnum("rollout_subject_type", ["campus_cohort", "phase_quarter"]);
+export const rolloutEvidenceSourceEnum = pgEnum("rollout_evidence_source", ["system_snapshot", "external_evidence"]);
+export const rolloutEvidenceStateEnum = pgEnum("rollout_evidence_state", ["recorded", "submitted", "approved", "rejected"]);
+export const rolloutMetricUnitEnum = pgEnum("rollout_metric_unit", ["count", "percent", "naira", "months", "kobo", "ratio"]);
 
 
 export const campuses = pgTable("campuses", {
@@ -512,6 +518,62 @@ export const launchGateEvents = pgTable("launch_gate_events", {
   evidenceJson: json("evidence_json").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("launch_gate_event_idx").on(t.gateId, t.createdAt)]);
+
+export const campusCohorts = pgTable("campus_cohorts", {
+  id: serial("id").primaryKey(),
+  campusId: integer("campus_id").notNull().references(() => campuses.id),
+  label: varchar("label", { length: 120 }).notNull(),
+  cohortStartDate: date("cohort_start_date").notNull(),
+  monthOneEndDate: date("month_one_end_date").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("campus_cohort_campus_label_unique").on(t.campusId, t.label), index("campus_cohort_period_idx").on(t.campusId, t.cohortStartDate, t.monthOneEndDate)]);
+
+export const rolloutQuarters = pgTable("rollout_quarters", {
+  id: serial("id").primaryKey(),
+  phase: integer("phase").notNull(),
+  label: varchar("label", { length: 120 }).notNull(),
+  quarterStartDate: date("quarter_start_date").notNull(),
+  quarterEndDate: date("quarter_end_date").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("rollout_quarter_phase_start_unique").on(t.phase, t.quarterStartDate), index("rollout_quarter_phase_period_idx").on(t.phase, t.quarterStartDate, t.quarterEndDate)]);
+
+export const rolloutEvidence = pgTable("rollout_evidence", {
+  id: serial("id").primaryKey(),
+  subjectType: rolloutSubjectTypeEnum("subject_type").notNull(),
+  subjectId: integer("subject_id").notNull(),
+  metricKey: varchar("metric_key", { length: 100 }).notNull(),
+  sourceType: rolloutEvidenceSourceEnum("source_type").notNull(),
+  realWorldAttested: boolean("real_world_attested").notNull().default(false),
+  state: rolloutEvidenceStateEnum("state").notNull(),
+  metricValue: numeric("metric_value", { precision: 24, scale: 6 }).notNull(),
+  unit: rolloutMetricUnitEnum("unit").notNull(),
+  periodStartDate: date("period_start_date").notNull(),
+  periodEndDate: date("period_end_date").notNull(),
+  evidenceReference: varchar("evidence_reference", { length: 500 }).notNull(),
+  note: text("note").notNull(),
+  submittedByUserId: integer("submitted_by_user_id").notNull().references(() => users.id),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewReference: varchar("review_reference", { length: 500 }),
+  reviewNote: text("review_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("rollout_evidence_subject_metric_idx").on(t.subjectType, t.subjectId, t.metricKey, t.submittedAt), index("rollout_evidence_review_idx").on(t.state, t.sourceType, t.reviewedAt)]);
+
+export const rolloutEvidenceEvents = pgTable("rollout_evidence_events", {
+  id: serial("id").primaryKey(),
+  evidenceId: integer("evidence_id").notNull().references(() => rolloutEvidence.id),
+  actorUserId: integer("actor_user_id").notNull().references(() => users.id),
+  action: varchar("action", { length: 60 }).notNull(),
+  fromState: rolloutEvidenceStateEnum("from_state"),
+  toState: rolloutEvidenceStateEnum("to_state").notNull(),
+  note: text("note").notNull(),
+  evidenceJson: json("evidence_json").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("rollout_evidence_event_idx").on(t.evidenceId, t.createdAt)]);
 
 export const rateLimitBuckets = pgTable("rate_limit_buckets", {
   id: serial("id").primaryKey(),

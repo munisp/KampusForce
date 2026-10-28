@@ -1,7 +1,48 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 10 integration and launch-readiness vertical slice, with the Phase 9 through Phase 1 assessments retained below. This is not a production certification, legal-compliance opinion, live-provider connection, production AML capability or claim that the full multi-year target architecture is live.
+Scope: executable Phase 11 campus-cohort, KPI-evidence and national rollout-validation controls, with the Phase 10 through Phase 1 assessments retained below. This is not a real campus result, national-launch certification, production certification, legal-compliance opinion, live-provider connection or completion of the target architecture.
+
+## Phase 11 assessment
+
+The unweighted mean across 16 workstreams is **90/100** (exact mean **90.4375**, improved from **89.25** in Phase 10). Phase 11 adds calendar-month campus cohorts, full-calendar-quarter phase registers, seven campus launch evidence requirements and phase-specific roadmap/national KPI gates. System snapshots are permanently ineligible; only the latest real-world-attested external submission with independent approval can satisfy a metric. Evidence completion never changes campus status or certifies a national launch. Real campus outcomes, provider evidence and external rollout decisions remain gates.
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 96 | Exact dry runs, configurable daily activation caps, typed publication, row-locked supersession and concurrency acceptance | Product onboarding, vendor team permissions and live commercial controls |
+| Vendor funnel & command | 90 | Vendor-scoped escrow/funnel/support/reliability controls with launch evidence tracked separately | Live reconciliation exports, commercial evidence and team permissions |
+| Campus recruiting & team management | 92 | Existing recruiting controls plus calendar-month campus cohort evidence registration | Live identity, real campus endorsement and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, recalculation and row-locked demotion with history preservation | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings | Live formal reconciliation and privileged-role review |
+| Support inbox & escalation | 90 | Owned-case creation, scoped queues, timelines, resolution controls and idempotent breach events | Attachments, external alert delivery and broader collision tests |
+| SLA, macros & CSAT quality | 93 | Vendor-specific targets, approved macros, one-time CSAT, durable scheduling and source-linked incidents | External alert delivery, pause/clock policy and support analytics |
+| Attribution & assisted onboarding | 91 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Device-lab evidence, token-verification hardening and deep-link telemetry |
+| Event ingestion & historical rules | 97 | Vendor ingestion hardening plus signed provider callbacks, sanitized metadata, dedupe and quarantine | Live provider capacity, distributed queueing and broader fraud signals |
+| Escrow, payout & clawbacks | 98 | Existing financial controls plus exact initiated-provider/reference/net-kobo verification before live-outcome settlement | Real callbacks, authenticated bank evidence and configurable production tax policy |
+| Security, privacy & RBAC | 98 | Existing controls plus independent launch/rollout review, real-world attestations and fail-closed execution | Production identity/secrets/edge controls, legal review, penetration test and AML scope |
+| Offline & installable shell | 90 | Read-only offline catalog/earnings, disabled mutations, private cleanup and route-level loading | Device-lab, install analytics and broader read-only coverage |
+| Fifteen-campus rollout & KPI telemetry | 88 | Month-one cohort and full-quarter phase gates, external/system separation, independent review, thresholds and supersession | Real campus outcomes and external national rollout decision |
+| Automated verification | 99 | PostgreSQL 16 CI, 57 unit tests, ten database journeys, isolated restore and desktop/mobile acceptance | Cross-browser, staging and isolated preview-environment performance evidence |
+| Target architecture & scale services | 58 | PostgreSQL 16, row locks, durable jobs/retries, atomic counters and local load gate | NestJS parity, Redis/BullMQ and later distributed services |
+| Live providers & production operations | 79 | Guarded adapters, signed outcomes and evidence-controlled launch register | Live credentials/connectivity, real bank evidence, external operations and production approvals |
+
+### Phase 11 verification evidence
+
+- Additive migration `0009` creates campus cohorts, full-quarter phase registers, rollout evidence and append-only evidence events. Cohort, quarter and event history reject update/delete; evidence rows reject deletion.
+- Campus gates cover endorsement, 3–5 lead candidates, at least 60 verified reps, at least 30% cohort first activation, at least 100 month-one activations, rep NPS at least 40 and real payout proof.
+- Phase 1 enforces 50% active recruits, 8 activations/active rep/month, CAC ≤₦1,500, 95% payouts within 48 hours, disputes <5% and five campuses. Phase 2 carries 55%, 14.4, ₦1,200, 97%, <4%, fifteen campuses, 136k cumulative activations and 5.6-month payback. Phase 3 enforces 60%, 14.4, ₦1,000, 98%, <3%, 35 campuses, 527k activations, 4.8-month payback, 50 active vendors and real EBITDA evidence.
+- Every phase metric requires approved external evidence covering the complete calendar quarter. Campus performance metrics require calendar-month coverage. A later pending or rejected external submission supersedes an earlier approval for its metric.
+- System snapshots visibly separate current sandbox records from external evidence and score zero eligible metrics even when their values exceed every threshold. External submission and independent review both require real-world attestations; seeded, fixture, sandbox and system-generated references are rejected.
+- The database journey proves self-approval rejection, exactly one winner between competing reviewers, partial-period rejection, later-rejection supersession, append-only enforcement and byte-equivalent deal/ledger preservation. Synthetic acceptance attestations exercise control logic only; they are not real campus or national outcomes.
+- All 57 unit tests, ordered Phase 2–11 regressions, isolated ten-migration restore, production dependency audit and desktop/375px production-browser checks passed. Browser self-approval was rejected, campus status remained unchanged, national launch remained uncertified and no runtime errors occurred.
+
+### Remaining rollout, production and architecture gates
+
+1. Replace synthetic acceptance attestations and sandbox snapshots with authentic campus endorsement, identity/cohort, activation, NPS, payout and full-quarter KPI evidence reviewed by accountable external owners.
+2. Obtain real five-, fifteen- and 35-campus outcomes and preserve prior-phase KPI performance for a complete quarter before any expansion decision. Register completion alone is not authorization.
+3. Supply real provider credentials/connectivity and authenticated bank evidence, then complete Legal, Finance, Operations, Engineering and Product launch approvals.
+4. Add external secrets management, monitoring/paging, offsite/PITR recovery, staging/device-lab/provider-capacity evidence and measured production operations.
+5. Replace Hono/tRPC with NestJS and PostgreSQL jobs with Redis/BullMQ if strict target-architecture parity is required.
 
 ## Phase 10 assessment
 

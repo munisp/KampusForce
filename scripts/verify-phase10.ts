@@ -8,7 +8,6 @@ import {
   campuses,
   deals,
   launchGateEvents,
-  launchGates,
   ledgerEntries,
   payoutAttempts,
   payouts,

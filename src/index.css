@@ -247,6 +247,8 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .share-builder { margin: 0; }
 .form-stack { display: grid; gap: 16px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.checkbox-label { display: flex; grid-template-columns: none; align-items: flex-start; gap: 10px; line-height: 1.55; cursor: pointer; }
+.checkbox-label input { width: 17px; height: 17px; margin: 1px 0 0; flex: 0 0 auto; }
 .segmented { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); padding: 3px; }
 .segmented button { display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; background: transparent; padding: 9px; color: var(--muted); font-size: 11px; }
 .segmented button.active { background: var(--navy); color: #fff; }

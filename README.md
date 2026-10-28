@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 10 integration and launch-readiness vertical slice**. It is not production or legal-compliance certification, a connected live financial integration, evidence of a real campus rollout, or completion of the NestJS/Redis target architecture.
+This repository contains an executable **Phase 11 campus-cohort, KPI-evidence and national rollout-validation vertical slice**. It is not a real campus result, national-launch certification, production or legal-compliance certification, a connected live financial integration, or completion of the NestJS/Redis target architecture.
 
 ## Product thesis
 
@@ -118,6 +118,14 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Live execution fails closed without live mode, explicit cutover authorization, HTTPS and every required independent launch approval. Local readiness responses always report `productionReady: false`.
 - Paystack HMAC-SHA512 and Flutterwave verification-hash callbacks persist sanitized transfer metadata. Only an exact initiated provider/reference/net-kobo terminal outcome can settle; duplicates, reversals and ambiguities cannot create paid postings.
 
+### Phase 11 rollout evidence and national gates
+
+- Calendar-month campus cohorts cover endorsement, 3–5 lead candidates, ≥60 verified reps, ≥30% cohort first activation, ≥100 month-one activations, rep NPS ≥40 and real payout proof.
+- Full-calendar-quarter phase registers enforce the Phase 1, Phase 2 and Phase 3/national KPI thresholds, including five/fifteen/35 campuses, cumulative activations, payback, 50+ active vendors and real EBITDA evidence where applicable.
+- System snapshots remain permanently ineligible for real-world attainment. External submission and independent review require real-world attestations; the submitter cannot review their own evidence.
+- The latest external submission controls each metric, so newer pending or rejected evidence supersedes an earlier approval. Incomplete month/quarter coverage fails even when values meet thresholds.
+- Evidence history is append-only and financial records remain unchanged. Evidence completion never marks a campus live, certifies a national launch or verifies the underlying external outcome by itself.
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -145,7 +153,7 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # all 49 policy and security unit tests
+npm test                       # all 57 policy and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
@@ -157,9 +165,11 @@ npx tsx scripts/verify-phase7.ts # DSAR, export, breach and privacy-monitoring a
 npx tsx scripts/verify-phase8.ts # velocity, fraud holds, appeals and conduct acceptance
 npx tsx scripts/verify-phase9.ts # credential, retry, retention and replay acceptance
 npx tsx scripts/verify-phase10.ts # launch review and signed provider-outcome acceptance
+npx tsx scripts/verify-phase11.ts # cohort, full-quarter KPI and national evidence acceptance
 npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
 python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
 python scripts/verify-phase10-browser.py # launch/mobile/provider-guard gate; server required
+python scripts/verify-phase11-browser.py # rollout-evidence/mobile gate; server required
 npm run db:backup -- backups/sandbox.dump
 KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
@@ -198,6 +208,7 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - Webhook rotation, durable retries and payload retention run against local PostgreSQL sandbox records. They are not external secrets management, distributed queueing, live-provider certification or proof of production capacity.
 - Offline snapshots are read-only browser data on the current device. Private earnings snapshots clear on logout/user change; no offline financial/support mutation is synchronized. Local 3G/CPU and HTTP measurements are not real-device, staging, campus-network or production results.
 - Recruiting acceptance does not itself activate a recruit; Operations activation uses a sandbox identity adapter. Seeded Campus Lead status and campus fixtures are workflow evidence—not real performance or rollout outcomes.
+- Rollout system snapshots and synthetic acceptance attestations are control-test data, not real campus or national outcomes. External evidence completion is a register result only; it does not change campus status, certify KPI attainment in the real world or authorize national expansion.
 - Replace fallback sandbox secrets and disable demo login, event simulation, time advancement and sandbox transfers before production.
 - Provider adapters and signed test callbacks are implemented, but no live provider request or real bank outcome has occurred. Launch approvals are evidence attestations; they are not credentials, connectivity, legal/security certification or production authorization by themselves.
 - Production requires real provider credentials/connectivity, authenticated provider/bank reconciliation evidence, live KYC, external notifications, edge/distributed abuse controls, secrets management, monitoring, scheduled offsite recovery policy, legal review and compliance evidence.
@@ -206,7 +217,7 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 
 React 19 + TypeScript + Vite + Tailwind; Hono + tRPC 11 + SuperJSON; Drizzle ORM + PostgreSQL 16 via `pg`; JWT via `jose`; QR via `qrcode`; Vitest.
 
-The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot, atomic rate-limit counters and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md), [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md), [ADR 006](docs/adr/006-phase-5-operational-safeguards.md), [ADR 007](docs/adr/007-phase-6-monitoring-incident-response.md) , [ADR 008](docs/adr/008-phase-7-privacy-operations.md), [ADR 009](docs/adr/009-phase-8-fraud-conduct-controls.md) and [ADR 010](docs/adr/010-phase-9-reliability-offline-ingestion.md) and [ADR 011](docs/adr/011-phase-10-integration-launch-readiness.md).
+The runtime now matches the specification’s PostgreSQL 16 persistence requirement, including native enums, timezone-aware timestamps, integer relationships and `bigint` kobo values. A PostgreSQL-backed durable minute scheduler, daily 09:00 WAT payout slot, atomic rate-limit counters and append-only triggers are now implemented. NestJS, Redis/BullMQ and the later polyglot/Kubernetes architecture remain target references, not what this slice claims to run. See [ADR 001](docs/adr/001-phase-1-runtime.md), [ADR 002](docs/adr/002-phase-2-campus-scale.md), [ADR 003](docs/adr/003-postgresql-persistence.md), [ADR 004](docs/adr/004-phase-3-operational-controls.md), [ADR 005](docs/adr/005-phase-4-settlement-reconciliation.md), [ADR 006](docs/adr/006-phase-5-operational-safeguards.md), [ADR 007](docs/adr/007-phase-6-monitoring-incident-response.md) , [ADR 008](docs/adr/008-phase-7-privacy-operations.md), [ADR 009](docs/adr/009-phase-8-fraud-conduct-controls.md) and [ADR 010](docs/adr/010-phase-9-reliability-offline-ingestion.md) and [ADR 011](docs/adr/011-phase-10-integration-launch-readiness.md) and [ADR 012](docs/adr/012-phase-11-rollout-evidence-national-gates.md).
 
 Key paths:
 
@@ -217,20 +228,22 @@ Key paths:
 - `api/routes/health.ts` — sandbox liveness and database-backed readiness
 - `api/routes/providerPayouts.ts` — guarded signed provider callbacks
 - `api/services/launchReadiness.ts` — independent launch evidence review and fail-closed cutover guard
+- `api/services/rolloutReadiness.ts` and `rolloutPolicy.ts` — campus/full-quarter evidence, independent review and roadmap gates
+- `src/components/product/RolloutEvidenceDesk.tsx` — Operations cohort, KPI and national evidence register
 - `src/pages/` — rep, Campus Lead, vendor, operations and scorecard interfaces
 - `src/components/product/PrivacyDesk.tsx` — Operations DSAR and breach workflows
 - `src/components/product/FraudDesk.tsx` and `RepFraudCases.tsx` — Operations review and representative appeal workflows
-- `scripts/verify-phase2.ts` through `scripts/verify-phase10.ts` — repeatable database-backed acceptance journeys
+- `scripts/verify-phase2.ts` through `scripts/verify-phase11.ts` — repeatable database-backed acceptance journeys
 - `scripts/load-phase9.ts` and `scripts/verify-phase9-browser.py` — signed HTTP, throttled-onboarding, offline, rotation and mobile acceptance
 - `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — Phase 10 scores plus preserved Phase 9 through Phase 1 baselines
+- `docs/implementation-scorecard.md` — Phase 11 scores plus preserved Phase 10 through Phase 1 baselines
 
 ## Verification status
 
 - TypeScript check: passed.
 - Production build and bundled-server smoke: passed.
-- Unit tests: 49 passed.
+- Unit tests: 57 passed.
 - Live PostgreSQL 16 Phase 2 regression: historical rules, publication, overrides, combined payout, paid reversal, support, CSAT, SLA and redaction passed.
 - Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, seeded-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
 - Live PostgreSQL 16 Phase 4 journey: reservation without settlement, duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback, Finance recovery, idempotent success, reconciliation and refund-before-settlement hold passed.
@@ -243,6 +256,8 @@ Key paths:
 - Phase 9 production-browser acceptance: six-step onboarding completed in 16.7 seconds under 400 ms RTT, 500 Kbps down/up and 4× CPU throttling; offline earnings/catalog reload, disabled mutations, private-snapshot cleanup, one-time credential rotation and 375px layout passed with zero runtime errors.
 - Live PostgreSQL 16 Phase 10 journey: 25/24 launch catalog, independent review, self-approval/credential-text rejection, fail-closed provider guards, exact signed outcome settlement, duplicate prevention, mismatch/reversal quarantine and raw-bank-value exclusion passed. No live provider request occurred.
 - Phase 10 production-browser acceptance: evidence submission, self-approval rejection, secret-free configuration, `productionReady: false`, sandbox HTTP 403 and 375px layout passed with zero runtime errors.
+- Live PostgreSQL 16 Phase 11 journey: system-snapshot ineligibility, real-world attestation, independent and competing review, full month/quarter coverage, latest-evidence supersession, append-only history and byte-equivalent financial preservation passed. Synthetic control evaluations do not represent real campus or national outcomes.
+- Phase 11 production-browser acceptance: cohort registration, ineligible snapshots, external submission, self-approval rejection, unchanged campus status, uncertified national launch and 375px layout passed with zero runtime errors.
 - Backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts; source counts remained unchanged.
 - Five simultaneous payout batches produced exactly one reservation for the new test rep; two concurrent publishers produced one winner. Duplicate success outcomes did not duplicate ledger postings.
 - Cross-vendor support resolution and duplicate CSAT were rejected.
@@ -253,9 +268,9 @@ Key paths:
 - Phase 6 Operations passed desktop and 375px monitoring, review, acknowledgement, resolution and repeat-sweep interactions. Resolved records stayed resolved, append-only history and metrics refreshed, and both widths measured exactly their viewport width with zero console or HTTP errors. The 85/100 scorecard also passed at 375px with all 16 workstreams.
 - Phase 7 Operations passed DSAR registration, verification, review, JSON download and fulfilment plus breach intake, triage, Operations-owner decision and closure. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors; wide mobile queues remained contained in horizontal scrollers.
 - Phase 8 Operations and representative journeys passed manual case creation, strike uphold, appeal and release with complete history. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors. The 86/100 scorecard rendered all 16 workstreams.
-- The Phase 10 scorecard assesses all 16 workstreams at 89/100 (exact mean 89.25); unfinished real-campus, live-provider and target-architecture work remains included in the score.
+- The Phase 11 scorecard assesses all 16 workstreams at 90/100 (exact mean 90.4375); unfinished real-campus outcomes, live-provider operations and target-architecture work remain included in the score.
 - The isolated production bundle passed root, manifest, service-worker, liveness and database-readiness smoke checks without an external `node_modules` directory.
 - Production dependency audit: zero known vulnerabilities at assessment time.
-- Roadmap metrics such as 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes and 136k activated customers remain planning gates, not achieved evidence.
+- Roadmap metrics such as 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes and 136k activated customers remain evidence gates, not achieved real-world results.
 
 The narration MP3 could not be transcribed in the execution environment; no claim of audio-content review is made. All other supplied PDF, workbook and infographic artifacts were reviewed.
