@@ -1,0 +1,1 @@
+CREATE INDEX "vendor_event_deal_idx" ON "vendor_events" USING btree ("deal_id");

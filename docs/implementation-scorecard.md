@@ -1,7 +1,54 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-29
-Scope: executable Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/data/financial architecture, and the preserved Phase 12 through Phase 1 assessments below. Scores measure implementation depth and available evidence—not production-readiness percentages, live identity assurance, legal compliance or external-provider certification.
+Scope: executable Phase 15 student and platform assurance, Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/data/financial architecture, and the preserved Phase 12 through Phase 1 assessments below. Scores measure implementation depth and available evidence—not production-readiness percentages, live institutional or identity assurance, legal compliance or external-provider certification.
+
+## Phase 15 assessment
+
+The unweighted mean across the 16 longstanding workstreams is **93/100** (exact mean **93.0625**, improved from **92.75** in Phase 14). The modest increase reflects independently reviewed enrollment and revalidation, privacy-safe provider-subject collision handling, activation-quality payout controls, vendor-scoped reconciliation enforcement and exact biometric-evaluation coverage. It does not earn live-institution, real identity-provider, hosted-biometric, independent-certification, managed-cluster or legal/security credit. TypeScript, ESLint, 102 unit tests across 21 files, production build, zero-known-vulnerability production audit, ordered Phase 2–15 PostgreSQL journeys and the Phase 15 production-browser journey passed locally.
+
+| Workstream | Score | Implemented controls | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 96 | Exact dry runs, activation caps, typed publication and row-locked supersession | Product team permissions and live commercial controls |
+| Vendor funnel, CRM & command | 95 | Vendor workflows plus sampled outcome reconciliation, scoped pause and credential revocation | Real registry/provider, independent outcome sources and external service operations |
+| Campus recruiting & team management | 98 | Identity plus current-enrollment/duplicate-clearance activation gates and term revalidation | Live institution/identity providers and real campus outcomes |
+| Top-decile lead designation | 92 | Existing ranking, designation, recalculation and demotion controls | Real cohorts and four-eyes policy review |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, settlement, reversal/netting and immutable history | Live formal reconciliation |
+| Case management & escalation | 97 | Activation-quality and duplicate-identity reviews reuse scoped cases, holds and immutable history | Attachments, external alerts and production queue analytics |
+| SLA, macros & CSAT quality | 96 | Existing durable SLA, macros and quality controls | External delivery and configurable clock policy |
+| Attribution & assisted onboarding | 91 | Signed links/QR, first-touch preservation and consent-led handoff | Device-lab and production deep-link evidence |
+| Event ingestion & historical rules | 98 | Signed ingestion, dedupe/quarantine, immutable economics and relational refund-to-deal quality evidence | Live capacity and distributed queueing |
+| Escrow, payout & clawbacks | 98 | Identity, enrollment, uniqueness and high-risk-quality preflight at assembly, dispatch, recovery and settlement | Real callbacks, bank evidence and tax policy |
+| Security, privacy & RBAC | 99 | Independent review, keyed opaque-reference hashes, bounded metadata, read-only Finance oversight and exact biometric coverage | Independent provider evaluation, secrets/edge controls, legal review and penetration test |
+| Offline & installable shell | 90 | Existing read-only offline controls | Device-lab and broader read-only coverage |
+| Fifteen-campus rollout & KPI telemetry | 88 | Existing external-evidence and rollout registers | Real campus outcomes and national decision |
+| Automated verification | 99 | Unit/static/build checks, ordered Phase 2–15 PostgreSQL journeys, real Delta/Ray, Phase 9–15 browser, signed load and earlier backup/isolated-restore evidence | Staging, cross-browser, failure/HA and broader property evidence |
+| Target architecture & scale services | 74 | Executed local Delta/Ray references, TigerBeetle outbox and Mojaloop contract plus identity lifecycle marts | Managed deployment and strict NestJS/Redis/polyglot parity |
+| Live providers & production operations | 82 | Guarded payment, fail-closed document/biometric adapters and durable evaluation-evidence gates | Real providers, independent evaluation, connectivity and production approvals |
+
+### Phase 15 assurance implementation scores
+
+| Assurance area | Score | Assessment |
+|---|---:|---|
+| Enrollment verification and revalidation | 93 | Opaque provider references, independent review, 240-day validity cap, expiry, revocation and term revalidation; live institution outcome open |
+| Privacy-preserving uniqueness review | 92 | Domain-separated provider-subject hashes, collision cases and linked holds without exposing the matched person; real provider deduplication open |
+| Activation quality and payout protection | 94 | Early-refund, repeated-customer and manual risk signals; warning/high-severity separation and linked payout holds; broader production signals open |
+| Vendor assurance and reconciliation | 93 | Sampled outcome evidence, vendor-scoped pause/credential revocation, legacy-ingestion block and no automatic reactivation; independent live outcomes open |
+| Biometric evaluation evidence | 88 | Exact provider/model PAD, injection, deepfake and demographic coverage with expiry; no independent evaluation or certification performed |
+| Workflow and financial integration | 96 | Representative/Operations/Finance workflows, recruitment/payout gates, append-only history and byte-equivalent financial preservation; staging and external operations open |
+
+The assurance-area mean is **93/100** (exact **92.6667**). These are code/control-depth scores. `productionReady` remains false, and a collision or quality signal is not an automatic fraud conclusion.
+
+### Phase 15 executed local evidence
+
+- The 16-migration series (`0000`–`0015`) ran on a fresh PostgreSQL 16 regression database. Phase 15 contributes three additive migrations: `0013` adds the assurance model and immutable event history, `0014` adds the relational refund-to-deal link and `0015` adds its lookup index. Ordered Phase 2–15 database journeys passed, as did repeated seed and the 102-test unit suite.
+- Enrollment acceptance proves duplicate-pending rejection, self-review rejection, activation blocking before enrollment, independent verification, expiry/revalidation and revocation. Duplicate-subject acceptance proves two linked holds, independent clear/confirm outcomes and no disclosure of the matched representative.
+- Activation-quality acceptance proves warning-only reviews, high-severity payout holds, early-refund detection through `vendor_events.deal_id`, confirmed-outcome-only repeated-customer warnings and exclusion of pending deals. Assurance reviews leave deals and ledger entries byte-equivalent.
+- Vendor-assurance acceptance proves that failure pauses only the audited vendor, revokes only its active/retiring credentials, blocks legacy-key ingestion and is not undone by a later passing sample. Another vendor and its credentials remain active.
+- Biometric acceptance proves exact provider/model evaluation coverage and expiry blocking. Raw opaque provider/evidence references are absent from persisted assurance records; only keyed hashes remain. Assurance events reject update and delete.
+- Phase 15 production-browser acceptance passed representative submission/current-state refresh, Operations verification, collision clearing, warning-only quality review, passing vendor reconciliation, sandbox biometric-evidence registration and read-only Finance oversight. Desktop and 375px layouts had no page-level overflow, runtime/HTTP errors or external requests. The Operations desktop tab overflow was corrected without disabling mobile tab scrolling.
+- Final production smoke passed the app shell, manifest, service worker, liveness, database-backed readiness and an authenticated catalog query returning five active products; the temporary session was signed out. TypeScript, ESLint, production build and the current production dependency audit also passed, with zero known vulnerabilities at assessment time.
+- Synthetic institution, identity-provider, vendor-sample and biometric-evaluation records are control fixtures only. No external institution, identity or biometric provider was contacted; no PAD/injection/deepfake/demographic certification, live reconciliation, legal/security approval or production deployment is claimed.
 
 ## Phase 14 assessment
 

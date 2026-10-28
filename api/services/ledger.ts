@@ -21,7 +21,8 @@ import { calculateLeadOverride } from "./overrides";
 import { enqueueFinancialPosting } from "./tigerBeetle";
 import { notifyUser } from "./notifications";
 import { assertNoFraudHold, blockingFraudHold } from "./fraud";
-import { currentIdentityApproval } from "./identity";
+import { assertCurrentIdentityApproval, currentIdentityApproval } from "./identity";
+import { assertCurrentStudentAssurance, studentAssurancePreflight } from "./studentAssurance";
 import {
   assessReconciliation,
   MAX_PAYOUT_ATTEMPTS,
@@ -179,8 +180,9 @@ export async function runPayoutBatch(actorUserId?: number) {
       const [rep] = await tx.select().from(reps).where(eq(reps.id, repId)).limit(1).for("update");
       const [user] = rep ? await tx.select().from(users).where(eq(users.id, rep.userId)).limit(1) : [];
       const identityApproval = user ? await currentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx) : null;
-      if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch || !identityApproval) {
-        return { repId, status: "held", reason: "Current identity approval, KYC, rep status, or bank name-match pre-flight failed" };
+      const studentAssurance = user ? await studentAssurancePreflight(user.id, tx) : null;
+      if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch || !identityApproval || !studentAssurance?.eligible) {
+        return { repId, status: "held", reason: studentAssurance?.reason || "Current identity approval, KYC, rep status, or bank name-match pre-flight failed" };
       }
       const fraudHold = await blockingFraudHold(tx, repId);
       if (fraudHold) {
@@ -247,6 +249,13 @@ export async function dispatchDuePayouts(actorUserId?: number) {
         await assertNoFraudHold(tx, current.repId);
       } catch (error) {
         return { payoutId: current.id, status: "fraud_hold" as const, reason: error instanceof Error ? error.message : "Fraud hold blocks payout dispatch" };
+      }
+      const [dispatchRep] = await tx.select().from(reps).where(eq(reps.id, current.repId)).limit(1);
+      const [dispatchUser] = dispatchRep ? await tx.select().from(users).where(eq(users.id, dispatchRep.userId)).limit(1) : [];
+      const dispatchIdentity = dispatchUser ? await currentIdentityApproval({ subjectType: "user", subjectId: dispatchUser.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx) : null;
+      const dispatchAssurance = dispatchUser ? await studentAssurancePreflight(dispatchUser.id, tx) : null;
+      if (!dispatchRep || !dispatchUser || dispatchRep.status !== "active" || dispatchUser.kycState !== "verified" || !dispatchUser.bankNameMatch || !dispatchIdentity || !dispatchAssurance?.eligible) {
+        return { payoutId: current.id, status: "assurance_hold" as const, reason: dispatchAssurance?.reason || "Identity or representative eligibility changed before dispatch" };
       }
       const attemptNo = current.attempts + 1;
       if (attemptNo > MAX_PAYOUT_ATTEMPTS) {
@@ -337,19 +346,20 @@ async function recordPayoutOutcome(input: {
     const overrideOutstanding = await leadOverrideOutstandingKobo(payout.repId, tx);
     const fraudHold = await blockingFraudHold(tx, payout.repId);
     const identityApproval = user ? await currentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx) : null;
-    const valid = !fraudHold && rep?.status === "active" && user?.kycState === "verified" && user.bankNameMatch && !!identityApproval
+    const studentAssurance = user ? await studentAssurancePreflight(user.id, tx) : null;
+    const valid = !fraudHold && rep?.status === "active" && user?.kycState === "verified" && user.bankNameMatch && !!identityApproval && !!studentAssurance?.eligible
       && entitledDeals.every((deal) => deal.state === "payable")
       && entitledOverrides.every((override) => override.state === "accrued")
       && directOutstanding + overrideOutstanding >= payout.amountGrossKobo;
     if (!valid) {
       await tx.update(payoutAttempts).set({ state: "succeeded", completedAt: new Date() }).where(eq(payoutAttempts.id, attempt.id));
-      await tx.update(payouts).set({ state: "held", lastFailureCode: fraudHold ? "fraud_hold" : !identityApproval ? "identity_approval_invalid" : "settlement_preflight_changed", nextRetryAt: null, updatedAt: new Date() }).where(eq(payouts.id, payout.id));
+      await tx.update(payouts).set({ state: "held", lastFailureCode: fraudHold ? "fraud_hold" : !identityApproval ? "identity_approval_invalid" : !studentAssurance?.eligible ? "student_assurance_invalid" : "settlement_preflight_changed", nextRetryAt: null, updatedAt: new Date() }).where(eq(payouts.id, payout.id));
       await tx.insert(auditLogs).values({
         actorUserId: input.actorUserId,
         action: "payout.settlement_held",
         entityType: "payout",
         entityId: String(payout.id),
-        metadataJson: { attemptId: attempt.id, reason: fraudHold ? `Fraud case ${fraudHold.fraudCase.caseRef} blocks settlement` : "Linked entitlement or outstanding balance changed before settlement", liveTransferImplied: false },
+        metadataJson: { attemptId: attempt.id, reason: fraudHold ? `Fraud case ${fraudHold.fraudCase.caseRef} blocks settlement` : studentAssurance?.reason || "Linked entitlement, identity or outstanding balance changed before settlement", liveTransferImplied: false },
       });
       return { payoutId: payout.id, status: "held" as const, userId: user?.id };
     }
@@ -446,6 +456,8 @@ export async function recoverFailedPayout(payoutId: number, actorUserId: number)
     if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch) {
       throw new Error("Rep KYC, status, or bank name-match pre-flight no longer passes");
     }
+    await assertCurrentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx);
+    await assertCurrentStudentAssurance(user.id, tx);
     await assertNoFraudHold(tx, failed.repId);
     const linkedDeals = await tx.select().from(deals).where(eq(deals.payoutId, failed.id)).for("update");
     const linkedOverrides = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.payoutId, failed.id)).for("update");

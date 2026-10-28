@@ -66,6 +66,7 @@ jobs:
       - run: npx tsx scripts/record-data-platform-evidence.ts /tmp/kampusforce-data-platform-acceptance/run_manifest.json /tmp/kampusforce-data-platform-acceptance/ray_manifest.json
       - run: npx tsx scripts/verify-phase13.ts
       - run: npx tsx scripts/verify-phase14.ts
+      - run: npx tsx scripts/verify-phase15.ts
       - name: Verify non-destructive backup and isolated restore
         run: |
           npm run db:backup -- /tmp/kampusforce-ci-recovery.dump

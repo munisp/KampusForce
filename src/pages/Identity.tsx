@@ -5,6 +5,7 @@ import { ErrorState, Loading } from "@/components/product/Loading";
 import { shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
+import { EnrollmentPanel } from "@/components/product/EnrollmentPanel";
 
 export default function Identity() {
   const { token, user } = useWorkspace();
@@ -39,6 +40,7 @@ export default function Identity() {
   return <WorkspaceLayout title="Identity & onboarding" subtitle="Event-driven stakeholder verification with privacy-safe evidence and independent review.">
     <div className="sandbox-banner"><ShieldCheck size={18} /><p><strong>{data.readiness.liveEligible ? "External identity gates report configured." : "Sandbox identity controls only."}</strong> OCR, document parsing and VLM cross-checks do not prove liveness. No real provider verification, PAD/deepfake certification, legal approval or production readiness is implied by synthetic evidence.</p></div>
     <div className="metrics-grid ops-metrics"><Metric label="Visible cases" value={data.cases.length} note={privileged ? "Across scoped Operations queue" : "Your stakeholder workflow"} /><Metric label="Open review" value={pendingReview} note="Submission, processing or review" tone={pendingReview ? "mustard" : "teal"} /><Metric label="Current approvals" value={approved} note="Unexpired case decisions" /><Metric label="Live provider gate" value={data.readiness.liveEligible ? "Eligible" : "Blocked"} note={`${data.readiness.checks.filter((check) => check.ready).length}/${data.readiness.checks.length} readiness checks`} tone={data.readiness.liveEligible ? "teal" : "danger"} /></div>
+    {user.role === "rep" && <EnrollmentPanel />}
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {actionError && <p className="form-error" role="alert">{actionError.message}</p>}
     <div className="architecture-toolbar"><div className="window-selector" aria-label="Open onboarding workflow">

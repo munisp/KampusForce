@@ -360,7 +360,7 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .audit-list svg { color: var(--teal); }
 
 /* Phase 2 workflow views */
-.workspace-tabs { display: flex; gap: 0; margin: 0 0 20px; border-bottom: 1px solid var(--navy); }
+.workspace-tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 20px; border-bottom: 1px solid var(--navy); }
 .workspace-tabs button { display: inline-flex; align-items: center; gap: 8px; border: 0; border-bottom: 3px solid transparent; background: transparent; padding: 12px 20px; color: var(--muted); font-size: 11px; font-weight: 800; }
 .workspace-tabs button:hover { color: var(--navy); background: rgb(255 253 247 / 55%); }
 .workspace-tabs button.active { border-bottom-color: var(--mustard); color: var(--navy); background: var(--paper); }
@@ -593,7 +593,7 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .step-content h2 { font-size: 28px; }
   .step-content > p { font-size: 13px; }
   .form-row, .three-fields { grid-template-columns: 1fr; }
-  .workspace-tabs { overflow-x: auto; }
+  .workspace-tabs { flex-wrap: nowrap; overflow-x: auto; }
   .workspace-tabs button { flex: 1 0 auto; padding: 11px 13px; }
   .case-facts { grid-template-columns: 1fr 1fr; }
   .case-facts > div:nth-child(2) { border-right: 0; }

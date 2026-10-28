@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 14 stakeholder-onboarding and identity-control slice**, building on Phase 13 analytics, lakehouse, Ray and financial-core robustness while preserving the Phase 12 case-management, CRM, sales-training, campaign, vendor-service and growth workflows. Identity providers fail closed; Delta Lake and Ray are local executable references; TigerBeetle is an outbox/official-client adapter; Mojaloop is a post-MVP fail-closed contract. It is not live KYC/KYB, external-channel delivery, a connected live vendor/financial integration, a real campus result, production or legal-compliance certification, or completion of the distributed target architecture.
+This repository contains an executable **Phase 15 student and platform-assurance slice**, building on Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/lakehouse/Ray/financial-core robustness, and the preserved Phase 12 case-management, CRM, sales-training, campaign, vendor-service and growth workflows. Enrollment, duplicate-identity, activation-quality and vendor-reconciliation signals require independent human review; identity and biometric providers fail closed. Delta Lake and Ray are local executable references; TigerBeetle is an outbox/official-client adapter; Mojaloop is a post-MVP fail-closed contract. It is not live institutional verification, KYC/KYB, external-channel delivery, a connected live vendor/financial integration, a real campus result, production or legal-compliance certification, or completion of the distributed target architecture.
 
 ## Product thesis
 
@@ -155,6 +155,16 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Pseudonymized identity lifecycle events integrate with consent-filtered lakehouse Bronze/Silver/Gold tables and subject-token tombstones. Documents, OCR text, NIN/BVN, biometrics, templates, evidence findings and review reasons are excluded.
 - See the [identity and onboarding runbook](docs/identity-onboarding-runbook.md) for trigger semantics, provider controls, live gates, verification and external production requirements.
 
+### Phase 15 student and platform assurance
+
+- Representative enrollment is separate from identity approval. Opaque institution/provider references are HMAC-SHA256 tokenized before storage; independent Operations review, a future validity date capped at 240 days, expiry, revocation and term revalidation govern current eligibility. Recruitment activation and payout preflight require current enrollment and no open duplicate-identity review.
+- Provider-generated stable subject tokens support privacy-preserving duplicate review without persisting raw references or exposing the matched representative. A collision opens linked review/hold history for affected representatives; it is not proof of fraud. Independent clearing releases only the linked holds, while confirmation upholds them.
+- Activation-quality reviews cover early refunds, repeated customers, dormant accounts, chargebacks and coordinated/manual signals. Warnings create review records without automatically blocking payout; high/critical signals reuse the existing fraud-case and payout-hold path. Confirmed/payable/paid deals alone count toward repeated-customer warnings, and processed refunds use a relational `deal_id` rather than an unreliable cross-domain hash join.
+- Vendor assurance records sampled independent outcome reconciliation. A failed audit pauses only that vendor and revokes only its active/retiring webhook credentials; legacy-key ingestion is also blocked. A later passing sample never automatically reactivates the vendor.
+- Live identity approval additionally requires current, exact provider/model evaluation evidence for applicable PAD, injection, deepfake and demographic controls. Evidence registration and expiry are durable and audited, but a sandbox record is not independent biometric certification.
+- Operations receives Enrollment, Uniqueness, Activation quality, Vendor assurance and Biometric evaluation desks; Finance has read-only oversight. Representatives can submit/revalidate enrollment and inspect their own assurance state. Append-only assurance events preserve decisions without voiding deals, altering commission splits or posting financial reversals.
+- See the [identity/onboarding runbook](docs/identity-onboarding-runbook.md) and [fraud/conduct runbook](docs/fraud-conduct-response.md) for operating procedures and external gates.
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -183,7 +193,7 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # all 96 policy, identity, analytics and security unit tests
+npm test                       # all 102 policy, identity, assurance, analytics and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
@@ -203,6 +213,7 @@ UV_HTTP_TIMEOUT=180 uv pip install --target /tmp/kampusforce-identity-deps --no-
 npx tsx scripts/record-data-platform-evidence.ts /tmp/kampusforce-data-platform-acceptance/run_manifest.json /tmp/kampusforce-data-platform-acceptance/ray_manifest.json
 npx tsx scripts/verify-phase13.ts # analytics, evidence, outbox and partner-rail acceptance
 npx tsx scripts/verify-phase14.ts # stakeholder identity, expiry, consent and financial-preservation acceptance
+npx tsx scripts/verify-phase15.ts # enrollment, uniqueness, quality, vendor and biometric-assurance acceptance
 npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
 python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
 python scripts/verify-phase10-browser.py # launch/mobile/provider-guard gate; server required
@@ -210,6 +221,7 @@ python scripts/verify-phase11-browser.py # rollout-evidence/mobile gate; server 
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase12-browser.py # sales/mobile gate; production server required
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase13-browser.py # architecture/mobile gate; local Delta/Ray evidence required
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase14-browser.py # identity/mobile gate; run the Phase 14 database journey first
+KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase15-browser.py # assurance/mobile gate; production server required
 npm run db:backup -- backups/sandbox.dump
 KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
@@ -247,7 +259,8 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - Backup/restore evidence is a local sandbox drill, not offsite storage, point-in-time recovery or high availability. Incident detection uses local records and in-app notifications, not external monitoring, paging or incident-response certification.
 - Payout outcomes and reconciliation bank totals are explicit sandbox inputs. They are not signed live-provider callbacks or actual bank statements.
 - DSAR identity verification is an Operations-attested sandbox transition, not live identity proofing. Exports are deliberately scoped record metadata, not statutory completeness evidence. Fulfilment does not automatically erase or rectify source records. Breach decisions do not send or verify NDPC/data-subject notification and are not legal review.
-- Fraud controls are deterministic activation-velocity rules and human review. They are not ML scoring, production AML, identity certification, regulatory reporting or automatic financial reversal. Active/upheld holds stop payout progress; releasing or upholding a case never voids deals or posts ledger entries.
+- Fraud controls are deterministic activation-velocity rules and human review. Phase 15 enrollment, provider-subject collisions and activation-quality signals likewise require review and are not automatic fraud findings. They are not ML scoring, production AML, identity certification, regulatory reporting or automatic financial reversal. Active/upheld holds stop payout progress; releasing or upholding a case never voids deals or posts ledger entries.
+- Synthetic enrollment attestations, provider-subject tokens, vendor samples and biometric evaluations are control fixtures. They do not prove current student status, uniqueness, vendor performance, PAD/injection/deepfake resistance or demographic performance in the real world. Failed vendor audits pause only the audited vendor; later passes do not auto-reactivate it.
 - Webhook rotation, durable retries and payload retention run against local PostgreSQL sandbox records. They are not external secrets management, distributed queueing, live-provider certification or proof of production capacity.
 - Offline snapshots are read-only browser data on the current device. Private earnings snapshots clear on logout/user change; no offline financial/support mutation is synchronized. Local 3G/CPU and HTTP measurements are not real-device, staging, campus-network or production results.
 - Recruiting acceptance opens an identity case but does not itself activate a recruit. Activation requires current approved representative KYC and bank-name match. Seeded/synthetic approvals are workflow evidence—not live identity assurance, real performance or rollout outcomes.
@@ -277,24 +290,26 @@ Key paths:
 - `src/pages/` — rep, Campus Lead, vendor, operations and scorecard interfaces
 - `src/components/product/PrivacyDesk.tsx` — Operations DSAR and breach workflows
 - `src/components/product/FraudDesk.tsx` and `RepFraudCases.tsx` — Operations review and representative appeal workflows
+- `api/assuranceRouter.ts` and `api/services/*Assurance.ts` — enrollment, uniqueness, activation-quality, vendor and biometric-assurance controls
+- `src/components/product/EnrollmentPanel.tsx` and `AssuranceDesk.tsx` — representative and Operations/Finance assurance workflows
 - `api/services/caseManagement.ts`, `crm.ts`, `training.ts`, `campaigns.ts`, `vendorServices.ts` and `growth.ts` — Phase 12 sales workflows and boundaries
 - `src/pages/Sales.tsx` and `src/components/sales/` — role-scoped case, pipeline, training, campaign, growth and integration workspaces
-- `scripts/verify-phase2.ts` through `scripts/verify-phase14.ts` — repeatable database-backed acceptance journeys
+- `scripts/verify-phase2.ts` through `scripts/verify-phase15.ts` — repeatable database-backed acceptance journeys
 - `scripts/load-phase9.ts` and `scripts/verify-phase9-browser.py` — signed HTTP, throttled-onboarding, offline, rotation and mobile acceptance
 - `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — Phase 14 scores plus preserved Phase 12 through Phase 1 baselines
+- `docs/implementation-scorecard.md` — Phase 15 scores plus preserved Phase 14 through Phase 1 baselines
 - `docs/identity-onboarding-runbook.md` — identity triggers, stakeholder workflows, provider gates, privacy and operations
 - `docs/sales-case-crm-robustness.md` — ten case innovations, ten CRM innovations, training/growth mapping and remaining gaps
 
 ## Verification status
 
-Latest combined Phase 13–14 checkpoint: PostgreSQL 16.15 was installed in user space from isolated PGDG packages, all 13 additive migrations and repeated seed ran, and ordered Phase 2–14 database acceptance passed. Real Delta Lake/Ray acceptance, Phase 9–14 production-browser journeys, signed HTTP load, custom-format backup and isolated restore also passed. The final consolidated checkpoint also passed: TypeScript, ESLint, Python syntax, patch checks, 96 unit tests across 20 files, production build and a production dependency audit with zero known vulnerabilities at assessment time; the earlier isolated bundled-server smoke remains passing evidence. All results are local sandbox evidence, not staging, managed-cluster, live-provider or production certification.
+Latest Phase 15 checkpoint: PostgreSQL 16.15 was installed in user space from isolated PGDG packages, the 16-migration series (`0000`–`0015`) and repeated seed ran on a fresh regression database, and ordered Phase 2–15 database acceptance passed. The final Phase 15 production-browser journey also passed with no runtime errors, HTTP errors, external requests or page-level overflow at 1440px and 375px. TypeScript, ESLint, 102 unit tests across 21 files, production build and the current production dependency audit passed with zero known vulnerabilities. Final production smoke passed the app shell, manifest, service worker, liveness, database readiness and an authenticated five-product database-backed catalog response; its temporary session was signed out. Real Delta Lake/Ray acceptance remains passing local-reference evidence; earlier signed HTTP load and custom-format backup/isolated restore results remain historical evidence at their recorded scope. All results are local sandbox evidence, not staging, managed-cluster, live-institution/provider or production certification.
 
 - PostgreSQL runtime: local user-space PostgreSQL 16.15 on `127.0.0.1:55432`; migrations and repeated seed passed without Docker or root. Local commands override both database URL variables so an external configured database is never selected accidentally.
 - Package-download workaround: pinned Delta/Ray and document dependencies installed with `uv` into separate `/tmp` targets. Docling models required an alternate Hugging Face endpoint in this sandbox; production must use reviewed, pre-cached artifacts rather than depending on a public mirror.
 - Combined Phase 13–14 production build and bundled-server smoke: passed; database-backed acceptance subsequently ran against the local PostgreSQL server.
-- Unit tests: all 96 tests across 20 files passed in the final consolidated rerun.
+- Unit tests: all 102 tests across 21 files passed in the final Phase 15 rerun.
 - Live PostgreSQL 16 Phase 2 regression: historical rules, publication, overrides, combined payout, paid reversal, support, CSAT, SLA and redaction passed.
 - Live PostgreSQL 16 Phase 3 journey: recruiting security/lifecycle, seeded-campus telemetry, job dedupe, append-only enforcement, concurrent confirmation/publication/payout and in-app notifications passed.
 - Live PostgreSQL 16 Phase 4 journey: reservation without settlement, duplicate-assembly suppression, concurrent dispatch, three failed attempts, fallback, Finance recovery, idempotent success, reconciliation and refund-before-settlement hold passed.
@@ -315,8 +330,11 @@ Latest combined Phase 13–14 checkpoint: PostgreSQL 16.15 was installed in user
 - Phase 13 production-browser acceptance: Operations analytics and separately authorized Finance financial-core controls passed on desktop and mobile with zero browser runtime errors. Operations correctly received HTTP 403 for Finance-only mutations.
 - Live PostgreSQL 16 Phase 14 journey: representative, Campus Lead, vendor KYB, Operations/Finance, independent review, expiry/reverification, consent withdrawal, tombstones, financial preservation and concurrency controls passed.
 - Phase 14 production-browser acceptance: Operations, Finance, representative, vendor and Campus Lead workflows passed at desktop/375px with zero runtime errors and zero external requests. Finance could submit and withdraw its own case but was not offered synthetic processing or self-approval.
+- Live PostgreSQL 16 Phase 15 journey: independent enrollment review, duplicate-pending/self-review rejection, activation gating, expiry/revalidation/revocation, duplicate-subject linked holds, warning/high-risk quality behavior, early-refund and confirmed-only repeated-customer detection, vendor-scoped pause/credential revocation, exact biometric-evaluation coverage/expiry, opaque-reference non-persistence, append-only events and byte-equivalent financial preservation passed.
+- Phase 15 production-browser acceptance: representative submission/current-state refresh, Operations enrollment verification, collision clearing, warning-only quality review, passing vendor reconciliation and sandbox biometric-evidence registration passed. Finance oversight was read-only. Desktop and 375px layouts had no page-level overflow, runtime/HTTP errors or external requests; the desktop Operations tab overflow was fixed while retaining mobile internal scrolling.
+- Phase 15 defect corrections: failed vendor audits no longer risk revoking another vendor's credentials, and early-refund analysis uses the relational `vendor_events.deal_id` rather than incompatible customer-hash domains. Pending deals are excluded from repeated-customer analysis. No external institution, identity provider or biometric evaluator was contacted.
 - Document-runtime acceptance: PaddleOCR 3.7.0/PaddlePaddle 3.3.1 detected all six synthetic image lines with mean confidence 0.992596; Docling 2.144.0 converted the one-page synthetic PDF and detected its marker. No real identity document, VLM or hosted biometric provider was used.
-- Backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts across all 13 migrations; source records remained unchanged. The retained restore contained 55 users, 35 representatives, 10 products, 125 deals, 58 ledger entries, 540 audit logs and 19 user triggers.
+- Earlier backup/recovery drill: custom-format manifest validation and isolated PostgreSQL 16 restore passed with matching table, migration and trigger counts across the then-current 13 migrations; source records remained unchanged. The retained restore contained 55 users, 35 representatives, 10 products, 125 deals, 58 ledger entries, 540 audit logs and 19 user triggers. This is not relabelled as a Phase 15 restore result.
 - Five simultaneous payout batches produced exactly one reservation for the new test rep; two concurrent publishers produced one winner. Duplicate success outcomes did not duplicate ledger postings.
 - Cross-vendor support resolution and duplicate CSAT were rejected.
 - Browser Rule Studio dry run/publication and role workspaces passed. The full recruiting journey also passed: private public inspection, phone-bound OTP, consent-gated acceptance, separate Operations activation, team assignment and activation notification.
@@ -326,7 +344,7 @@ Latest combined Phase 13–14 checkpoint: PostgreSQL 16.15 was installed in user
 - Phase 6 Operations passed desktop and 375px monitoring, review, acknowledgement, resolution and repeat-sweep interactions. Resolved records stayed resolved, append-only history and metrics refreshed, and both widths measured exactly their viewport width with zero console or HTTP errors. The 85/100 scorecard also passed at 375px with all 16 workstreams.
 - Phase 7 Operations passed DSAR registration, verification, review, JSON download and fulfilment plus breach intake, triage, Operations-owner decision and closure. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors; wide mobile queues remained contained in horizontal scrollers.
 - Phase 8 Operations and representative journeys passed manual case creation, strike uphold, appeal and release with complete history. Desktop and 375px layouts had no document-level overflow, console, page or HTTP errors. The 86/100 scorecard rendered all 16 workstreams.
-- The Phase 12 scorecard assesses all 16 workstreams at 91/100 (exact mean 91.4375); unfinished external delivery, live-provider operations, real-campus outcomes and target-architecture work remain included in the score.
+- The Phase 15 scorecard assesses all 16 workstreams at 93/100 (exact mean 93.0625); unfinished external delivery, live-institution/provider operations, real-campus outcomes and target-architecture work remain included in the score. The preserved Phase 12 baseline was 91/100 (exact mean 91.4375).
 - The isolated production bundle passed root, manifest, service-worker, liveness and database-readiness smoke checks without an external `node_modules` directory.
 - Production dependency audit: zero known vulnerabilities at assessment time.
 - Roadmap metrics such as 55% active recruits, 14.4 activations per active rep/month, 97% confirmed-to-paid within 48 hours, <4% disputes and 136k activated customers remain evidence gates, not achieved real-world results.

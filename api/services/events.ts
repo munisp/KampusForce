@@ -52,7 +52,7 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
   }
   if (payload.type === "refund") {
     const [deal] = await db.select().from(deals).where(and(eq(deals.customerPhoneHash, phoneHash), eq(deals.productId, product.id))).orderBy(desc(deals.createdAt)).limit(1);
-    await db.insert(vendorEvents).values(baseEvent);
+    await db.insert(vendorEvents).values({ ...baseEvent, dealId: deal?.id || null });
     if (!deal) return { status: "ignored" as const, kf_event_id: eventId, reason: "No matching deal to reverse" };
     const result = await reverseDeal(deal.id, `vendor:${vendor.id}:refund`);
     return { status: "processed" as const, kf_event_id: eventId, ...result };

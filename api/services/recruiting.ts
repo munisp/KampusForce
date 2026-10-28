@@ -14,6 +14,8 @@ import { getDb } from "../queries/connection";
 import { notifyUser } from "./notifications";
 import { randomReference } from "./security";
 import { assertCurrentIdentityApproval, ensureIdentityCase } from "./identity";
+import { assertCurrentStudentAssurance } from "./studentAssurance";
+import { assertNoFraudHold } from "./fraud";
 
 export const hashInvitationToken = (token: string) => createHash("sha256").update(`kf-recruit:${token}`).digest("hex");
 export const createInvitationToken = () => randomBytes(32).toString("base64url");
@@ -109,12 +111,14 @@ export async function activateRecruitment(recruitmentId: number, actorUserId: nu
     const activatedAt = new Date();
     const identityApproval = await assertCurrentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc"] }, tx);
     if (user.kycState !== "verified" || !user.bankNameMatch) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Identity approval and bank-name match must be current before recruitment activation" });
+    await assertNoFraudHold(tx, rep.id);
+    const enrollment = await assertCurrentStudentAssurance(user.id, tx);
     await tx.update(reps).set({ status: "active" }).where(eq(reps.id, rep.id));
     const [assignment] = await tx.select().from(campusLeadAssignments).where(eq(campusLeadAssignments.repId, rep.id)).limit(1).for("update");
     if (assignment) await tx.update(campusLeadAssignments).set({ leadRepId: invitation.leadRepId, campusId: invitation.campusId, assignedByUserId: actorUserId, assignedAt: activatedAt, revokedAt: null }).where(eq(campusLeadAssignments.id, assignment.id));
     else await tx.insert(campusLeadAssignments).values({ leadRepId: invitation.leadRepId, repId: rep.id, campusId: invitation.campusId, assignedByUserId: actorUserId, assignedAt: activatedAt });
     await tx.update(campusRecruitments).set({ status: "activated", activatedAt, activatedByUserId: actorUserId }).where(eq(campusRecruitments.id, invitation.id));
-    await tx.insert(auditLogs).values({ actorUserId, action: "recruitment.activated", entityType: "campus_recruitment", entityId: String(invitation.id), metadataJson: { repId: rep.id, campusId: invitation.campusId, identityCaseRef: identityApproval.caseRef, rawIdentityDocumentsStored: false } });
+    await tx.insert(auditLogs).values({ actorUserId, action: "recruitment.activated", entityType: "campus_recruitment", entityId: String(invitation.id), metadataJson: { repId: rep.id, campusId: invitation.campusId, identityCaseRef: identityApproval.caseRef, enrollmentCaseRef: enrollment.caseRef, duplicateIdentityReviewClear: true, rawIdentityDocumentsStored: false } });
     return { repId: rep.id, userId: user.id, campusId: invitation.campusId, activatedAt, identityCaseRef: identityApproval.caseRef };
   });
   await notifyUser({ userId: result.userId, type: "rep_activated", title: "Your rep workspace is active", body: "Approved identity controls and campus-team assignment are complete.", href: "/rep", entityType: "rep", entityId: result.repId });

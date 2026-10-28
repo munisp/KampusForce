@@ -11,6 +11,7 @@ import {
   submitIdentityCase,
 } from "./identity";
 import { identityApprovalValid, requiredEvidence } from "./identityPolicy";
+import { completeSyntheticEnrollment } from "./assuranceFixtures";
 
 const providers = {
   document_ocr: "paddleocr-synthetic",
@@ -69,7 +70,10 @@ export async function completeSyntheticIdentityWorkflow(input: {
     triggerEvent: input.triggerEvent || "sandbox.identity_fixture_requested",
   });
   let identityCase = opened.identityCase;
-  if (identityApprovalValid(identityCase)) return { identityCase, synthetic: true, alreadyApproved: true };
+  if (identityApprovalValid(identityCase)) {
+    if (["representative_kyc", "campus_lead_kyc"].includes(input.caseType)) await completeSyntheticEnrollment({ userId: input.subjectId, reviewerUserId: input.reviewerUserId });
+    return { identityCase, synthetic: true, alreadyApproved: true };
+  }
   for (const purpose of ["identity_verification", "biometric_liveness"] as const) {
     await recordIdentityConsent({ caseId: identityCase.id, actorUserId: input.requestUserId, purpose });
   }
@@ -81,5 +85,6 @@ export async function completeSyntheticIdentityWorkflow(input: {
     decision: "approve",
     reason: "Synthetic sandbox control fixture approved for workflow acceptance; no external identity assurance is implied.",
   });
+  if (["representative_kyc", "campus_lead_kyc"].includes(input.caseType)) await completeSyntheticEnrollment({ userId: input.subjectId, reviewerUserId: input.reviewerUserId });
   return { identityCase: reviewed.identityCase, synthetic: true, alreadyApproved: false };
 }

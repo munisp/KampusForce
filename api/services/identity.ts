@@ -30,6 +30,7 @@ import {
   sanitizeIdentityFindings,
   validateIdentityEvidenceMetadata,
 } from "./identityPolicy";
+import { assertLiveBiometricEvaluationCoverage } from "./biometricAssurance";
 
 export type IdentityDatabase = ReturnType<typeof getDb>;
 export type IdentityTransaction = Parameters<Parameters<IdentityDatabase["transaction"]>[0]>[0];
@@ -278,7 +279,10 @@ export async function reviewIdentityCase(input: {
       evidence = await tx.select().from(identityEvidenceMetadata).where(eq(identityEvidenceMetadata.caseId, identityCase.id)).orderBy(identityEvidenceMetadata.id);
       const missing = missingIdentityEvidence(identityCase.caseType, evidence);
       if (missing.length) throw new TRPCError({ code: "BAD_REQUEST", message: `Approval is blocked until all required evidence passes: ${missing.join(", ")}` });
-      if (identityCase.providerMode === "live" && !identityReadiness().liveEligible) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Live identity approval is blocked until all provider, evaluation, privacy, legal and security gates pass" });
+      if (identityCase.providerMode === "live") {
+        if (!identityReadiness().liveEligible) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Live identity approval is blocked until all provider, evaluation, privacy, legal and security gates pass" });
+        await assertLiveBiometricEvaluationCoverage(identityCase.id, tx);
+      }
     }
     const nextState = input.decision === "approve" ? "approved" : input.decision === "request_info" ? "needs_more_info" : input.decision === "reject" ? "rejected" : "revoked";
     const decidedAt = new Date();

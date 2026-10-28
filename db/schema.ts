@@ -233,9 +233,10 @@ export const vendorEvents = pgTable("vendor_events", {
   status: vendorEventStatusEnum("status").notNull().default("processed"),
   quarantineReason: varchar("quarantine_reason", { length: 300 }),
   webhookCredentialId: integer("webhook_credential_id").references(() => vendorWebhookCredentials.id),
+  dealId: integer("deal_id").references(() => deals.id),
   payloadRetainUntil: timestamp("payload_retain_until", { withTimezone: true }).notNull().defaultNow(),
   payloadPurgedAt: timestamp("payload_purged_at", { withTimezone: true }),
-}, (t) => [index("vendor_event_retention_idx").on(t.payloadRetainUntil, t.payloadPurgedAt)]);
+}, (t) => [index("vendor_event_retention_idx").on(t.payloadRetainUntil, t.payloadPurgedAt), index("vendor_event_deal_idx").on(t.dealId)]);
 
 export const vendorIngestionRetries = pgTable("vendor_ingestion_retries", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -1257,3 +1258,126 @@ export type DsarRequest = typeof dsarRequests.$inferSelect;
 export type BreachAssessment = typeof breachAssessments.$inferSelect;
 export type FraudCase = typeof fraudCases.$inferSelect;
 export type FraudHold = typeof fraudHolds.$inferSelect;
+
+
+export const enrollmentAttestationStateEnum = pgEnum("enrollment_attestation_state", ["submitted", "verified", "rejected", "expired", "revoked"]);
+export const assuranceReviewStateEnum = pgEnum("assurance_review_state", ["open", "cleared", "confirmed"]);
+export const activationRiskKindEnum = pgEnum("activation_risk_kind", ["early_refund", "repeated_customer", "dormant_account", "chargeback", "coordinated_cluster"]);
+export const assuranceSeverityEnum = pgEnum("assurance_severity", ["warning", "high", "critical"]);
+export const vendorAuditStateEnum = pgEnum("vendor_audit_state", ["pending", "passed", "failed"]);
+export const biometricEvaluationKindEnum = pgEnum("biometric_evaluation_kind", ["pad", "injection", "deepfake", "demographic"]);
+export const biometricEvaluationStateEnum = pgEnum("biometric_evaluation_state", ["approved", "rejected", "expired"]);
+
+export const enrollmentAttestations = pgTable("enrollment_attestations", {
+  id: serial("id").primaryKey(),
+  caseRef: varchar("case_ref", { length: 48 }).notNull().unique(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  campusId: integer("campus_id").notNull().references(() => campuses.id),
+  providerMode: integrationModeEnum("provider_mode").notNull().default("sandbox"),
+  providerName: varchar("provider_name", { length: 80 }).notNull(),
+  attestationHash: varchar("attestation_hash", { length: 64 }).notNull().unique(),
+  academicTerm: varchar("academic_term", { length: 40 }).notNull(),
+  verificationMethod: varchar("verification_method", { length: 40 }).notNull(),
+  state: enrollmentAttestationStateEnum("state").notNull().default("submitted"),
+  requestedValidUntil: timestamp("requested_valid_until", { withTimezone: true }).notNull(),
+  validUntil: timestamp("valid_until", { withTimezone: true }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("enrollment_attestation_user_state_idx").on(t.userId, t.state, t.validUntil), index("enrollment_attestation_expiry_idx").on(t.state, t.validUntil)]);
+
+export const identityLinkages = pgTable("identity_linkages", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  providerName: varchar("provider_name", { length: 80 }).notNull(),
+  providerMode: integrationModeEnum("provider_mode").notNull().default("sandbox"),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("identity_linkage_provider_token_user_unique").on(t.providerName, t.tokenHash, t.userId), index("identity_linkage_token_idx").on(t.tokenHash, t.providerName)]);
+
+export const duplicateIdentityCases = pgTable("duplicate_identity_cases", {
+  id: serial("id").primaryKey(),
+  caseRef: varchar("case_ref", { length: 48 }).notNull().unique(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  matchedUserId: integer("matched_user_id").notNull().references(() => users.id),
+  linkageTokenHash: varchar("linkage_token_hash", { length: 64 }).notNull(),
+  providerName: varchar("provider_name", { length: 80 }).notNull(),
+  state: assuranceReviewStateEnum("state").notNull().default("open"),
+  fraudCaseId: integer("fraud_case_id").references(() => fraudCases.id),
+  matchedFraudCaseId: integer("matched_fraud_case_id").references(() => fraudCases.id),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("duplicate_identity_pair_token_unique").on(t.userId, t.matchedUserId, t.linkageTokenHash), index("duplicate_identity_user_state_idx").on(t.userId, t.state), index("duplicate_identity_matched_state_idx").on(t.matchedUserId, t.state)]);
+
+export const activationRiskCases = pgTable("activation_risk_cases", {
+  id: serial("id").primaryKey(),
+  caseRef: varchar("case_ref", { length: 48 }).notNull().unique(),
+  dealId: integer("deal_id").notNull().references(() => deals.id),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  kind: activationRiskKindEnum("kind").notNull(),
+  severity: assuranceSeverityEnum("severity").notNull(),
+  state: assuranceReviewStateEnum("state").notNull().default("open"),
+  evidenceHash: varchar("evidence_hash", { length: 64 }).notNull(),
+  signalCount: integer("signal_count").notNull().default(1),
+  fraudCaseId: integer("fraud_case_id").references(() => fraudCases.id),
+  firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }).notNull().defaultNow(),
+  lastDetectedAt: timestamp("last_detected_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("activation_risk_deal_kind_evidence_unique").on(t.dealId, t.kind, t.evidenceHash), index("activation_risk_rep_state_idx").on(t.repId, t.state), index("activation_risk_vendor_state_idx").on(t.vendorId, t.state)]);
+
+export const vendorAssuranceAudits = pgTable("vendor_assurance_audits", {
+  id: serial("id").primaryKey(),
+  auditRef: varchar("audit_ref", { length: 48 }).notNull().unique(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+  periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+  sampleSize: integer("sample_size").notNull(),
+  verifiedOutcomes: integer("verified_outcomes").notNull(),
+  mismatches: integer("mismatches").notNull(),
+  state: vendorAuditStateEnum("state").notNull().default("pending"),
+  evidenceHash: varchar("evidence_hash", { length: 64 }).notNull(),
+  reviewerUserId: integer("reviewer_user_id").references(() => users.id),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("vendor_assurance_vendor_state_idx").on(t.vendorId, t.state, t.createdAt)]);
+
+export const biometricEvaluations = pgTable("biometric_evaluations", {
+  id: serial("id").primaryKey(),
+  evaluationRef: varchar("evaluation_ref", { length: 48 }).notNull().unique(),
+  providerName: varchar("provider_name", { length: 80 }).notNull(),
+  providerMode: integrationModeEnum("provider_mode").notNull().default("sandbox"),
+  kind: biometricEvaluationKindEnum("kind").notNull(),
+  modelVersion: varchar("model_version", { length: 100 }).notNull(),
+  evidenceHash: varchar("evidence_hash", { length: 64 }).notNull(),
+  state: biometricEvaluationStateEnum("state").notNull(),
+  validUntil: timestamp("valid_until", { withTimezone: true }).notNull(),
+  reviewerUserId: integer("reviewer_user_id").notNull().references(() => users.id),
+  reviewReason: varchar("review_reason", { length: 500 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("biometric_evaluation_evidence_unique").on(t.providerName, t.modelVersion, t.kind, t.evidenceHash), index("biometric_evaluation_current_idx").on(t.providerName, t.modelVersion, t.kind, t.state, t.validUntil)]);
+
+export const assuranceEvents = pgTable("assurance_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  caseType: varchar("case_type", { length: 40 }).notNull(),
+  caseId: integer("case_id").notNull(),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  action: varchar("action", { length: 100 }).notNull(),
+  fromState: varchar("from_state", { length: 40 }),
+  toState: varchar("to_state", { length: 40 }),
+  payload: json("payload").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("assurance_event_case_idx").on(t.caseType, t.caseId, t.createdAt)]);

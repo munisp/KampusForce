@@ -78,6 +78,23 @@ async function openCaseWithRepLock(tx: Transaction, input: Parameters<typeof ins
   return insertFraudCase(tx, input);
 }
 
+export async function createAssuranceFraudCase(tx: Transaction, input: {
+  repId: number;
+  kind: string;
+  reason: string;
+  evidenceJson: Record<string, unknown>;
+  actorUserId: number | null;
+}) {
+  return openCaseWithRepLock(tx, {
+    repId: input.repId,
+    reason: "operations_review",
+    actorUserId: input.actorUserId,
+    note: input.reason,
+    dedupeKey: `assurance:${input.kind}:${randomUUID()}`,
+    evidence: { ...input.evidenceJson, assuranceKind: input.kind },
+  });
+}
+
 export async function enforceActivationVelocity(tx: Transaction, input: {
   repId: number;
   productId: number;
@@ -172,14 +189,13 @@ export async function assertNoFraudHold(tx: Transaction, repId: number) {
   }
 }
 
-export async function reviewFraudCase(input: {
+export async function reviewFraudCaseInTransaction(tx: Transaction, input: {
   caseId: number;
   actorUserId: number;
   decision: "release" | "uphold";
   conductAction: "strike" | "suspension";
   note: string;
 }) {
-  return getDb().transaction(async (tx) => {
     const [fraudCase] = await tx.select().from(fraudCases).where(eq(fraudCases.id, input.caseId)).limit(1).for("update");
     if (!fraudCase) throw new TRPCError({ code: "NOT_FOUND", message: "Fraud case not found" });
     if (!["open", "appeal_open"].includes(fraudCase.state)) {
@@ -248,7 +264,16 @@ export async function reviewFraudCase(input: {
       },
     });
     return { caseId: fraudCase.id, caseRef: fraudCase.caseRef, state: nextState, conductAction, financialReversalApplied: false, clawbackRequired: !released };
-  });
+}
+
+export async function reviewFraudCase(input: {
+  caseId: number;
+  actorUserId: number;
+  decision: "release" | "uphold";
+  conductAction: "strike" | "suspension";
+  note: string;
+}) {
+  return getDb().transaction(async (tx) => reviewFraudCaseInTransaction(tx, input));
 }
 
 export async function requestFraudAppeal(input: { caseId: number; repId: number; actorUserId: number; note: string }) {
