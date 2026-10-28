@@ -744,3 +744,169 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .inline-filter { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
 .inline-filter select { min-height: 32px; border: 1px solid var(--line); background: var(--paper); padding: 4px 8px; color: var(--navy); font-size: 10px; }
 .compact-list { display: grid; gap: 6px; margin: 12px 0 0; padding-left: 18px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+
+
+/* Phase 12 case, CRM and campus growth */
+.sales-view-tabs { display: flex; flex-wrap: wrap; gap: 0; margin-bottom: 18px; border-block: 1px solid var(--navy); }
+.sales-view-tabs button { min-height: 46px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--muted); padding: 10px 16px; font-size: 11px; font-weight: 800; transition: background .18s, color .18s; }
+.sales-view-tabs button:hover { background: var(--paper); color: var(--navy); }
+.sales-view-tabs button.active { background: var(--navy); color: var(--paper); }
+.sales-filter-panel { padding-block: 16px; }
+.sales-filters { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(130px, .8fr) auto minmax(210px, 1fr); align-items: end; gap: 12px; }
+.check-filter { min-height: 43px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); padding: 10px 12px; white-space: nowrap; }
+.check-filter input { width: 17px; height: 17px; accent-color: var(--teal); }
+.save-view-form { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8px; }
+.saved-view-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 10px; }
+.saved-view-row button { min-height: 30px; border: 1px solid var(--line); background: transparent; color: var(--teal); padding: 4px 9px; font-size: 10px; font-weight: 800; }
+.saved-view-row button:hover { border-color: var(--teal); background: var(--teal-soft); }
+.sales-case-grid, .pipeline-grid { display: grid; grid-template-columns: minmax(260px, .72fr) minmax(0, 1.5fr); gap: 18px; align-items: start; }
+.sales-case-list, .pipeline-list { padding: 0; overflow: hidden; }
+.sales-case-list .panel-heading, .pipeline-list .panel-heading { margin: 0; border-bottom: 1px solid var(--line); padding: 18px; }
+.sales-case-row { width: 100%; display: grid; gap: 5px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--navy); padding: 15px 18px; text-align: left; transition: background .18s; }
+.sales-case-row:hover, .sales-case-row.selected, .pipeline-row:hover, .pipeline-row.selected { background: var(--teal-soft); }
+.sales-case-row > .mono { color: var(--teal); font-size: 9px; }
+.sales-case-row > strong { font-size: 12px; }
+.sales-case-row > small { color: var(--muted); font-size: 10px; }
+.sales-case-risk { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; }
+.sales-case-risk em { color: var(--muted); font: normal 9px "IBM Plex Mono", monospace; }
+.next-action { display: grid; gap: 6px; margin: 16px 0; border-block: 1px solid var(--navy); padding: 14px 0; }
+.next-action > span { color: var(--teal); font: 600 9px "IBM Plex Mono", monospace; letter-spacing: .06em; text-transform: uppercase; }
+.next-action > strong { font-size: 13px; line-height: 1.55; }
+.next-action > small { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.case-action-grid { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 10px; margin-bottom: 14px; }
+.case-action-grid form { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8px; }
+.case-message-form, .campaign-form { display: grid; gap: 13px; margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+.inline-action-form { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.inline-action-form > label { flex: 1 1 150px; }
+.inline-action-form > .button { flex: 0 0 auto; }
+.sales-timeline { display: grid; }
+.sales-timeline article { display: grid; grid-template-columns: 105px 1fr; gap: 12px; border-top: 1px solid var(--line); padding: 13px 0; }
+.sales-timeline article:first-child { border-top: 0; padding-top: 0; }
+.sales-timeline article > span { color: var(--muted); font: 9px "IBM Plex Mono", monospace; }
+.sales-timeline article strong { font-size: 11px; text-transform: capitalize; }
+.sales-timeline article p { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
+.linked-case-note { border-top: 1px solid var(--line); margin: 0; padding: 10px 0; color: var(--muted); font-size: 10px; }
+.sales-create-form { display: grid; grid-template-columns: 1.1fr 1.1fr 1fr 1fr auto; align-items: end; gap: 12px; }
+.pipeline-row { position: relative; width: 100%; display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--navy); padding: 15px 18px; text-align: left; }
+.pipeline-row > span:first-child { display: grid; gap: 4px; }
+.pipeline-row small { color: var(--muted); font-size: 9px; }
+.pipeline-row > em { grid-column: 1 / -1; color: var(--red); font-size: 9px; font-style: normal; }
+.pipeline-score { display: grid; color: var(--teal); font: 700 20px "IBM Plex Mono", monospace; text-align: center; }
+.pipeline-score small { font: 8px "Manrope", sans-serif; text-transform: uppercase; }
+.stage-actions { display: flex; flex-wrap: wrap; gap: 5px; margin: 14px 0; }
+.stage-actions button { min-height: 32px; border: 1px solid var(--line); background: transparent; color: var(--muted); padding: 5px 8px; font-size: 9px; font-weight: 800; text-transform: capitalize; }
+.stage-actions button:hover, .stage-actions button.active { border-color: var(--navy); background: var(--navy); color: var(--paper); }
+.task-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding: 11px 0; }
+.task-row > span { display: grid; flex: 1 1 180px; }
+.task-row strong { font-size: 11px; }
+.task-row small { color: var(--muted); font-size: 9px; }
+.task-row .text-link { border: 0; background: transparent; }
+.outreach-draft { border-top: 1px solid var(--line); padding: 14px 0; }
+.outreach-draft > p { margin: 10px 0; color: var(--ink); font-size: 12px; line-height: 1.75; white-space: pre-wrap; }
+.outreach-draft > small { display: block; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.outreach-draft > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.training-grid { display: grid; grid-template-columns: minmax(300px, .9fr) minmax(0, 1.1fr); gap: 18px; align-items: start; }
+.training-catalog { padding: 0; overflow: hidden; }
+.training-catalog .panel-heading { margin: 0; border-bottom: 1px solid var(--line); padding: 18px; }
+.training-module-row { width: 100%; display: grid; grid-template-columns: 30px 1fr auto; align-items: start; gap: 10px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--navy); padding: 16px; text-align: left; }
+.training-module-row:hover, .training-module-row.selected { background: var(--teal-soft); }
+.training-module-row > span:nth-child(2) { display: grid; gap: 5px; }
+.training-module-row strong { font-size: 12px; }
+.training-module-row small { color: var(--muted); font-size: 10px; line-height: 1.55; }
+.training-module-row em { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 9px; font-style: normal; }
+.training-order { color: var(--teal); font: 600 11px "IBM Plex Mono", monospace; }
+.training-overview { display: flex; flex-wrap: wrap; gap: 7px 15px; border-block: 1px solid var(--line); padding: 11px 0; color: var(--muted); font: 9px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.training-summary { margin: 18px 0 8px; color: var(--navy); font-size: 15px; font-weight: 800; line-height: 1.55; }
+.training-content { color: var(--ink); font-size: 13px; line-height: 1.8; }
+.training-progress-note { display: flex; align-items: center; gap: 10px; margin: 15px 0; background: var(--teal-soft); padding: 12px; color: var(--teal); font-size: 11px; }
+.training-quiz { display: grid; gap: 15px; margin-top: 24px; border-top: 1px solid var(--navy); padding-top: 20px; }
+.training-quiz h3 { margin: 0; font-size: 16px; }
+.training-quiz fieldset { display: grid; gap: 7px; }
+.quiz-option { min-height: 39px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line); padding: 8px 10px; font-size: 11px; font-weight: 500; cursor: pointer; }
+.quiz-option:has(input:checked) { border-color: var(--teal); background: var(--teal-soft); }
+.quiz-option input { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--teal); }
+.training-quiz .button { justify-self: start; }
+.training-result { display: grid; gap: 4px; margin-top: 14px; border: 1px solid var(--mustard); background: var(--mustard-soft); padding: 14px; }
+.training-result.passed { border-color: var(--teal); background: var(--teal-soft); }
+.training-result span { color: var(--ink); font-size: 11px; }
+.attempt-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.attempt-grid > div { display: grid; gap: 5px; border-top: 1px solid var(--line); padding-top: 10px; }
+.attempt-grid span, .attempt-grid small { color: var(--muted); font-size: 9px; }
+.attempt-grid strong { font: 700 20px "IBM Plex Mono", monospace; }
+.campaign-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.campaign-list .panel { margin-bottom: 0; }
+.campaign-heading { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
+.campaign-heading .mono { color: var(--teal); }
+.campaign-message { margin: 15px 0; border-block: 1px solid var(--line); padding: 14px 0; color: var(--ink); font-size: 12px; line-height: 1.75; white-space: pre-wrap; }
+.campaign-stats { display: flex; flex-wrap: wrap; gap: 12px 20px; color: var(--muted); font-size: 9px; }
+.campaign-stats strong { color: var(--navy); font-size: 13px; }
+.review-note { margin: 13px 0 0; color: var(--muted); font-size: 10px; }
+.review-note-input { margin-bottom: 18px; }
+.growth-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 18px; align-items: start; }
+.leaderboard-window { width: auto; min-height: 32px; padding: 5px 8px; font-size: 10px; }
+.leaderboard-head, .leaderboard-row { display: grid; grid-template-columns: minmax(145px, 1.5fr) .8fr .45fr .55fr .45fr; align-items: center; gap: 9px; }
+.leaderboard-head { border-bottom: 1px solid var(--navy); padding: 0 8px 8px; color: var(--muted); font: 8px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.leaderboard-row { border-bottom: 1px solid var(--line); padding: 11px 8px; font-size: 11px; }
+.leaderboard-row.current { background: var(--teal-soft); }
+.leaderboard-row > span:first-child, .leaderboard-row > span:nth-child(2) { display: grid; gap: 3px; }
+.leaderboard-row small { color: var(--muted); font-size: 8px; }
+.leaderboard-row > strong { color: var(--teal); font: 700 15px "IBM Plex Mono", monospace; }
+.recommendation-list { display: grid; }
+.recommendation-list > article { border-top: 1px solid var(--line); padding: 14px 0; }
+.recommendation-list > article:first-child { border-top: 0; padding-top: 0; }
+.recommendation-heading { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; }
+.recommendation-heading > span:first-child { display: grid; gap: 4px; }
+.recommendation-heading small { color: var(--muted); font-size: 9px; }
+.recommendation-list ul { margin: 10px 0; padding-left: 17px; color: var(--muted); font-size: 10px; line-height: 1.65; }
+.student-referrals { display: grid; margin-top: 18px; }
+.student-referrals > article { border-top: 1px solid var(--line); padding: 13px 0; }
+.student-referrals > article > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.student-referrals p { margin: 7px 0; color: var(--muted); font-size: 11px; }
+.recruitment-follow-up { display: grid; gap: 8px; border-top: 1px solid var(--line); padding: 13px 0; }
+.recruitment-follow-up:first-child { border-top: 0; }
+.recruitment-follow-up > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.recruitment-follow-up > div small { flex-basis: 100%; color: var(--muted); font-size: 9px; }
+.recruitment-follow-up > span { color: var(--muted); font-size: 10px; }
+.recruitment-follow-up > form { display: grid; gap: 10px; }
+.integration-create { grid-template-columns: repeat(4, minmax(130px, 1fr)) auto; }
+.integration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.integration-grid .panel { margin-bottom: 0; }
+.integration-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.integration-facts span { display: grid; gap: 4px; color: var(--muted); font-size: 9px; }
+.integration-facts strong { color: var(--navy); font-size: 11px; text-transform: capitalize; }
+.sales-footer { display: flex; align-items: center; justify-content: center; gap: 8px; border-top: 1px solid var(--line); padding: 20px 0 0; color: var(--muted); font: 9px "IBM Plex Mono", monospace; text-transform: uppercase; }
+@media (max-width: 1180px) {
+  .sales-filters { grid-template-columns: 1fr 1fr; }
+  .sales-create-form, .integration-create { grid-template-columns: 1fr 1fr; }
+  .sales-create-form .button { justify-self: start; }
+  .sales-case-grid, .pipeline-grid { grid-template-columns: minmax(235px, .65fr) minmax(0, 1.35fr); }
+  .growth-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .sales-case-grid, .pipeline-grid, .training-grid { grid-template-columns: 1fr; }
+  .sales-case-list, .pipeline-list, .training-catalog { max-height: 510px; overflow-y: auto; }
+  .campaign-list, .integration-grid { grid-template-columns: 1fr; }
+  .attempt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .sales-view-tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .sales-view-tabs button { min-height: 46px; flex: 0 0 auto; padding-inline: 13px; }
+  .sales-filters, .sales-create-form, .integration-create { grid-template-columns: 1fr; }
+  .save-view-form { grid-template-columns: 1fr; }
+  .sales-filters .button, .sales-create-form .button { width: 100%; }
+  .check-filter, .saved-view-row button, .stage-actions button { min-height: 44px; }
+  .case-action-grid, .case-action-grid form { grid-template-columns: 1fr; }
+  .case-action-grid .button, .inline-action-form .button { width: 100%; }
+  .pipeline-row { grid-template-columns: 1fr auto; }
+  .pipeline-row > .state-badge { grid-column: 1; }
+  .pipeline-row > em { grid-column: 1 / -1; }
+  .sales-timeline article { grid-template-columns: 1fr; gap: 5px; }
+  .training-module-row { grid-template-columns: 26px 1fr; }
+  .training-module-row > .state-badge { grid-column: 2; justify-self: start; }
+  .leaderboard-head, .leaderboard-row { grid-template-columns: minmax(130px, 1.4fr) .75fr .45fr .45fr; }
+  .leaderboard-head > span:nth-child(4), .leaderboard-row > span:nth-child(4) { display: none; }
+  .leaderboard-row { padding-inline: 4px; }
+  .integration-facts { grid-template-columns: 1fr 1fr; }
+  .sales-footer { align-items: flex-start; text-align: left; line-height: 1.6; }
+  .sales-view-tabs ~ .button, .sales-view-tabs ~ div .button.small { min-height: 44px; }
+}

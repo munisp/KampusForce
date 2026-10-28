@@ -9,6 +9,7 @@ const Implementation = lazy(() => import("@/pages/Implementation"));
 const RepSupport = lazy(() => import("@/pages/RepSupport"));
 const RepTeam = lazy(() => import("@/pages/RepTeam"));
 const RecruitAccept = lazy(() => import("@/pages/RecruitAccept"));
+const Sales = lazy(() => import("@/pages/Sales"));
 const RepOverview = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepOverview })));
 const RepCatalog = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepCatalog })));
 const RepShare = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepShare })));
@@ -33,6 +34,7 @@ export default function App() {
     <Route path="/rep/team" element={<Protected><RepTeam /></Protected>} />
     <Route path="/vendor" element={<Protected><Vendor /></Protected>} />
     <Route path="/ops" element={<Protected><Ops /></Protected>} />
+    <Route path="/sales" element={<Protected><Sales /></Protected>} />
     <Route path="/implementation" element={<Implementation />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></Suspense>;

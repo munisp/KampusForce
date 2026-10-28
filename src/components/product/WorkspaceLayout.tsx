@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, ClipboardCheck, ExternalLink, LayoutDashboard, LifeBuoy, LogOut, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UsersRound, X } from "lucide-react";
+import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, ClipboardCheck, ExternalLink, LayoutDashboard, LifeBuoy, LogOut, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UsersRound, Workflow, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router";
 import { useState, type ReactNode } from "react";
 import { Brand } from "./Brand";
@@ -8,6 +8,7 @@ import { trpc } from "@/providers/trpc";
 const navByRole = {
   rep: [
     { to: "/rep", label: "Overview", icon: LayoutDashboard },
+    { to: "/sales", label: "Sales & CRM", icon: Workflow },
     { to: "/rep/catalog", label: "Product catalog", icon: PackageOpen },
     { to: "/rep/share", label: "Share & attribute", icon: QrCode },
     { to: "/rep/support", label: "Support inbox", icon: LifeBuoy },
@@ -15,8 +16,8 @@ const navByRole = {
     { to: "/rep/earnings", label: "Earnings ledger", icon: CircleDollarSign },
     { to: "/rep/assist", label: "Assisted onboarding", icon: ClipboardCheck },
   ],
-  vendor: [{ to: "/vendor", label: "Vendor command", icon: Store }],
-  ops: [{ to: "/ops", label: "Operations control", icon: ShieldCheck }],
+  vendor: [{ to: "/vendor", label: "Vendor command", icon: Store }, { to: "/sales", label: "Sales & cases", icon: Workflow }],
+  ops: [{ to: "/ops", label: "Operations control", icon: ShieldCheck }, { to: "/sales", label: "Sales command", icon: Workflow }],
 };
 
 function NotificationCenter() {
@@ -42,7 +43,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
   return <div className="workspace-shell">
     <aside className="sidebar">
       <Brand inverse />
-      <div className="workspace-label">{user.role} workspace<span>Phase 11 · sandbox</span></div>
+      <div className="workspace-label">{user.role} workspace<span>Phase 12 · sandbox</span></div>
       <nav aria-label="Workspace navigation">
         {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={18} />{label}</NavLink>)}
       </nav>

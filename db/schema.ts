@@ -63,6 +63,20 @@ export const rolloutSubjectTypeEnum = pgEnum("rollout_subject_type", ["campus_co
 export const rolloutEvidenceSourceEnum = pgEnum("rollout_evidence_source", ["system_snapshot", "external_evidence"]);
 export const rolloutEvidenceStateEnum = pgEnum("rollout_evidence_state", ["recorded", "submitted", "approved", "rejected"]);
 export const rolloutMetricUnitEnum = pgEnum("rollout_metric_unit", ["count", "percent", "naira", "months", "kobo", "ratio"]);
+export const caseMessageVisibilityEnum = pgEnum("case_message_visibility", ["internal", "public"]);
+export const caseLinkTypeEnum = pgEnum("case_link_type", ["related", "duplicate", "blocks"]);
+export const opportunityStageEnum = pgEnum("opportunity_stage", ["targeted", "contacted", "qualified", "activation_pending", "won", "lost"]);
+export const opportunityTaskStateEnum = pgEnum("opportunity_task_state", ["open", "completed", "dismissed"]);
+export const outreachDraftStateEnum = pgEnum("outreach_draft_state", ["draft", "approved", "shared", "dismissed"]);
+export const trainingProgressStateEnum = pgEnum("training_progress_state", ["assigned", "in_progress", "completed"]);
+export const campaignStateEnum = pgEnum("campaign_state", ["draft", "pending_review", "approved", "scheduled", "active", "paused", "completed", "rejected"]);
+export const campaignGoalEnum = pgEnum("campaign_goal", ["activation", "recruitment", "training", "reactivation"]);
+export const campaignEnrollmentStateEnum = pgEnum("campaign_enrollment_state", ["enrolled", "notified", "suppressed", "converted"]);
+export const integrationServiceEnum = pgEnum("integration_service", ["catalog", "crm", "support", "messaging"]);
+export const integrationModeEnum = pgEnum("integration_mode", ["sandbox", "live"]);
+export const integrationStateEnum = pgEnum("integration_state", ["configured", "verified", "degraded", "disabled"]);
+export const recommendationStateEnum = pgEnum("recommendation_state", ["suggested", "accepted", "dismissed", "converted"]);
+export const studentReferralStateEnum = pgEnum("student_referral_state", ["suggested", "invited", "declined"]);
 
 
 export const campuses = pgTable("campuses", {
@@ -374,7 +388,10 @@ export const campusRecruitments = pgTable("campus_recruitments", {
   activatedByUserId: integer("activated_by_user_id").references(() => users.id),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   revokedByUserId: integer("revoked_by_user_id").references(() => users.id),
-}, (t) => [uniqueIndex("campus_recruitment_token_unique").on(t.tokenHash), index("campus_recruitment_status_idx").on(t.status, t.expiresAt)]);
+  source: varchar("source", { length: 60 }).notNull().default("campus_lead"),
+  nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true }),
+  campaignId: integer("campaign_id"),
+}, (t) => [uniqueIndex("campus_recruitment_token_unique").on(t.tokenHash), index("campus_recruitment_status_idx").on(t.status, t.expiresAt), index("campus_recruitment_follow_up_idx").on(t.leadRepId, t.nextFollowUpAt)]);
 
 export const jobRuns = pgTable("job_runs", {
   id: serial("id").primaryKey(),
@@ -744,6 +761,13 @@ export const supportTickets = pgTable(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     csat: integer("csat"),
     csatComment: varchar("csat_comment", { length: 500 }),
+    assigneeUserId: integer("assignee_user_id").references(() => users.id),
+    version: integer("version").notNull().default(1),
+    firstResponseDueAt: timestamp("first_response_due_at", { withTimezone: true }),
+    firstRespondedAt: timestamp("first_responded_at", { withTimezone: true }),
+    snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
+    lastPublicReplyAt: timestamp("last_public_reply_at", { withTimezone: true }),
+    reopenedCount: integer("reopened_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -809,6 +833,249 @@ export const authSessions = pgTable("auth_sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const caseMessages = pgTable("case_messages", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  authorUserId: integer("author_user_id").notNull().references(() => users.id),
+  visibility: caseMessageVisibilityEnum("visibility").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_message_ticket_idx").on(t.ticketId, t.createdAt), index("case_message_visibility_idx").on(t.visibility, t.createdAt)]);
+
+export const caseLinks = pgTable("case_links", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  relatedTicketId: integer("related_ticket_id").notNull().references(() => supportTickets.id),
+  linkType: caseLinkTypeEnum("link_type").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("case_link_pair_type_unique").on(t.ticketId, t.relatedTicketId, t.linkType), index("case_link_related_idx").on(t.relatedTicketId)]);
+
+export const caseWatchers = pgTable("case_watchers", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("case_watcher_unique").on(t.ticketId, t.userId), index("case_watcher_user_idx").on(t.userId, t.createdAt)]);
+
+export const caseSavedViews = pgTable("case_saved_views", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  name: varchar("name", { length: 100 }).notNull(),
+  filtersJson: json("filters_json").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("case_saved_view_user_name_unique").on(t.userId, t.name)]);
+
+export const opportunities = pgTable("opportunities", {
+  id: serial("id").primaryKey(),
+  opportunityRef: varchar("opportunity_ref", { length: 40 }).notNull().unique(),
+  alias: varchar("alias", { length: 120 }).notNull(),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  campusId: integer("campus_id").notNull().references(() => campuses.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  customerPhoneHash: varchar("customer_phone_hash", { length: 64 }),
+  stage: opportunityStageEnum("stage").notNull().default("targeted"),
+  score: integer("score").notNull().default(0),
+  scoreReasons: json("score_reasons").$type<string[]>().notNull().default([]),
+  expectedCommissionKobo: bigint("expected_commission_kobo", { mode: "number" }).notNull().default(0),
+  probability: integer("probability").notNull().default(10),
+  nextActionAt: timestamp("next_action_at", { withTimezone: true }),
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+  lostReason: text("lost_reason"),
+  version: integer("version").notNull().default(1),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("opportunity_rep_stage_idx").on(t.repId, t.stage, t.nextActionAt), index("opportunity_campus_product_idx").on(t.campusId, t.productId, t.stage), index("opportunity_customer_idx").on(t.customerPhoneHash, t.vendorId)]);
+
+export const opportunityActivities = pgTable("opportunity_activities", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  activityType: varchar("activity_type", { length: 60 }).notNull(),
+  body: text("body").notNull(),
+  metadataJson: json("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("opportunity_activity_timeline_idx").on(t.opportunityId, t.createdAt)]);
+
+export const opportunityTasks = pgTable("opportunity_tasks", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  assignedRepId: integer("assigned_rep_id").notNull().references(() => reps.id),
+  title: varchar("title", { length: 200 }).notNull(),
+  state: opportunityTaskStateEnum("state").notNull().default("open"),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("opportunity_task_due_idx").on(t.assignedRepId, t.state, t.dueAt)]);
+
+export const outreachDrafts = pgTable("outreach_drafts", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  body: text("body").notNull(),
+  rationale: text("rationale").notNull(),
+  state: outreachDraftStateEnum("state").notNull().default("draft"),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  sharedAt: timestamp("shared_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("outreach_draft_opportunity_idx").on(t.opportunityId, t.state, t.createdAt)]);
+
+export const crmSegments = pgTable("crm_segments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  name: varchar("name", { length: 100 }).notNull(),
+  filtersJson: json("filters_json").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("crm_segment_user_name_unique").on(t.userId, t.name)]);
+
+export const trainingModules = pgTable("training_modules", {
+  id: serial("id").primaryKey(),
+  moduleKey: varchar("module_key", { length: 80 }).notNull().unique(),
+  title: varchar("title", { length: 180 }).notNull(),
+  summary: text("summary").notNull(),
+  content: text("content").notNull(),
+  category: varchar("category", { length: 60 }).notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  passingScore: integer("passing_score").notNull().default(80),
+  required: boolean("required").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  quizJson: json("quiz_json").$type<Array<{ question: string; options: string[]; answerIndex: number }>>().notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const trainingProgress = pgTable("training_progress", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id),
+  state: trainingProgressStateEnum("state").notNull().default("assigned"),
+  bestScore: integer("best_score").notNull().default(0),
+  attempts: integer("attempts").notNull().default(0),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("training_progress_user_module_unique").on(t.userId, t.moduleId), index("training_progress_state_idx").on(t.userId, t.state)]);
+
+export const trainingAttempts = pgTable("training_attempts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id),
+  score: integer("score").notNull(),
+  passed: boolean("passed").notNull(),
+  answersJson: json("answers_json").$type<number[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("training_attempt_user_module_idx").on(t.userId, t.moduleId, t.createdAt)]);
+
+export const campaigns = pgTable("campaigns", {
+  id: serial("id").primaryKey(),
+  campaignKey: varchar("campaign_key", { length: 60 }).notNull().unique(),
+  name: varchar("name", { length: 180 }).notNull(),
+  goal: campaignGoalEnum("goal").notNull(),
+  state: campaignStateEnum("state").notNull().default("draft"),
+  vendorId: integer("vendor_id").references(() => vendors.id),
+  productId: integer("product_id").references(() => products.id),
+  campusId: integer("campus_id").references(() => campuses.id),
+  audienceRules: json("audience_rules").$type<Record<string, unknown>>().notNull().default({}),
+  messageDraft: text("message_draft").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: text("review_note"),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("campaign_state_schedule_idx").on(t.state, t.startsAt, t.endsAt), index("campaign_audience_idx").on(t.campusId, t.productId, t.goal)]);
+
+export const campaignEnrollments = pgTable("campaign_enrollments", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => campaigns.id),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  state: campaignEnrollmentStateEnum("state").notNull().default("enrolled"),
+  enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull().defaultNow(),
+  notifiedAt: timestamp("notified_at", { withTimezone: true }),
+  convertedAt: timestamp("converted_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("campaign_enrollment_unique").on(t.campaignId, t.repId), index("campaign_enrollment_rep_idx").on(t.repId, t.state)]);
+
+export const campaignEvents = pgTable("campaign_events", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => campaigns.id),
+  enrollmentId: integer("enrollment_id").references(() => campaignEnrollments.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  eventType: varchar("event_type", { length: 60 }).notNull(),
+  metadataJson: json("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("campaign_event_idx").on(t.campaignId, t.eventType, t.createdAt)]);
+
+export const vendorServiceConnections = pgTable("vendor_service_connections", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  service: integrationServiceEnum("service").notNull(),
+  displayName: varchar("display_name", { length: 160 }).notNull(),
+  mode: integrationModeEnum("mode").notNull().default("sandbox"),
+  state: integrationStateEnum("state").notNull().default("configured"),
+  configJson: json("config_json").$type<Record<string, unknown>>().notNull().default({}),
+  externalCredentialRequired: boolean("external_credential_required").notNull().default(true),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("vendor_service_connection_unique").on(t.vendorId, t.service), index("vendor_service_state_idx").on(t.state, t.updatedAt)]);
+
+export const vendorServiceEvents = pgTable("vendor_service_events", {
+  id: serial("id").primaryKey(),
+  connectionId: integer("connection_id").notNull().references(() => vendorServiceConnections.id),
+  eventType: varchar("event_type", { length: 60 }).notNull(),
+  status: varchar("status", { length: 40 }).notNull(),
+  detail: text("detail").notNull(),
+  metadataJson: json("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("vendor_service_event_idx").on(t.connectionId, t.createdAt)]);
+
+export const opportunityRecommendations = pgTable("opportunity_recommendations", {
+  id: serial("id").primaryKey(),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  score: integer("score").notNull(),
+  reasons: json("reasons").$type<string[]>().notNull(),
+  state: recommendationStateEnum("state").notNull().default("suggested"),
+  opportunityId: integer("opportunity_id").references(() => opportunities.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("opportunity_recommendation_rep_product_unique").on(t.repId, t.productId), index("opportunity_recommendation_score_idx").on(t.repId, t.state, t.score)]);
+
+export const studentReferrals = pgTable("student_referrals", {
+  id: serial("id").primaryKey(),
+  leadRepId: integer("lead_rep_id").notNull().references(() => reps.id),
+  campusId: integer("campus_id").notNull().references(() => campuses.id),
+  candidateName: varchar("candidate_name", { length: 160 }).notNull(),
+  strengths: varchar("strengths", { length: 300 }).notNull(),
+  note: varchar("note", { length: 500 }),
+  consentConfirmed: boolean("consent_confirmed").notNull().default(false),
+  state: studentReferralStateEnum("state").notNull().default("suggested"),
+  recruitmentId: integer("recruitment_id").references(() => campusRecruitments.id),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  convertedAt: timestamp("converted_at", { withTimezone: true }),
+}, (t) => [index("student_referral_lead_state_idx").on(t.leadRepId, t.state, t.createdAt)]);
+
+export const recruitmentEvents = pgTable("recruitment_events", {
+  id: serial("id").primaryKey(),
+  recruitmentId: integer("recruitment_id").notNull().references(() => campusRecruitments.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  action: varchar("action", { length: 60 }).notNull(),
+  fromStatus: recruitmentStatusEnum("from_status"),
+  toStatus: recruitmentStatusEnum("to_status"),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("recruitment_event_idx").on(t.recruitmentId, t.createdAt)]);
 
 export type User = typeof users.$inferSelect;
 export type Rep = typeof reps.$inferSelect;

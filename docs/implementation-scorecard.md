@@ -1,7 +1,49 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-28
-Scope: executable Phase 11 campus-cohort, KPI-evidence and national rollout-validation controls, with the Phase 10 through Phase 1 assessments retained below. This is not a real campus result, national-launch certification, production certification, legal-compliance opinion, live-provider connection or completion of the target architecture.
+Scope: executable Phase 12 case-management, CRM, sales-training, campaign, vendor-service and growth controls, with the Phase 11 through Phase 1 assessments retained below. This is not external-channel delivery, live vendor integration, a real campus result, production certification, legal-compliance opinion or completion of the target architecture.
+
+## Phase 12 assessment
+
+The unweighted mean across 16 workstreams is **91/100** (exact mean **91.4375**, improved from **90.4375** in Phase 11). Phase 12 adds ten case-management innovations, ten CRM innovations, durable internal sales training, independently reviewed in-app campaigns, secret-free vendor-service sandbox controls, a verified-outcome leaderboard, explainable targeting and consent-led student recommendations. Financial outcomes remain exclusive to vendor-verified activation workflows. See the [case/CRM robustness assessment](sales-case-crm-robustness.md).
+
+| Workstream | Score | Verified implementation | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 96 | Exact dry runs, activation caps, typed publication, row-locked supersession and concurrency acceptance | Product onboarding, vendor team permissions and live commercial controls |
+| Vendor funnel, CRM & command | 94 | Rep-owned pipeline, activities, tasks, stall detection, drafts, segments, forecasts and verified-outcome loops | Real external delivery, production vendor adapters and advanced team/forecast controls |
+| Campus recruiting & team management | 95 | Existing recruiting plus consent-confirmed student referrals, invitations, follow-up schedules and event history | Live identity, real consent/campus outcomes and production onboarding policy |
+| Top-decile lead designation | 92 | Campus ranking, signed-contractor gates, recalculation and row-locked demotion with history preservation | Real cohorts, four-eyes review and configurable eligibility windows |
+| Campus Lead override accounting | 96 | Platform-funded 5% accrual, combined settlement, reversal/netting and append-only postings | Live formal reconciliation and privileged-role review |
+| Case management & escalation | 96 | Optimistic ownership, response clocks, public/internal notes, snooze/wake, reopen, links, watchers, views and guidance | Attachments, external alerts, broader collision tests and production queue analytics |
+| SLA, macros & CSAT quality | 96 | First-response/resolution targets, durable breach processing, approved macros, one-time CSAT and fresh reopen targets | External alert delivery and configurable pause/clock policy |
+| Attribution & assisted onboarding | 91 | Signed links/QR, first-touch preservation, salted hashes and consent-led vendor handoff | Device-lab evidence, token-verification hardening and deep-link telemetry |
+| Event ingestion & historical rules | 97 | Signed provider callbacks, sanitized metadata, dedupe, quarantine and immutable historical economics | Live provider capacity, distributed queueing and broader fraud signals |
+| Escrow, payout & clawbacks | 98 | Exact provider/reference/net-kobo verification and byte-equivalent financial preservation across sales workflows | Real callbacks, authenticated bank evidence and production tax policy |
+| Security, privacy & RBAC | 98 | Campaign four-eyes review, secret-free integrations, phone-hash-free case/CRM payloads and fail-closed live controls | Production identity/secrets/edge controls, legal review and penetration test |
+| Offline & installable shell | 90 | Read-only offline catalog/earnings, disabled mutations, private cleanup and route-level loading | Device-lab, install analytics and broader read-only coverage |
+| Fifteen-campus rollout & KPI telemetry | 88 | External/system separation, independent review, calendar coverage, thresholds and supersession | Real campus outcomes and external national rollout decision |
+| Automated verification | 99 | PostgreSQL 16 CI, 66 unit tests, eleven database journeys, isolated restore and Phase 9–12 production-browser acceptance | Cross-browser, staging and broader concurrency/property-test evidence |
+| Target architecture & scale services | 58 | PostgreSQL 16, row locks, durable jobs/retries, atomic counters and local load gate | NestJS parity, Redis/BullMQ and later distributed services |
+| Live providers & production operations | 79 | Guarded financial adapters and secret-free vendor-service sandbox configuration/test/sync | Live credentials/connectivity, external delivery, real bank evidence and production approvals |
+
+### Phase 12 verification evidence
+
+- Additive migration `0010` introduces case collaboration, opportunities, training, campaigns, vendor services, recommendations and student referrals without dropping financial records.
+- Case acceptance proves stale ownership rejection, public/internal visibility, snooze/wake, reopen history, non-destructive links, watchers, saved views and record-derived workload guidance.
+- CRM acceptance proves activity/task persistence, human-approved drafts, share attestation without sending, unverified-won rejection and verified-deal closure. Customer phone hashes are excluded from query payloads.
+- Training records attempts and completion without exposing correct-answer indexes. Campaign creators cannot self-review; concurrent conversion evidence uses an atomic enrollment claim.
+- Vendor-service tests and synchronization remain local and credential-free. Student referral conversion locks the referral inside the invitation transaction. Leaderboard rank and recommendations create no commission entitlement.
+- Deals and ledger entries remain byte-equivalent before/after the Phase 12 journey. No live provider request occurs and `productionReady` remains false.
+- All 66 unit tests, TypeScript, ESLint, ordered Phase 2–12 database journeys and Phase 9–12 production-browser checks pass. Cases, campaigns, CRM, training and growth measure exactly 375px document width at a 375px viewport with zero browser runtime errors.
+- The standalone production bundle starts without external `node_modules`. An isolated custom-format PostgreSQL restore includes all eleven migrations with matching counts and no source modification.
+
+### Remaining sales, production and architecture gates
+
+1. Add reviewed attachment/object-storage workflows, external notification channels and production-scale support analytics before calling case management production-complete.
+2. Connect real vendor-service credentials and verified production adapters only after separate authorization; sandbox configuration and local-count sync are not external integrations in operation.
+3. Add external campaign/channel delivery only with consent, deliverability, suppression and audit controls. Current campaign sends are in-app notifications only.
+4. Broaden concurrency and property tests, including recommendation acceptance, cross-browser/staging evidence and production analytics.
+5. Preserve the remaining real-campus, live-provider, legal/security, production-operations and NestJS/Redis architecture gates from earlier phases.
 
 ## Phase 11 assessment
 

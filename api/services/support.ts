@@ -4,6 +4,7 @@ import {
   attributionRecords,
   auditLogs,
   campusLeadAssignments,
+  caseWatchers,
   deals,
   products,
   reps,
@@ -93,7 +94,9 @@ export async function createSupportTicket(input: {
     priority: input.priority,
     state: "rep_triage",
     slaDueAt,
+    firstResponseDueAt: new Date(Date.now() + (input.priority === "urgent" ? 4 : 8) * 3_600_000),
   }).returning({ id: supportTickets.id });
+  await db.insert(caseWatchers).values({ ticketId: id, userId: input.actorUserId }).onConflictDoNothing();
   await db.insert(supportTicketEvents).values({ ticketId: id, actorUserId: input.actorUserId, actorRole: "rep", action: "ticket_created", toState: "rep_triage", note: input.description, evidenceJson: { productId, dealId: input.dealId || null, customer: "[salted-hash]" } });
   await db.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "support.ticket_created", entityType: "support_ticket", entityId: String(id), metadataJson: { ticketRef, vendorId, productId, dealId: input.dealId || null } });
   const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.id, id)).limit(1);
