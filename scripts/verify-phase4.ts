@@ -1,5 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
+import { randomInt } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import {
   deals,
@@ -28,10 +29,10 @@ import {
 import { completeSyntheticIdentityWorkflow } from "../api/services/identityFixtures";
 
 const db = getDb();
-const uniquePhone = () => `+2348${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-9)}`;
+const uniquePhone = () => `+2348${String(randomInt(1_000_000_000)).padStart(9, "0")}`;
 
 async function createActiveRep(label: string) {
-  const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(-10);
+  const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 10);
   const [campus] = await db.select().from(reps).where(eq(reps.code, "KF-UNILAG-0002")).limit(1);
   const [{ id: userId }] = await db.insert(users).values({
     phoneE164: uniquePhone(),

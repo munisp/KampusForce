@@ -45,6 +45,7 @@ jobs:
       - run: npm ci
       - run: python3 -m pip install -r data_platform/requirements.txt
       - run: python3 data_platform/acceptance.py --output /tmp/kampusforce-data-platform-acceptance
+      - run: python3 -m unittest discover -s identity_platform -p "test_*.py" -v
       - run: npm run check
       - run: npm run lint
       - run: npm test

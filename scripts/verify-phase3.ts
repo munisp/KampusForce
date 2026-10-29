@@ -1,5 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
+import { randomInt } from "node:crypto";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   auditLogs,
@@ -35,7 +36,7 @@ import { campusTelemetry } from "../api/services/telemetry";
 import { completeSyntheticIdentityWorkflow } from "../api/services/identityFixtures";
 
 const db = getDb();
-const uniquePhone = () => `+2348${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-9)}`;
+const uniquePhone = () => `+2348${String(randomInt(1_000_000_000)).padStart(9, "0")}`;
 
 async function makeDeal(repId: number, phone: string) {
   const [product] = await db.select().from(products).where(eq(products.vendorRef, "savings-01")).limit(1);

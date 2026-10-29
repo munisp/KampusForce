@@ -1,6 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   activationRiskCases,
@@ -56,7 +56,7 @@ import { ingestVendorEvent } from "../api/services/events";
 
 const db = getDb();
 const suffix = crypto.randomUUID().replaceAll("-", "");
-const uniquePhone = () => `+23494${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-8)}`;
+const uniquePhone = () => `+23494${String(randomInt(100_000_000)).padStart(8, "0")}`;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const future = (days: number) => new Date(Date.now() + days * 86_400_000);
 const rawReferences: string[] = [];

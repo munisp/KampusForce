@@ -87,7 +87,7 @@ The external worker uses restrictive temporary files, timeout/output bounds and 
 5. Withdrawal purges the analysis. Document deletion, applicant consent withdrawal and retention enforcement follow their existing purge paths.
 6. Finance cannot access applicant contacts, documents or analysis mutation forms.
 
-Local acceptance used a structurally valid synthetic PDF and real platform object storage. Real PaddleOCR, Docling and VLM execution for this ATS workflow did not occur. Earlier identity-platform OCR results must not be relabelled as Phase 19 ATS execution evidence.
+Local ATS acceptance used a structurally valid synthetic PDF and real platform object storage. The subsequent toolchain audit separately executed real PaddleOCR 3.7.0 and Docling 2.144.0 against a synthetic education image; both recognized the expected terms, and Docling used reviewed official model artifacts offline after the primary model host timed out. Seven document-worker contract tests also passed. A configured VLM endpoint was not available, so the complete PaddleOCR/Docling/VLM ATS workflow has not executed and no production extraction-quality claim is made.
 
 ## 3. CompanyA-style vendor connectors
 
@@ -157,11 +157,12 @@ Latest local evidence:
 - Fourteen Phase 19 browser mutations and eighteen desktop/mobile checks passed with zero runtime errors, HTTP errors, external requests or page overflow.
 - Phase 18 service and browser regressions passed, including eleven ATS inspectors and 32 browser checks.
 - TypeScript, ESLint, 25 test files/128 tests, production build, bundled entry and health/PWA smoke passed.
+- The extended audit passed all Phase 2–19 service journeys on isolated PostgreSQL 16, the Delta/Ray control suite, seven Python document-worker tests, Go native tests/race/vet, Rust Cargo tests/checks, and standalone real PaddleOCR/Docling synthetic-image smokes. No first-party Go or Rust module exists; those were toolchain conformance checks only.
 - Browser verification found and corrected a partner-state control mismatch and an asynchronous document-form reference defect before the final green run.
 
 ## Remaining production gates
 
-1. Execute and evaluate the real ATS PaddleOCR/Docling/VLM worker with reviewed documents, malicious-input tests, model/version evidence, accuracy evaluation and production retention/monitoring.
+1. Execute and evaluate the complete ATS PaddleOCR/Docling/VLM worker with a configured VLM, reviewed documents, malicious-input tests, model/version evidence, accuracy evaluation and production retention/monitoring. Standalone OCR/Docling smokes do not satisfy this gate.
 2. Obtain real institutional governance and outcome evidence; synthetic approvals never certify a government, university, NGO or international programme.
 3. Integrate live vendor connector APIs with production credential management, signed callback reconciliation, capacity/failure testing and explicit account-provisioning authorization.
 4. Complete staging, cross-browser, accessibility, failure/HA, scheduler and production-scale verification.

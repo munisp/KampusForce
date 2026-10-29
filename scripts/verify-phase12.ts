@@ -1,5 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
+import { randomInt } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   campusRecruitments,
@@ -31,7 +32,7 @@ import { randomReference } from "../api/services/security";
 
 const db = getDb();
 const suffix = crypto.randomUUID().replaceAll("-", "");
-const uniquePhone = () => `+23495${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-8)}`;
+const uniquePhone = () => `+23495${String(randomInt(100_000_000)).padStart(8, "0")}`;
 
 async function main() {
   const [lead] = await db.select().from(reps).where(eq(reps.code, "KF-UNILAG-0001")).limit(1);

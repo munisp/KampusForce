@@ -1,5 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
+import { randomInt } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../api/queries/connection";
 import {
@@ -40,7 +41,7 @@ import {
 import { monitorOperationalSignals } from "../api/services/incidents";
 
 const db = getDb();
-const uniquePhone = () => `+2348${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-9)}`;
+const uniquePhone = () => `+2348${String(randomInt(1_000_000_000)).padStart(9, "0")}`;
 
 async function financialSnapshot() {
   const [dealRows, ledgerRows, payoutRows, attemptRows, reconciliationRows, walletRows, overrideRows] = await Promise.all([

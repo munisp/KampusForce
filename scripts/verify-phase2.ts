@@ -1,5 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
+import { randomInt } from "node:crypto";
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import {
   campusLeadAssignments,
@@ -32,7 +33,7 @@ import {
 } from "../api/services/support";
 
 const db = getDb();
-const uniquePhone = () => `+2348${String(Date.now() + Math.floor(Math.random() * 1000)).slice(-9)}`;
+const uniquePhone = () => `+2348${String(randomInt(1_000_000_000)).padStart(9, "0")}`;
 const eventPayload = (phone: string) => ({
   event_id: crypto.randomUUID(),
   type: "funded" as const,

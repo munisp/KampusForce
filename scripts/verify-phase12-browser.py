@@ -99,7 +99,7 @@ with sync_playwright() as playwright:
         rep.get_by_role("button", name="Create opportunity").click()
         opportunity_panel = rep.locator(".pipeline-grid > div").get_by_text(alias, exact=True)
         opportunity_panel.wait_for(timeout=30_000)
-        rep.get_by_label("Relationship context").fill("Explained the real activation terms and agreed to review suitability before any customer action.")
+        rep.get_by_role("textbox", name="Relationship context", exact=True).fill("Explained the real activation terms and agreed to review suitability before any customer action.")
         rep.get_by_role("button", name="Record activity").click()
         rep.get_by_text("Explained the real activation terms", exact=False).wait_for(timeout=30_000)
         rep.get_by_label("Task", exact=True).fill("Review customer suitability")
