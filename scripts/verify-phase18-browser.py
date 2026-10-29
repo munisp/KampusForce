@@ -17,8 +17,8 @@ TITLE = f"Browser Phase 18 campus hiring {STAMP}"
 APPLICANT = f"Browser Geology Student {STAMP}"
 EMAIL = f"browser-geology-{STAMP}@example.test"
 FEATURES = [
-    "Portfolio & analytics", "Campaign studio", "Application desk", "Selection pipeline",
-    "CV & course documents", "Assessments", "Interviews", "Offers & acceptance",
+    "Portfolio & analytics", "Campaign studio", "Institutional governance", "Application desk", "Selection pipeline",
+    "Documents & intelligence", "Assessments", "Interviews", "Offers & acceptance",
     "Verified outcomes", "Import, export & retention",
 ]
 REPORT = {
@@ -175,7 +175,7 @@ with sync_playwright() as playwright:
         login(lead, "Campus Lead")
         open_ats(lead)
         lead.locator(".innovation-feature-nav > button").first.wait_for(timeout=15_000)
-        assert lead.locator(".innovation-feature-nav > button").count() == 10
+        assert lead.locator(".innovation-feature-nav > button").count() == 11
         select_feature(lead, "Campaign studio")
         assert lead.locator("form").filter(has_text="Create an external campus opportunity").count() == 0
         select_feature(lead, "Selection pipeline")
@@ -204,7 +204,7 @@ assert not errors, "\n".join(errors)
 assert not external_requests, "\n".join(external_requests)
 REPORT.update({
     "status": "passed",
-    "atsInspectors": 10,
+    "atsInspectors": 11,
     "desktopAndMobileFeatureChecks": len(checks),
     "browserMutations": [
         "vendor campaign draft and submission",

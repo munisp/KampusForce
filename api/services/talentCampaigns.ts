@@ -4,7 +4,10 @@ import {
   applicants,
   auditLogs,
   campuses,
+  institutionalCampaignGovernance,
+  institutionalCampaignPartners,
   talentApplicationDocuments,
+  talentDocumentAnalyses,
   talentApplicationEvents,
   talentApplications,
   talentAssessments,
@@ -34,6 +37,7 @@ import {
   type TalentCampaignType,
 } from "./talentAccess";
 import { talentCsvCell, talentTargetProblem } from "./talentPolicy";
+import { assertInstitutionalApplicantEligibility, assertInstitutionalCampaignSubmittable } from "./institutionalCampaigns";
 
 export type ApplicantProfileInput = {
   campusId: number;
@@ -107,6 +111,11 @@ export async function listTalentWorkspace(actor: SalesActor) {
     db.select({ id: campuses.id, name: campuses.name }).from(campuses).orderBy(campuses.name),
     actor.role !== "rep" ? db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(inArray(users.role, ["ops", "admin", "vendor"])).orderBy(users.name).limit(100) : [],
   ]);
+  const [institutionalGovernance, institutionalPartners, documentAnalyses] = await Promise.all([
+    campaignIds.length ? db.select().from(institutionalCampaignGovernance).where(inArray(institutionalCampaignGovernance.campaignId, campaignIds)) : [],
+    campaignIds.length ? db.select().from(institutionalCampaignPartners).where(inArray(institutionalCampaignPartners.campaignId, campaignIds)) : [],
+    applicationIds.length && actor.role !== "finance" ? db.select().from(talentDocumentAnalyses).where(inArray(talentDocumentAnalyses.applicationId, applicationIds)).orderBy(desc(talentDocumentAnalyses.createdAt)) : [],
+  ]);
   const visibleOutcomes = actor.role === "finance" ? outcomes.filter((outcome) => applicationIds.includes(outcome.applicationId)) : outcomes;
   const metrics = {
     campaigns: campaignRows.length,
@@ -132,6 +141,9 @@ export async function listTalentWorkspace(actor: SalesActor) {
     receipts,
     campuses: actor.role === "rep" ? campusRows.filter((campus) => campus.id === actor.campusId) : campusRows,
     interviewers: interviewerRows,
+    institutionalGovernance,
+    institutionalPartners,
+    documentAnalyses,
     catalog: talentCampaignCatalog,
     metrics,
     capabilities: { manage: ["vendor", "ops", "admin"].includes(actor.role), review: ["ops", "admin"].includes(actor.role), apply: actor.role !== "finance", documents: actor.role !== "finance", readOnly: actor.role === "finance" },
@@ -161,6 +173,7 @@ export async function submitTalentCampaign(input: { actor: SalesActor; campaignI
   assertCampaignManager(input.actor);
   const campaign = await accessibleTalentCampaign(input.actor, input.campaignId);
   if (!["draft", "rejected"].includes(campaign.state)) throw new TRPCError({ code: "CONFLICT", message: "Only a draft or rejected campaign can be submitted" });
+  await assertInstitutionalCampaignSubmittable(campaign.id);
   const [updated] = await getDb().update(talentCampaigns).set({ state: "pending_review", reviewedByUserId: null, reviewedAt: null, reviewNote: null, version: campaign.version + 1, updatedAt: new Date() }).where(and(eq(talentCampaigns.id, campaign.id), eq(talentCampaigns.version, input.expectedVersion))).returning();
   if (!updated) throw new TRPCError({ code: "CONFLICT", message: "Campaign changed elsewhere; refresh before submitting" });
   return { campaignId: campaign.id, state: updated.state, version: updated.version };
@@ -231,6 +244,10 @@ export async function applyToTalentCampaign(input: { actor: SalesActor; campaign
   const [target] = await db.select().from(talentCampaignTargets).where(and(eq(talentCampaignTargets.campaignId, campaign.id), eq(talentCampaignTargets.campusId, campusId))).limit(1);
   if (!target) throw new TRPCError({ code: "BAD_REQUEST", message: "This campaign does not target the applicant's campus" });
   if (campaign.eligibleCourses.length && !campaign.eligibleCourses.some((eligible) => eligible.toLowerCase() === course.toLowerCase())) throw new TRPCError({ code: "BAD_REQUEST", message: `This campaign accepts only: ${campaign.eligibleCourses.join(", ")}` });
+  await assertInstitutionalApplicantEligibility(campaign.id, {
+    studyLevel: applicant?.studyLevel || input.profile!.studyLevel,
+    graduationYear: applicant?.graduationYear || input.profile!.graduationYear,
+  });
   const applicationRef = talentRef("KF-APP").toUpperCase();
   return db.transaction(async (tx) => {
     if (!applicant) {
@@ -310,7 +327,9 @@ export async function withdrawTalentConsent(input: { actor: SalesActor; applican
       await tx.update(talentApplications).set({ currentStage: "withdrawn", version: application.version + 1, decisionReason: "Applicant consent withdrawn", updatedAt: now }).where(eq(talentApplications.id, application.id));
       await appendTalentEvent(application.id, input.actor.userId, "consent_withdrawn", "Open application withdrawn after consent withdrawal", application.currentStage, "withdrawn", { financialStateChanged: false }, tx);
     }
-    return { applicantId: applicant.id, withdrawnApplications: open.length, consentWithdrawnAt: now };
+    const allApplications = await tx.select({ id: talentApplications.id }).from(talentApplications).where(eq(talentApplications.applicantId, applicant.id));
+    const analyses = allApplications.length ? await tx.update(talentDocumentAnalyses).set({ state: "withdrawn", extractedFieldsJson: {}, providersJson: [], providerVersionsJson: {}, qualityFlagsJson: ["consent_withdrawn"], confidenceBps: null, withdrawnAt: now, purgedAt: now, updatedAt: now }).where(and(inArray(talentDocumentAnalyses.applicationId, allApplications.map((row) => row.id)), isNull(talentDocumentAnalyses.purgedAt))).returning({ id: talentDocumentAnalyses.id }) : [];
+    return { applicantId: applicant.id, withdrawnApplications: open.length, purgedAnalyses: analyses.length, consentWithdrawnAt: now };
   });
 }
 
@@ -326,6 +345,7 @@ export async function enforceTalentRetention(input: { actor: SalesActor; applica
   const now = new Date();
   await db.transaction(async (tx) => {
     if (documents.length) await tx.update(talentApplicationDocuments).set({ purgedAt: now }).where(inArray(talentApplicationDocuments.id, documents.map((document) => document.id)));
+    if (applicationRows.length) await tx.update(talentDocumentAnalyses).set({ state: "purged", extractedFieldsJson: {}, providersJson: [], providerVersionsJson: {}, qualityFlagsJson: ["retention_expired"], confidenceBps: null, purgedAt: now, updatedAt: now }).where(and(inArray(talentDocumentAnalyses.applicationId, applicationRows.map((row) => row.id)), isNull(talentDocumentAnalyses.purgedAt)));
     await tx.update(applicants).set({ fullName: `Redacted applicant ${applicant.id}`, email: `expired-${applicant.id}@redacted.invalid`, normalizedEmail: `expired-${applicant.id}@redacted.invalid`, phoneE164: null, anonymizedAt: now, updatedAt: now }).where(eq(applicants.id, applicant.id));
     for (const application of applicationRows) await appendTalentEvent(application.id, input.actor.userId, "retention_enforced", "Applicant contact details anonymized and stored documents purged after retention expiry", application.currentStage, application.currentStage, { purgedDocuments: documents.length, financialStateChanged: false }, tx);
   });

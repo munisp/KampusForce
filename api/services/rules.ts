@@ -27,6 +27,7 @@ export async function publishRuleDraft(actorUserId: number, vendorId: number, dr
       flatAmountKobo: draft.flatAmountKobo,
       triggerEvent: draft.triggerEvent,
       recurrenceMonths: draft.recurrenceMonths,
+      recurrenceIntervalMonths: draft.recurrenceIntervalMonths,
       confirmDays: draft.confirmDays,
       clawbackDays: draft.clawbackDays,
       activationCapPerRepDay: draft.activationCapPerRepDay,

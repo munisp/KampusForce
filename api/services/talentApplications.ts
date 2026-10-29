@@ -27,6 +27,7 @@ import {
 } from "./talentAccess";
 import type { SalesActor } from "./salesAccess";
 import { assessmentResponsesComplete, directParticipantAcceptanceAllowed, signedOfferResponseProblem } from "./talentPolicy";
+import { purgeTalentDocumentAnalysis } from "./talentDocumentIntelligence";
 
 function assertSelectionManager(actor: SalesActor) {
   assertTalentWritable(actor);
@@ -104,6 +105,7 @@ export async function deleteTalentDocument(input: { actor: SalesActor; documentI
   if (!["ops", "admin", "vendor"].includes(input.actor.role) && document.uploadedByUserId !== input.actor.userId) throw new TRPCError({ code: "FORBIDDEN", message: "Only the uploader, vendor or Operations can remove this document" });
   await storage.deleteFile({ fileKey: document.objectKey });
   await db.update(talentApplicationDocuments).set({ deletedAt: new Date(), deletedByUserId: input.actor.userId }).where(eq(talentApplicationDocuments.id, document.id));
+  await purgeTalentDocumentAnalysis(document.id, input.actor.userId, "document_deleted");
   await appendTalentEvent(document.applicationId, input.actor.userId, "document_deleted", `${document.fileName} removed from object storage`, null, null, { documentId: document.id, financialStateChanged: false });
   return { documentId: document.id, deleted: true };
 }

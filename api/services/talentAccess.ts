@@ -11,7 +11,10 @@ import {
 import { getDb } from "../queries/connection";
 import { actorRepIds, type SalesActor } from "./salesAccess";
 
-export const talentCampaignTypes = ["recruitment", "internship", "scholarship", "fellowship", "campus_event", "research", "training", "waitlist"] as const;
+export const talentCampaignTypes = [
+  "recruitment", "internship", "scholarship", "fellowship", "campus_event", "research", "training", "waitlist",
+  "grant", "bursary", "public_service", "volunteer", "development_program", "public_health", "innovation_challenge", "emergency_response", "civic_program",
+] as const;
 export type TalentCampaignType = typeof talentCampaignTypes[number];
 export type TalentStage = "submitted" | "screening" | "assessment" | "interview" | "offer" | "accepted" | "completed" | "rejected" | "withdrawn";
 
@@ -24,7 +27,20 @@ export const talentCampaignCatalog: { type: TalentCampaignType; label: string; o
   { type: "research", label: "Research participation", outcome: "research_completion", journey: "Consented response → screening → verified research completion" },
   { type: "training", label: "External student training cohort", outcome: "learning_completion", journey: "Registration → cohort selection → verified learning completion" },
   { type: "waitlist", label: "Product waitlist or early access", outcome: "early_access", journey: "Consented interest → invitation → independently verified access" },
+  { type: "grant", label: "Institutional grant", outcome: "grant_awarded", journey: "Eligibility → institutional review → independently verified grant award" },
+  { type: "bursary", label: "Bursary or financial aid", outcome: "bursary_awarded", journey: "Eligibility → funding review → independently verified bursary award" },
+  { type: "public_service", label: "Public-service placement", outcome: "service_placement", journey: "Application → selection → independently verified public-service placement" },
+  { type: "volunteer", label: "Volunteer programme", outcome: "volunteer_completion", journey: "Consented registration → safeguarding review → verified volunteer completion" },
+  { type: "development_program", label: "International development programme", outcome: "development_completion", journey: "Eligibility → cohort selection → verified development completion" },
+  { type: "public_health", label: "Public-health outreach", outcome: "outreach_completion", journey: "Registration → approved training → independently verified outreach" },
+  { type: "innovation_challenge", label: "Innovation challenge", outcome: "challenge_completion", journey: "Application → assessment → selection → verified challenge completion" },
+  { type: "emergency_response", label: "Emergency-response programme", outcome: "response_completion", journey: "Consented registration → safeguarding clearance → verified response participation" },
+  { type: "civic_program", label: "Civic or community programme", outcome: "civic_completion", journey: "Consented registration → cohort clearance → verified civic participation" },
 ];
+
+export function isInstitutionalCampaign(campaignType: string) {
+  return ["grant", "bursary", "public_service", "volunteer", "development_program", "public_health", "innovation_challenge", "emergency_response", "civic_program"].includes(campaignType);
+}
 
 export const talentRef = (prefix: string) => `${prefix}-${randomUUID()}`;
 export const talentHash = (value: unknown) => createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex");
@@ -74,7 +90,7 @@ export async function appendTalentEvent(applicationId: number, actorUserId: numb
 }
 
 export function campaignSupportsSelection(campaignType: string) {
-  return ["recruitment", "internship", "scholarship", "fellowship"].includes(campaignType);
+  return ["recruitment", "internship", "scholarship", "fellowship", "grant", "bursary", "public_service", "development_program", "innovation_challenge"].includes(campaignType);
 }
 
 export function campaignOutcomeType(campaignType: string) {

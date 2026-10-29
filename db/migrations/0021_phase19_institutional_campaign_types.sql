@@ -1,0 +1,2 @@
+ALTER TABLE "talent_campaigns" DROP CONSTRAINT "talent_campaign_type_check";--> statement-breakpoint
+ALTER TABLE "talent_campaigns" ADD CONSTRAINT "talent_campaign_type_check" CHECK ("campaign_type" IN ('recruitment','internship','scholarship','fellowship','campus_event','research','training','waitlist','grant','bursary','public_service','volunteer','development_program','public_health','innovation_challenge','emergency_response','civic_program'));

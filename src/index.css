@@ -1206,3 +1206,38 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .talent-pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .talent-pipeline strong { font-size: 17px; }
 }
+
+/* Phase 19: institutional evidence, connector funnels and renewal schedules */
+.institutional-governance, .document-intelligence, .connector-workspace, .recurrence-workspace { min-width: 0; }
+.institutional-governance > .innovation-context { margin-bottom: 16px; }
+.institutional-governance > .innovation-record { margin-top: 18px; border-top: 1px solid var(--navy); }
+.document-intelligence { margin-top: 24px; border-top: 1px solid var(--navy); padding-top: 18px; }
+.document-intelligence .sandbox-banner { margin-bottom: 16px; }
+.document-intelligence h3, .connector-workspace h3 { display: flex; align-items: center; gap: 7px; }
+.analysis-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin: 4px 0; }
+.analysis-fields > div { min-width: 0; border-left: 1px solid var(--line); padding-left: 9px; }
+.analysis-fields dt { color: var(--muted); font: 8px "IBM Plex Mono", monospace; letter-spacing: .04em; text-transform: uppercase; }
+.analysis-fields dd { margin: 4px 0 0; font-size: 10px; line-height: 1.55; overflow-wrap: anywhere; }
+.connector-workspace > .innovation-context { margin-block: 18px; }
+.connector-workspace > .innovation-record { border-top: 1px solid var(--navy); padding-top: 16px; }
+.connector-funnel { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-block: 18px; border-block: 1px solid var(--line); }
+.connector-funnel > div { min-width: 0; border-right: 1px solid var(--line); padding: 13px 10px; }
+.connector-funnel > div:last-child { border-right: 0; }
+.connector-funnel span, .connector-funnel small { display: block; color: var(--muted); font-size: 8px; line-height: 1.45; }
+.connector-funnel strong { display: block; margin-block: 5px; font: 700 18px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.recurrence-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-block: 20px; background: var(--line); border: 1px solid var(--line); }
+.recurrence-controls > div { display: flex; align-items: flex-start; gap: 10px; background: var(--surface); padding: 15px; }
+.recurrence-controls svg { flex: 0 0 auto; color: var(--teal); }
+.recurrence-controls p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.recurrence-controls strong { display: block; margin-bottom: 4px; color: var(--navy); }
+.section-heading { margin: 24px 0 10px; font-size: 14px; }
+@media (max-width: 1050px) {
+  .connector-funnel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .connector-funnel > div { border-bottom: 1px solid var(--line); }
+  .recurrence-controls { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .analysis-fields { grid-template-columns: 1fr; }
+  .connector-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .connector-funnel strong { font-size: 16px; }
+}

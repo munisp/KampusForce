@@ -141,6 +141,20 @@
       "when": 1793284474239,
       "tag": "0019_phase18_talent_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793293979030,
+      "tag": "0020_phase19_institutional_connectors_recurrence",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793298211219,
+      "tag": "0021_phase19_institutional_campaign_types",
+      "breakpoints": true
     }
   ]
 }

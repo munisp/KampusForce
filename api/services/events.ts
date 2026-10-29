@@ -8,6 +8,7 @@ import { hashCustomerRef, hashPhone } from "./security";
 import { redactVendorEventPayload, VENDOR_PAYLOAD_RETENTION_MS } from "./ingestionPolicy";
 import { promotionCapacityForNewDeal, resolvePromotionLink, resolvePromotionLinkById } from "./promotions";
 import { enqueuePromotionEvent } from "./promotionSignals";
+import { recordVerifiedRenewalRecurrence, renewalAdmissionProblem, renewalScheduleForCustomer } from "./recurrence";
 
 export type VendorEventInput = {
   event_id: string;
@@ -100,10 +101,22 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
       return { status: "quarantined" as const, kf_event_id: eventId, reason: "No active attribution" };
     }
     const trigger = (payload.type === "account_created" ? "signup" : payload.type) as typeof commissionRules.$inferInsert.triggerEvent;
-    const [rule] = await tx.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
+    const recurrenceSchedule = payload.type === "renewal" ? await renewalScheduleForCustomer(tx, { vendorId: vendor.id, productId: product.id, customerPhoneHash: phoneHash }) : null;
+    if (recurrenceSchedule && recurrenceSchedule.repId !== attribution.repId) {
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "Recurrence attribution does not match the original first-touch representative" });
+      return { status: "quarantined" as const, kf_event_id: eventId, reason: "Recurrence first-touch attribution mismatch" };
+    }
+    const [rule] = recurrenceSchedule
+      ? await tx.select().from(commissionRules).where(eq(commissionRules.id, recurrenceSchedule.commissionRuleId)).limit(1)
+      : await tx.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
     if (!rule) {
       await tx.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: "Event does not trigger the active commission rule" });
       return { status: "ignored" as const, kf_event_id: eventId };
+    }
+    const recurrenceProblem = payload.type === "renewal" ? renewalAdmissionProblem(recurrenceSchedule, new Date()) : null;
+    if (recurrenceProblem) {
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: recurrenceProblem });
+      return { status: "ignored" as const, kf_event_id: eventId, reason: recurrenceProblem, dealCreated: false };
     }
     let commission: ReturnType<typeof splitCommission>;
     try {
@@ -159,7 +172,20 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
       ...commission,
       confirmAt: new Date(Date.now() + rule.confirmDays * 86_400_000),
     }).returning({ id: deals.id });
+    await tx.update(vendorEvents).set({ dealId }).where(eq(vendorEvents.id, eventId));
     await tx.insert(dealStateHistory).values({ dealId, fromState: null, toState: "pending", actor: `vendor:${vendor.id}`, reason: `Verified ${payload.type} event accepted` });
+    if (payload.type === "renewal") await recordVerifiedRenewalRecurrence(tx, {
+      dealId,
+      vendorId: vendor.id,
+      productId: product.id,
+      repId: attribution.repId,
+      commissionRuleId: rule.id,
+      customerPhoneHash: phoneHash,
+      customerRefHash,
+      vendorEventId: eventId,
+      promotionLinkId: promotionLink?.link.id || null,
+      scheduleId: recurrenceSchedule?.id || null,
+    });
     if (promotionLink && attribution.promotionId === promotionLink.promotion.id) {
       await tx.update(promotionLinks).set({ lastUsedAt: new Date() }).where(eq(promotionLinks.id, promotionLink.link.id));
     }
