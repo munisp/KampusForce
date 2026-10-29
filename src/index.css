@@ -1175,3 +1175,34 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 @media (prefers-reduced-motion: reduce) {
   .innovation-feature-nav button, .innovation-feature-nav button svg { transition: none; }
 }
+
+
+/* Phase 18: dense opportunity campaign and applicant inspector */
+.talent-workspace { min-width: 0; }
+.talent-contexts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.talent-contexts .innovation-context:only-child { grid-column: 1 / -1; }
+.talent-pipeline { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); border-block: 1px solid var(--line); margin-bottom: 20px; }
+.talent-pipeline > div { min-width: 0; padding: 13px 10px; border-right: 1px solid var(--line); }
+.talent-pipeline > div:last-child { border-right: 0; }
+.talent-pipeline span { display: block; min-height: 28px; color: var(--muted); font-size: 9px; line-height: 1.35; text-transform: capitalize; }
+.talent-pipeline strong { display: block; margin-top: 5px; font-family: "IBM Plex Mono", monospace; font-size: 20px; font-variant-numeric: tabular-nums; }
+.assessment-questions { display: grid; gap: 8px; margin-block: 8px; }
+.assessment-questions p { margin: 0; padding-left: 10px; border-left: 2px solid var(--line); }
+.assessment-questions small { color: var(--mustard); }
+.offer-token { display: grid; gap: 5px; margin-top: 12px; color: var(--muted); font-size: 10px; }
+.offer-token textarea { min-height: 58px; font-family: "IBM Plex Mono", monospace; font-size: 9px; overflow-wrap: anywhere; }
+.talent-import-input { min-height: 190px !important; font-family: "IBM Plex Mono", monospace; font-size: 10px !important; }
+.retention-panel { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+.retention-panel h3 { margin: 0; font-size: 13px; }
+.retention-panel > p { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.retention-panel .innovation-record-actions { justify-content: space-between; border-top: 1px solid var(--line); padding-block: 10px; }
+.retention-panel .innovation-record-actions span { font-size: 10px; }
+@media (max-width: 1050px) {
+  .talent-pipeline { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .talent-pipeline > div { border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 720px) {
+  .talent-contexts { grid-template-columns: 1fr; }
+  .talent-pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .talent-pipeline strong { font-size: 17px; }
+}

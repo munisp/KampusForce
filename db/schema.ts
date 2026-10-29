@@ -2079,3 +2079,200 @@ export const caseAgentSkills = pgTable("case_agent_skills", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("case_agent_skill_unique").on(t.userId, t.skill), index("case_agent_skill_lookup_idx").on(t.skill, t.active, t.level)]);
+
+
+// Phase 18: consented campus opportunity campaigns and applicant tracking.
+// These records are deliberately separate from customer promotions, deals and commissions.
+export const talentCampaigns = pgTable("talent_campaigns", {
+  id: serial("id").primaryKey(),
+  campaignRef: varchar("campaign_ref", { length: 64 }).notNull().unique(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  title: varchar("title", { length: 200 }).notNull(),
+  campaignType: varchar("campaign_type", { length: 40 }).notNull(),
+  summary: text("summary").notNull(),
+  targetCount: integer("target_count").notNull(),
+  eligibleCourses: json("eligible_courses").$type<string[]>().notNull().default([]),
+  state: varchar("state", { length: 30 }).notNull().default("draft"),
+  version: integer("version").notNull().default(1),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("talent_campaign_scope_idx").on(t.vendorId, t.state, t.campaignType), index("talent_campaign_window_idx").on(t.startsAt, t.endsAt)]);
+
+export const talentCampaignTargets = pgTable("talent_campaign_targets", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => talentCampaigns.id),
+  campusId: integer("campus_id").notNull().references(() => campuses.id),
+  targetCount: integer("target_count").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("talent_campaign_campus_unique").on(t.campaignId, t.campusId), index("talent_target_campus_idx").on(t.campusId, t.campaignId)]);
+
+export const applicants = pgTable("applicants", {
+  id: serial("id").primaryKey(),
+  applicantRef: varchar("applicant_ref", { length: 64 }).notNull().unique(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  campusId: integer("campus_id").notNull().references(() => campuses.id),
+  fullName: varchar("full_name", { length: 180 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  normalizedEmail: varchar("normalized_email", { length: 320 }).notNull(),
+  phoneE164: varchar("phone_e164", { length: 20 }),
+  course: varchar("course", { length: 160 }).notNull(),
+  studyLevel: varchar("study_level", { length: 60 }).notNull(),
+  graduationYear: integer("graduation_year").notNull(),
+  consentVersion: varchar("consent_version", { length: 60 }).notNull(),
+  consentPurpose: varchar("consent_purpose", { length: 80 }).notNull().default("campus_opportunity_application"),
+  consentedAt: timestamp("consented_at", { withTimezone: true }).notNull(),
+  consentWithdrawnAt: timestamp("consent_withdrawn_at", { withTimezone: true }),
+  retentionUntil: timestamp("retention_until", { withTimezone: true }).notNull(),
+  anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
+  sourceRepId: integer("source_rep_id").references(() => reps.id),
+  ownerUserId: integer("owner_user_id").references(() => users.id),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("applicant_vendor_email_unique").on(t.vendorId, t.normalizedEmail), index("applicant_scope_idx").on(t.vendorId, t.campusId, t.sourceRepId), index("applicant_retention_idx").on(t.retentionUntil, t.anonymizedAt)]);
+
+export const talentApplications = pgTable("talent_applications", {
+  id: serial("id").primaryKey(),
+  applicationRef: varchar("application_ref", { length: 64 }).notNull().unique(),
+  campaignId: integer("campaign_id").notNull().references(() => talentCampaigns.id),
+  applicantId: integer("applicant_id").notNull().references(() => applicants.id),
+  currentStage: varchar("current_stage", { length: 30 }).notNull().default("submitted"),
+  version: integer("version").notNull().default(1),
+  score: integer("score"),
+  decisionReason: text("decision_reason"),
+  ownerUserId: integer("owner_user_id").references(() => users.id),
+  sourceRepId: integer("source_rep_id").references(() => reps.id),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("talent_application_unique").on(t.campaignId, t.applicantId), index("talent_application_pipeline_idx").on(t.campaignId, t.currentStage, t.updatedAt), index("talent_application_rep_idx").on(t.sourceRepId, t.currentStage)]);
+
+export const talentApplicationEvents = pgTable("talent_application_events", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").notNull().references(() => talentApplications.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  eventType: varchar("event_type", { length: 60 }).notNull(),
+  fromStage: varchar("from_stage", { length: 30 }),
+  toStage: varchar("to_stage", { length: 30 }),
+  note: text("note").notNull(),
+  metadataJson: json("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("talent_application_event_idx").on(t.applicationId, t.createdAt)]);
+
+export const talentApplicationDocuments = pgTable("talent_application_documents", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").notNull().references(() => talentApplications.id),
+  documentType: varchar("document_type", { length: 30 }).notNull(),
+  objectKey: varchar("object_key", { length: 600 }).notNull().unique(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  contentType: varchar("content_type", { length: 160 }).notNull(),
+  size: integer("size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  reviewStatus: varchar("review_status", { length: 40 }).notNull(),
+  uploadedByUserId: integer("uploaded_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedByUserId: integer("deleted_by_user_id").references(() => users.id),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  purgedAt: timestamp("purged_at", { withTimezone: true }),
+}, (t) => [index("talent_document_application_idx").on(t.applicationId, t.createdAt), index("talent_document_retention_idx").on(t.purgedAt, t.deletedAt)]);
+
+export const talentAssessments = pgTable("talent_assessments", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").notNull().references(() => talentApplications.id),
+  kind: varchar("kind", { length: 40 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  questionsJson: json("questions_json").$type<{ id: string; prompt: string; maxScore: number }[]>().notNull(),
+  responsesJson: json("responses_json").$type<Record<string, string>>().notNull().default({}),
+  maxScore: integer("max_score").notNull(),
+  score: integer("score"),
+  state: varchar("state", { length: 30 }).notNull().default("pending"),
+  rubricNote: text("rubric_note"),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  submittedByUserId: integer("submitted_by_user_id").references(() => users.id),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("talent_assessment_application_idx").on(t.applicationId, t.state, t.createdAt)]);
+
+export const talentInterviews = pgTable("talent_interviews", {
+  id: serial("id").primaryKey(),
+  applicationId: integer("application_id").notNull().references(() => talentApplications.id),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  durationMinutes: integer("duration_minutes").notNull(),
+  mode: varchar("mode", { length: 30 }).notNull(),
+  location: varchar("location", { length: 500 }).notNull(),
+  interviewerUserId: integer("interviewer_user_id").notNull().references(() => users.id),
+  state: varchar("state", { length: 30 }).notNull().default("scheduled"),
+  scorecardJson: json("scorecard_json").$type<Record<string, number>>(),
+  recommendation: varchar("recommendation", { length: 30 }),
+  notes: text("notes"),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  completedByUserId: integer("completed_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [index("talent_interview_application_idx").on(t.applicationId, t.scheduledAt), index("talent_interviewer_schedule_idx").on(t.interviewerUserId, t.state, t.scheduledAt)]);
+
+export const talentOffers = pgTable("talent_offers", {
+  id: serial("id").primaryKey(),
+  offerRef: varchar("offer_ref", { length: 64 }).notNull().unique(),
+  applicationId: integer("application_id").notNull().references(() => talentApplications.id),
+  title: varchar("title", { length: 200 }).notNull(),
+  termsSummary: text("terms_summary").notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("draft"),
+  version: integer("version").notNull().default(1),
+  acceptanceTokenHash: varchar("acceptance_token_hash", { length: 64 }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  issuedByUserId: integer("issued_by_user_id").references(() => users.id),
+  issuedAt: timestamp("issued_at", { withTimezone: true }),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  responseChannel: varchar("response_channel", { length: 40 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("talent_offer_application_idx").on(t.applicationId, t.state, t.createdAt), uniqueIndex("talent_offer_token_unique").on(t.acceptanceTokenHash)]);
+
+export const talentOutcomes = pgTable("talent_outcomes", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => talentCampaigns.id),
+  applicationId: integer("application_id").notNull().references(() => talentApplications.id),
+  outcomeType: varchar("outcome_type", { length: 40 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("verified"),
+  evidenceNote: text("evidence_note").notNull(),
+  observedByUserId: integer("observed_by_user_id").notNull().references(() => users.id),
+  reviewedByUserId: integer("reviewed_by_user_id").notNull().references(() => users.id),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("talent_outcome_unique").on(t.applicationId, t.outcomeType), index("talent_outcome_campaign_idx").on(t.campaignId, t.state, t.outcomeType)]);
+
+export const talentImportBatches = pgTable("talent_import_batches", {
+  id: serial("id").primaryKey(),
+  importRef: varchar("import_ref", { length: 64 }).notNull().unique(),
+  campaignId: integer("campaign_id").notNull().references(() => talentCampaigns.id),
+  rowsReceived: integer("rows_received").notNull(),
+  rowsCreated: integer("rows_created").notNull(),
+  duplicatesRejected: integer("duplicates_rejected").notNull(),
+  errorsJson: json("errors_json").$type<{ row: number; reason: string }[]>().notNull().default([]),
+  elapsedMs: integer("elapsed_ms").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("talent_import_campaign_idx").on(t.campaignId, t.createdAt)]);
+
+export const talentIntegrationReceipts = pgTable("talent_integration_receipts", {
+  id: serial("id").primaryKey(),
+  receiptRef: varchar("receipt_ref", { length: 64 }).notNull().unique(),
+  campaignId: integer("campaign_id").notNull().references(() => talentCampaigns.id),
+  destination: varchar("destination", { length: 40 }).notNull(),
+  format: varchar("format", { length: 20 }).notNull(),
+  rowCount: integer("row_count").notNull(),
+  payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+  externalExecution: boolean("external_execution").notNull().default(false),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("talent_integration_campaign_idx").on(t.campaignId, t.createdAt)]);

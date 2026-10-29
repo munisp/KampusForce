@@ -1,7 +1,51 @@
 # KampusForce implementation scorecard
 
-Assessment date: 2026-10-29
-Scope: executable Phase 17 platform/CRM/case innovations, Phase 16 vendor-promotion and recruitment orchestration, Phase 15 student and platform assurance, Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/data/financial architecture, and the preserved Phase 12 through Phase 1 assessments below. Scores measure implementation depth and available evidence—not production-readiness percentages, live institutional or identity assurance, legal compliance or external-provider certification.
+Assessment date: 2026-10-30
+Scope: executable Phase 18 opportunity ATS and eight new external campaign journeys, Phase 17 platform/CRM/case innovations, Phase 16 vendor-promotion and recruitment orchestration, Phase 15 student and platform assurance, Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/data/financial architecture, and the preserved Phase 12 through Phase 1 assessments below. Scores measure implementation depth and available evidence—not production-readiness percentages, live institutional/employer or identity assurance, legal compliance or external-provider certification.
+
+## Phase 18 assessment
+
+Phase 18 closes the recommended campus-recruitment/ATS gaps and adds eight genuinely distinct campaign journeys. The eleven ATS capability scores average **96.5/100** (exact **96.4545**); the eight campaign-journey scores average **95.8/100** (exact **95.75**). These are implementation/control-depth scores, not percentages of production readiness or real-world recruiting effectiveness. `productionReady` remains false.
+
+### ATS and recruitment-gap scores
+
+| Capability | Score | Implemented controls | Principal remaining gap |
+|---|---:|---|---|
+| Dedicated applicant profiles and forms | 98 | Vendor-scoped normalized-email deduplication, campus/course data, source/ownership, consent version/time and retention expiry | External applicant identity verification and self-service public portal |
+| CV, transcript and course documents | 97 | Reviewed object storage, MIME/size controls, object keys, content hashes, request-time role-scoped URLs, deletion and purge | Production storage capacity, malware/provider operations and broader file formats |
+| Assessments and structured screening | 96 | Geology/mathematics/aptitude/custom rubrics, complete responses, separate submission/scoring and bounded scores | External assessment delivery, proctoring and validated institutional rubrics |
+| Selection stages and immutable history | 98 | Optimistic stage transitions, human reasons, offer/direct-participant separation, consent withdrawal and append-only triggers | Complex configurable workflows and production queue operations |
+| Interview scheduling and scorecards | 97 | Overlap rejection, mode/location, structured competencies, recommendations and completed-scorecard offer gates | External calendars, invitations and multi-panel scheduling |
+| Bulk applicant import | 96 | 1–1,000 rows, idempotent references, row errors, duplicates and pre-pagination representative scoping | Production-scale/distributed import and large-file streaming |
+| ATS/HR integration handoff | 93 | Formula-safe CSV, SHA-256 receipts, row counts and explicit `externalExecution: false` | Authenticated external ATS/HR connectors and callback reconciliation |
+| Offers and digital acceptance | 98 | Draft/issue/respond lifecycle, hash-only tokens, expiry, one-time responses, replay rejection and no raw-token persistence | External e-signature delivery and legally reviewed employment terms |
+| Recruitment and campaign analytics | 96 | Aggregate portfolio/pipeline/offer/outcome metrics independent of bounded UI windows | External outcome calibration, BI exports and production-scale analytics |
+| Consent and retention lifecycle | 98 | Consent versioning, withdrawal closure, object purge, contact anonymization and non-identifying history | Legal policy review, regional retention schedules and external-system erasure |
+| Capacity and verification evidence | 94 | Full PostgreSQL journey, real storage lifecycle, 1,000-row local import, 1,001-row export and deep-equal financial preservation | Staging, provider-scale, failure/HA, cross-browser and production certification |
+
+### Eight new campaign-journey scores
+
+| Campaign type | Score | Implementation-depth assessment |
+|---|---:|---|
+| Graduate recruitment → verified hire | 98 | Complete assessment/interview/offer/scorecard journey with independent outcome verification; real employer outcomes open |
+| Internship → verified placement | 97 | Offer-led selection and independent placement verification; external placement operations open |
+| Scholarship → verified award | 96 | Screening and signed award acceptance with independent verification; institutional award evidence open |
+| Fellowship → verified fellowship | 96 | Assessment, selection offer and independent completion verification; institutional outcomes open |
+| Campus event/workshop → verified attendance | 95 | Consented registration, direct-participant acceptance and independently verified attendance; external check-in integration open |
+| Research participation → verified research completion | 95 | Consented response, screening and independent completion verification; research ethics/provider integrations open |
+| External student training → verified learning completion | 95 | External cohort selection and independent learning completion; accredited training and learning-system integrations open |
+| Product waitlist/early access → verified early access | 94 | Consented interest, invitation and independent early-access verification; external product provisioning open |
+
+### Phase 18 executed local evidence
+
+- Additive migration `0019` completes the twenty-migration PostgreSQL series (`0000`–`0019`). The final application acceptance passed all eight campaign/outcome types, the complete recruitment journey and explicit interviewer-overlap rejection.
+- Signed offer raw tokens were not persisted; replay was rejected. Application events rejected update/delete through database triggers. Independent campaign, assessment and outcome review passed.
+- Real platform object storage passed reviewed upload, independent existence/head/list reads, Chromium byte-content matching, deletion and final absence checks. Finance and unrelated representatives remained outside applicant-document access.
+- The 1,000-row import completed in **11,389 ms** in the final consolidated local run and replayed idempotently. Export produced **1,001 rows** with a payload hash and `externalExecution: false`. This timing is local sandbox evidence only.
+- Deep-equal before/after snapshots of deals, attribution, ledger entries, escrow wallets and payouts remained unchanged. Recruitment and participation outcomes created no financial entitlement.
+- The production-browser journey passed ten ATS inspectors, 30 desktop/mobile checks, vendor campaign draft/submission, independent Operations approval/activation, representative application, Operations screening, Campus Lead restrictions and Finance aggregate-only oversight. It observed zero runtime errors, HTTP errors, external requests or page-level overflow.
+- TypeScript, ESLint, the 24-file/123-test unit suite and production build passed. Browser verification also caught and corrected a production-router reserved procedure name and a representative campus-default defect; the final gate ran against the rebuilt standalone server.
+- No real employer, institution, ATS/HR provider, external calendar, e-signature channel or production infrastructure was used. See the [Phase 18 opportunity ATS runbook](phase18-opportunity-ats-runbook.md).
 
 ## Phase 17 assessment
 

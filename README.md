@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 17 innovation control plane**, adding ten platform innovations, ten CRM innovations and ten case-management innovations to the preserved promotion, assurance, identity, analytics and financial workflows. It includes hash-only activation lineage, simulation-only digital twins and controls, versioned metrics, universal purpose consent, independent outcome reconciliation, capability coaching, suppressed small-cohort benchmarks, recommendation-only payout timing, provider-portability drills, Relationship 360, explainable CRM decision support, consent-led sequences, non-destructive duplicate/routing controls, omnichannel case intake, business-hours SLAs, reviewed object-storage attachments, approved knowledge, problem/incident workflows, independent quality review and a redacting human-accepted case copilot. Recruitment alone never creates commission; CRM forecasts are planning estimates rather than earned commission. External delivery remains sandbox-simulated, live providers fail closed, and no simulation, recommendation or intelligence workflow can manufacture an activation or change financial outcomes. This is not live institutional verification, KYC/KYB, external-channel delivery, a connected live vendor/financial integration, a real campus result, production or legal-compliance certification, or completion of the distributed target architecture.
+This repository contains an executable **Phase 18 opportunity ATS and campaign workspace**, adding consented applicant profiles, reviewed CV/course documents, structured assessments, conflict-checked interviews and scorecards, signed offer acceptance, independently verified outcomes, 1,000-row idempotent imports, formula-safe ATS/HR CSV handoffs, portfolio analytics, consent withdrawal and retention enforcement. Eight new external campaign journeys cover graduate recruitment, internships, scholarships, fellowships, campus events, research participation, external student training and product waitlists/early access. These are distinct from customer promotions, internal representative recruitment, CRM sequences and internal sales training. The Phase 17 platform/CRM/case innovation control plane and all earlier promotion, assurance, identity, analytics and financial workflows remain preserved. Recruitment, participation, interviews, offers, hiring and other campaign outcomes never create commission entitlement; CRM forecasts remain planning estimates. External delivery and ATS/HR connector execution remain unclaimed, live providers fail closed, and no workflow can manufacture an activation or change financial outcomes. This is not live institutional verification, KYC/KYB, external-channel delivery, a connected live ATS/vendor/financial integration, a real recruitment or campus result, production-scale or legal-compliance certification, or completion of the distributed target architecture.
 
 ## Product thesis
 
@@ -184,6 +184,19 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Attachment records persist object keys only. Request-time URLs are never persisted; representatives cannot read staff attachments, staff messages or derived staff-only copilot content. External sequence channels produce receipts only, and copilots never send autonomous replies.
 - See the [Phase 17 innovation runbook](docs/phase17-innovation-runbook.md) and [case/CRM robustness assessment](docs/sales-case-crm-robustness.md).
 
+### Phase 18 opportunity ATS and new external campaign journeys
+
+- Vendor or Operations campaign drafting includes eligibility, overall/campus targets and schedules. Campus targets must be unique and reconcile exactly to the overall target. Independent Operations review and activation are required; creators cannot approve their own campaigns.
+- Dedicated vendor-deduplicated applicant profiles carry normalized contact data, course, study level, graduation year, source/ownership, consent version/time and retention expiry. Representatives can register applicants only at their own campus, and their workspace query scopes source/team records before pagination.
+- The selection pipeline supports submitted, screening, assessment, interview, offer, accepted, completed, rejected and withdrawn states with optimistic versions, human reasons and append-only database-triggered history. Assessment submission and independent scoring are separate actions; interviewer schedules reject overlaps and structured scorecards gate recruitment/internship hiring offers.
+- CVs, transcripts, course documents, certificates and other evidence use reviewed platform object storage. Records retain object keys and SHA-256 hashes rather than expiring URLs. Request-time document URLs are role-scoped; Finance and unrelated representatives cannot mint them.
+- Draft offers can be issued through one-time signed response tokens. Only token hashes persist; expired, answered and replayed responses are rejected. Direct-participant campaigns use a separate selection/acceptance path rather than selection-offer semantics.
+- Eight distinct journeys produce independently reviewed `hire`, `placement`, `award`, `fellowship`, `attendance`, `research_completion`, `learning_completion` and `early_access` outcomes. Observers cannot independently review their own observations, and campaign target capacity is checked under a row lock.
+- Idempotent bulk import accepts 1–1,000 consented rows with row-level errors, duplicate reporting and replay protection. Formula-injection-safe CSV exports include a SHA-256 receipt and explicitly report `externalExecution: false`; no ATS/HR connector is claimed.
+- Portfolio metrics use separate aggregate queries rather than the bounded display window. Consent withdrawal closes open applications. Retention enforcement purges stored documents before anonymizing contact data while retaining non-identifying history.
+- Finance receives aggregate, read-only campaign/outcome oversight without applicant contacts, documents or mutation forms. Campus Leads and representatives receive scoped workflows without vendor-wide selection authority.
+- See the [Phase 18 opportunity ATS runbook](docs/phase18-opportunity-ats-runbook.md) and [implementation scorecard](docs/implementation-scorecard.md).
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -212,7 +225,7 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # all 118 policy, innovation, promotion, identity, assurance, analytics and security unit tests
+npm test                       # all 123 policy, ATS, innovation, promotion, identity, assurance, analytics and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
@@ -235,6 +248,7 @@ npx tsx scripts/verify-phase14.ts # stakeholder identity, expiry, consent and fi
 npx tsx scripts/verify-phase15.ts # enrollment, uniqueness, quality, vendor and biometric-assurance acceptance
 npx tsx scripts/verify-phase16.ts # promotion orchestration, budget race, attribution and financial-preservation acceptance
 npx tsx scripts/verify-phase17.ts # thirty innovation workflows, real object storage and financial-preservation acceptance
+npx tsx scripts/verify-phase18.ts # ATS, eight campaign journeys, 1,000-row import, storage and financial-preservation acceptance
 npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
 python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
 python scripts/verify-phase10-browser.py # launch/mobile/provider-guard gate; server required
@@ -245,13 +259,18 @@ KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase14-browser.
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase15-browser.py # assurance/mobile gate; production server required
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase16-browser.py # promotion role/mobile gate; production server required
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase17-browser.py # thirty inspectors, role/mobile and mutation gate; production server required
+KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase18-browser.py # ten ATS inspectors, campaign/application mutations, role/mobile and Finance gate
 npm run db:backup -- backups/sandbox.dump
 KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
 
-The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. Phase 17 attachment acceptance requires the platform-injected `KIMI_AGENTGW_BASE_URL`, `KIMI_AGENTGW_API_KEY` and `KIMI_STORAGE_RESOURCE_ID`; it uses real reviewed object storage and never substitutes a local mock. The browser gate requires Python Playwright with Chromium installed; run `npm run build` and `npm start` first. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
+The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. Phase 17 attachment and Phase 18 applicant-document acceptance require the platform-injected `KIMI_AGENTGW_BASE_URL`, `KIMI_AGENTGW_API_KEY` and `KIMI_STORAGE_RESOURCE_ID`; they use real reviewed object storage and never substitute a local mock. The browser gate requires Python Playwright with Chromium installed; run `npm run build` and `npm start` first. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
 
 For non-root/non-Docker sandboxes, PostgreSQL 16.15 was provisioned by downloading PGDG packages through an isolated apt configuration, extracting them with `dpkg-deb -x`, and initializing a separate data directory and loopback port. This is a development/acceptance workaround, not a production database deployment. When ordinary package downloads stall, `uv pip install --target ... --no-cache` with an explicit HTTP timeout provides a faster isolated route; keep the data and identity dependency targets separate to avoid binary-package conflicts.
+
+### Phase 18 verification checkpoint
+
+The final consolidated local gates passed TypeScript, ESLint, 24 unit-test files with 123 tests, production build and entry checks, app-shell/manifest/service-worker/liveness/readiness smoke, the full Phase 18 database/storage journey and the production-browser journey. All eight campaign and verified-outcome types passed; signed offer tokens were hash-only and replay rejected; application history was append-only; consent withdrawal and retention passed; deals, attribution, ledger, escrow and payouts remained deep-equal. The 1,000-row import took 11,389 ms during the final consolidated run and replayed idempotently; this is a sandbox measurement only. Browser acceptance passed ten inspectors and 30 desktop/mobile checks with vendor, Operations, representative, Campus Lead and Finance roles, with zero observed runtime errors, HTTP errors, external requests or page-level overflow. `productionReady` remains false.
 
 ## End-to-end sandbox exercise
 
@@ -289,6 +308,7 @@ The original seeded fintech rule produces a ₦1,000 vendor commission, ₦800 r
 - Recruiting acceptance opens an identity case but does not itself activate a recruit. Activation requires current approved representative KYC and bank-name match. Seeded/synthetic approvals are workflow evidence—not live identity assurance, real performance or rollout outcomes.
 - Rollout system snapshots and synthetic acceptance attestations are control-test data, not real campus or national outcomes. External evidence completion is a register result only; it does not change campus status, certify KPI attainment in the real world or authorize national expansion.
 - CRM drafts require human approval and external sharing is only an attestation. Campaigns, promotion recruitment and consented promotion delivery send no external messages; Phase 16 delivery is a recorded sandbox simulation. Vendor-service configuration, tests and synchronization are local sandbox controls, not connected production services. Training is internal and unaccredited; leaderboard rank, recommendations, promotion approval and recruitment are not commission entitlements.
+- Phase 18 applicant, assessment, interview, offer, selection and verified-outcome records are synthetic sandbox controls. A verified hire, placement, award, attendance, completion or early-access record is not an institutional or employer outcome and creates no deal, attribution, ledger entry, payout or commission. ATS/HR export is a local CSV handoff with a hash receipt, not external connector execution. The 1,000-row import measurement is local sandbox evidence, not provider or production-capacity certification.
 - Replace fallback sandbox secrets and disable demo login, event simulation, time advancement and sandbox transfers before production.
 - Provider adapters and signed test callbacks are implemented, but no live provider request or real bank outcome has occurred. Launch approvals are evidence attestations; they are not credentials, connectivity, legal/security certification or production authorization by themselves.
 - Production requires real provider credentials/connectivity, authenticated provider/bank reconciliation evidence, live KYC, external notifications, edge/distributed abuse controls, secrets management, monitoring, scheduled offsite recovery policy, legal review and compliance evidence.

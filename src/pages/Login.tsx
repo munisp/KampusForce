@@ -81,6 +81,6 @@ export default function Login() {
         </div>
       </section>
     </main>
-    <footer className="entry-footer"><span>Phase 17 decision intelligence · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
+    <footer className="entry-footer"><span>Phase 18 opportunity ATS · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
   </div>;
 }

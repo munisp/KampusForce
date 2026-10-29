@@ -134,6 +134,13 @@
       "when": 1793238922585,
       "tag": "0018_phase17_case_agent_skills",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793284474239,
+      "tag": "0019_phase18_talent_campaigns",
+      "breakpoints": true
     }
   ]
 }

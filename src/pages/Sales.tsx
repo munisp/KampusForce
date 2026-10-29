@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { BarChart3, BookOpenCheck, BriefcaseBusiness, Megaphone, PlugZap, ShieldCheck, Target, Workflow } from "lucide-react";
+import { BarChart3, BookOpenCheck, BriefcaseBusiness, Megaphone, PlugZap, ShieldCheck, Target, UserRoundSearch, Workflow } from "lucide-react";
 import { WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { useWorkspace } from "@/providers/workspace";
 import { CaseWorkspace } from "@/components/sales/CaseWorkspace";
@@ -11,6 +11,7 @@ import { GrowthWorkspace } from "@/components/sales/GrowthWorkspace";
 import { IntegrationWorkspace } from "@/components/sales/IntegrationWorkspace";
 import { PromotionWorkspace } from "@/components/sales/PromotionWorkspace";
 import { PlatformInnovationWorkspace } from "@/components/sales/PlatformInnovationWorkspace";
+import { TalentWorkspace } from "@/components/sales/TalentWorkspace";
 
 const views = [
   { key: "cases", label: "Case command", icon: Workflow, roles: ["rep", "vendor", "ops", "finance", "admin"] },
@@ -19,6 +20,7 @@ const views = [
   { key: "training", label: "Sales academy", icon: BookOpenCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "promotions", label: "Vendor promotions", icon: Megaphone, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "campaigns", label: "Campaign engine", icon: Megaphone, roles: ["rep", "vendor", "ops", "admin"] },
+  { key: "opportunities", label: "Opportunity ATS", icon: UserRoundSearch, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "growth", label: "Growth & recruiting", icon: Target, roles: ["rep", "ops", "finance", "admin"] },
   { key: "integrations", label: "Vendor services", icon: PlugZap, roles: ["vendor", "ops", "admin"] },
 ] as const;
@@ -32,6 +34,7 @@ const copy: Record<ViewKey, { title: string; subtitle: string }> = {
   training: { title: "Skill before scale.", subtitle: "Short internal modules turn ethical sales, privacy and service boundaries into assessed readiness." },
   promotions: { title: "External demand. Internal readiness.", subtitle: "Vendor customer promotions orchestrate campus recruitment, signed acquisition and verified-outcome reporting." },
   campaigns: { title: "Campaigns with a control tower.", subtitle: "Audience rules, independent approval, in-app delivery and record-derived conversion." },
+  opportunities: { title: "Campus opportunity, end to end.", subtitle: "Consented applications, structured selection and verified participation—across eight new external campaign journeys." },
   growth: { title: "Grow the right relationships.", subtitle: "Verified-outcome leaderboards, explainable product targets and consent-led student recruiting." },
   integrations: { title: "Vendor services, visibly bounded.", subtitle: "Local configuration, tests and synchronization evidence with no hidden external execution." },
 };
@@ -53,8 +56,9 @@ export default function Sales() {
     {active === "training" && <TrainingWorkspace />}
     {active === "promotions" && <PromotionWorkspace />}
     {active === "campaigns" && <CampaignWorkspace />}
+    {active === "opportunities" && <TalentWorkspace />}
     {active === "growth" && <GrowthWorkspace />}
     {active === "integrations" && <IntegrationWorkspace />}
-    <footer className="sales-footer"><BarChart3 size={15} /><span>Phase 17 decision intelligence · 30 controlled innovations · sandbox evidence only</span></footer>
+    <footer className="sales-footer"><BarChart3 size={15} /><span>Phase 18 opportunity ATS · 8 external campaign journeys · verified outcomes never create commission</span></footer>
   </WorkspaceLayout>;
 }
