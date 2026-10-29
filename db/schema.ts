@@ -1491,3 +1491,591 @@ export const assuranceEvents = pgTable("assurance_events", {
   payload: json("payload").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("assurance_event_case_idx").on(t.caseType, t.caseId, t.createdAt)]);
+
+// Phase 17: evidence-led platform intelligence. These records are decision
+// evidence and simulations; they never replace the append-only financial ledger.
+export const activationEvidenceNodes = pgTable("activation_evidence_nodes", {
+  id: serial("id").primaryKey(),
+  nodeRef: varchar("node_ref", { length: 48 }).notNull().unique(),
+  dealId: integer("deal_id").references(() => deals.id),
+  kind: varchar("kind", { length: 60 }).notNull(),
+  source: varchar("source", { length: 100 }).notNull(),
+  evidenceHash: varchar("evidence_hash", { length: 64 }).notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  metadataJson: json("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+  recordedByUserId: integer("recorded_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("activation_evidence_source_hash_unique").on(t.source, t.evidenceHash), index("activation_evidence_deal_idx").on(t.dealId, t.observedAt)]);
+
+export const activationEvidenceEdges = pgTable("activation_evidence_edges", {
+  id: serial("id").primaryKey(),
+  fromNodeId: integer("from_node_id").notNull().references(() => activationEvidenceNodes.id),
+  toNodeId: integer("to_node_id").notNull().references(() => activationEvidenceNodes.id),
+  relationship: varchar("relationship", { length: 60 }).notNull(),
+  rationale: varchar("rationale", { length: 500 }).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("activation_evidence_edge_unique").on(t.fromNodeId, t.toNodeId, t.relationship)]);
+
+export const promotionSimulations = pgTable("promotion_simulations", {
+  id: serial("id").primaryKey(),
+  simulationRef: varchar("simulation_ref", { length: 48 }).notNull().unique(),
+  promotionId: integer("promotion_id").references(() => vendorPromotions.id),
+  name: varchar("name", { length: 160 }).notNull(),
+  assumptionsJson: json("assumptions_json").$type<Record<string, number>>().notNull(),
+  resultsJson: json("results_json").$type<Record<string, number | string | boolean>>().notNull(),
+  modelVersion: varchar("model_version", { length: 40 }).notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("promotion_simulation_promotion_idx").on(t.promotionId, t.createdAt)]);
+
+export const metricDefinitions = pgTable("metric_definitions", {
+  id: serial("id").primaryKey(),
+  metricKey: varchar("metric_key", { length: 80 }).notNull(),
+  version: integer("version").notNull(),
+  name: varchar("name", { length: 160 }).notNull(),
+  formula: text("formula").notNull(),
+  sourceContract: text("source_contract").notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("draft"),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  publishedByUserId: integer("published_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("metric_definition_version_unique").on(t.metricKey, t.version)]);
+
+export const metricSnapshots = pgTable("metric_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotRef: varchar("snapshot_ref", { length: 48 }).notNull().unique(),
+  definitionId: integer("definition_id").notNull().references(() => metricDefinitions.id),
+  scopeType: varchar("scope_type", { length: 40 }).notNull(),
+  scopeId: integer("scope_id").notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+  periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+  valueNumerator: bigint("value_numerator", { mode: "number" }).notNull(),
+  valueDenominator: bigint("value_denominator", { mode: "number" }).notNull(),
+  inputCount: integer("input_count").notNull(),
+  sourceHash: varchar("source_hash", { length: 64 }).notNull(),
+  explanation: text("explanation").notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("metric_snapshot_reproducible_unique").on(t.definitionId, t.scopeType, t.scopeId, t.periodStart, t.periodEnd, t.sourceHash), index("metric_snapshot_scope_idx").on(t.scopeType, t.scopeId, t.periodEnd)]);
+
+export const purposePolicies = pgTable("purpose_policies", {
+  id: serial("id").primaryKey(),
+  purpose: varchar("purpose", { length: 100 }).notNull(),
+  version: integer("version").notNull(),
+  notice: text("notice").notNull(),
+  noticeHash: varchar("notice_hash", { length: 64 }).notNull(),
+  retentionDays: integer("retention_days").notNull(),
+  active: boolean("active").notNull().default(false),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("purpose_policy_version_unique").on(t.purpose, t.version), index("purpose_policy_active_idx").on(t.purpose, t.active)]);
+
+export const universalConsents = pgTable("universal_consents", {
+  id: serial("id").primaryKey(),
+  subjectTokenHash: varchar("subject_token_hash", { length: 64 }).notNull(),
+  purpose: varchar("purpose", { length: 100 }).notNull(),
+  policyId: integer("policy_id").notNull().references(() => purposePolicies.id),
+  state: varchar("state", { length: 30 }).notNull(),
+  evidenceRef: varchar("evidence_ref", { length: 160 }).notNull(),
+  capturedByUserId: integer("captured_by_user_id").references(() => users.id),
+  grantedAt: timestamp("granted_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("universal_consent_lookup_idx").on(t.subjectTokenHash, t.purpose, t.state, t.expiresAt), index("universal_consent_policy_idx").on(t.policyId, t.createdAt)]);
+
+export const purposeAccessEvents = pgTable("purpose_access_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  subjectTokenHash: varchar("subject_token_hash", { length: 64 }).notNull(),
+  purpose: varchar("purpose", { length: 100 }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  decision: varchar("decision", { length: 30 }).notNull(),
+  reason: varchar("reason", { length: 300 }).notNull(),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("purpose_access_subject_idx").on(t.subjectTokenHash, t.purpose, t.createdAt), index("purpose_access_decision_idx").on(t.decision, t.createdAt)]);
+
+export const controlDefinitions = pgTable("control_definitions", {
+  id: serial("id").primaryKey(),
+  controlKey: varchar("control_key", { length: 80 }).notNull(),
+  version: integer("version").notNull(),
+  name: varchar("name", { length: 160 }).notNull(),
+  triggerEvent: varchar("trigger_event", { length: 100 }).notNull(),
+  conditionsJson: json("conditions_json").$type<Array<{ field: string; operator: string; value: string | number | boolean }>>().notNull(),
+  action: varchar("action", { length: 80 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("draft"),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  publishedByUserId: integer("published_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("control_definition_version_unique").on(t.controlKey, t.version), index("control_definition_trigger_idx").on(t.triggerEvent, t.state)]);
+
+export const controlRuns = pgTable("control_runs", {
+  id: serial("id").primaryKey(),
+  runRef: varchar("run_ref", { length: 48 }).notNull().unique(),
+  controlId: integer("control_id").notNull().references(() => controlDefinitions.id),
+  inputHash: varchar("input_hash", { length: 64 }).notNull(),
+  matched: boolean("matched").notNull(),
+  decision: varchar("decision", { length: 80 }).notNull(),
+  explanation: text("explanation").notNull(),
+  mode: varchar("mode", { length: 30 }).notNull().default("simulation"),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("control_run_control_idx").on(t.controlId, t.createdAt), index("control_run_decision_idx").on(t.decision, t.createdAt)]);
+
+export const independentOutcomeObservations = pgTable("independent_outcome_observations", {
+  id: serial("id").primaryKey(),
+  observationRef: varchar("observation_ref", { length: 48 }).notNull().unique(),
+  dealId: integer("deal_id").notNull().references(() => deals.id),
+  observer: varchar("observer", { length: 100 }).notNull(),
+  outcome: varchar("outcome", { length: 60 }).notNull(),
+  evidenceHash: varchar("evidence_hash", { length: 64 }).notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+  reconciliationState: varchar("reconciliation_state", { length: 40 }).notNull().default("pending"),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("independent_outcome_evidence_unique").on(t.dealId, t.observer, t.evidenceHash), index("independent_outcome_review_idx").on(t.reconciliationState, t.observedAt)]);
+
+export const repCapabilityEvidence = pgTable("rep_capability_evidence", {
+  id: serial("id").primaryKey(),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  capability: varchar("capability", { length: 80 }).notNull(),
+  level: integer("level").notNull(),
+  evidenceType: varchar("evidence_type", { length: 60 }).notNull(),
+  evidenceRef: varchar("evidence_ref", { length: 120 }).notNull(),
+  assessorUserId: integer("assessor_user_id").references(() => users.id),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("rep_capability_evidence_unique").on(t.repId, t.capability, t.evidenceType, t.evidenceRef), index("rep_capability_idx").on(t.repId, t.capability, t.observedAt)]);
+
+export const coachingRecommendations = pgTable("coaching_recommendations", {
+  id: serial("id").primaryKey(),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  capability: varchar("capability", { length: 80 }).notNull(),
+  recommendation: text("recommendation").notNull(),
+  rationale: text("rationale").notNull(),
+  modelVersion: varchar("model_version", { length: 40 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("open"),
+  acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("coaching_rep_state_idx").on(t.repId, t.state, t.createdAt)]);
+
+export const benchmarkSnapshots = pgTable("benchmark_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotRef: varchar("snapshot_ref", { length: 48 }).notNull().unique(),
+  scopeType: varchar("scope_type", { length: 30 }).notNull(),
+  metricKey: varchar("metric_key", { length: 80 }).notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+  periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+  minimumCohort: integer("minimum_cohort").notNull(),
+  cellsJson: json("cells_json").$type<Array<{ key: string; cohort: number; numerator: number; denominator: number; suppressed: boolean }>>().notNull(),
+  sourceHash: varchar("source_hash", { length: 64 }).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("benchmark_scope_period_idx").on(t.scopeType, t.metricKey, t.periodEnd)]);
+
+export const riskTimingAssessments = pgTable("risk_timing_assessments", {
+  id: serial("id").primaryKey(),
+  assessmentRef: varchar("assessment_ref", { length: 48 }).notNull().unique(),
+  dealId: integer("deal_id").notNull().references(() => deals.id),
+  score: integer("score").notNull(),
+  reasonsJson: json("reasons_json").$type<string[]>().notNull(),
+  recommendedReviewHours: integer("recommended_review_hours").notNull(),
+  recommendedPayoutDelayHours: integer("recommended_payout_delay_hours").notNull(),
+  policyVersion: varchar("policy_version", { length: 40 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("recommended"),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+  decisionReason: varchar("decision_reason", { length: 500 }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("risk_timing_deal_idx").on(t.dealId, t.createdAt), index("risk_timing_state_idx").on(t.state, t.createdAt)]);
+
+export const providerProfiles = pgTable("provider_profiles", {
+  id: serial("id").primaryKey(),
+  providerKey: varchar("provider_key", { length: 80 }).notNull().unique(),
+  capability: varchar("capability", { length: 80 }).notNull(),
+  mode: varchar("mode", { length: 30 }).notNull().default("sandbox"),
+  portabilityTier: varchar("portability_tier", { length: 40 }).notNull(),
+  configHash: varchar("config_hash", { length: 64 }).notNull(),
+  active: boolean("active").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("provider_capability_idx").on(t.capability, t.active, t.mode)]);
+
+export const resilienceDrills = pgTable("resilience_drills", {
+  id: serial("id").primaryKey(),
+  drillRef: varchar("drill_ref", { length: 48 }).notNull().unique(),
+  providerId: integer("provider_id").notNull().references(() => providerProfiles.id),
+  scenario: varchar("scenario", { length: 80 }).notNull(),
+  checksJson: json("checks_json").$type<Array<{ name: string; passed: boolean; detail: string }>>().notNull(),
+  recoverySeconds: integer("recovery_seconds").notNull(),
+  state: varchar("state", { length: 30 }).notNull(),
+  mode: varchar("mode", { length: 30 }).notNull().default("simulation"),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("resilience_provider_idx").on(t.providerId, t.createdAt)]);
+
+export const portabilityManifests = pgTable("portability_manifests", {
+  id: serial("id").primaryKey(),
+  manifestRef: varchar("manifest_ref", { length: 48 }).notNull().unique(),
+  providerId: integer("provider_id").notNull().references(() => providerProfiles.id),
+  schemaVersion: varchar("schema_version", { length: 40 }).notNull(),
+  artifactCount: integer("artifact_count").notNull(),
+  manifestHash: varchar("manifest_hash", { length: 64 }).notNull(),
+  redactionsJson: json("redactions_json").$type<string[]>().notNull(),
+  verificationState: varchar("verification_state", { length: 30 }).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("portability_provider_idx").on(t.providerId, t.createdAt)]);
+
+// Phase 17 CRM: planning, consent and human decisions stay separate from
+// vendor-verified activation outcomes and commission entitlement.
+export const crmRecommendations = pgTable("crm_recommendations", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  actionType: varchar("action_type", { length: 60 }).notNull(),
+  recommendation: text("recommendation").notNull(),
+  reasonsJson: json("reasons_json").$type<string[]>().notNull(),
+  priority: integer("priority").notNull(),
+  modelVersion: varchar("model_version", { length: 40 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("open"),
+  feedback: varchar("feedback", { length: 500 }),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("crm_recommendation_opportunity_idx").on(t.opportunityId, t.state, t.createdAt)]);
+
+export const crmScorecards = pgTable("crm_scorecards", {
+  id: serial("id").primaryKey(),
+  scorecardKey: varchar("scorecard_key", { length: 80 }).notNull(),
+  version: integer("version").notNull(),
+  weightsJson: json("weights_json").$type<Record<string, number>>().notNull(),
+  active: boolean("active").notNull().default(false),
+  rationale: text("rationale").notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("crm_scorecard_version_unique").on(t.scorecardKey, t.version), index("crm_scorecard_active_idx").on(t.scorecardKey, t.active)]);
+
+export const crmForecastScenarios = pgTable("crm_forecast_scenarios", {
+  id: serial("id").primaryKey(),
+  forecastRef: varchar("forecast_ref", { length: 48 }).notNull().unique(),
+  ownerUserId: integer("owner_user_id").notNull().references(() => users.id),
+  name: varchar("name", { length: 160 }).notNull(),
+  scenario: varchar("scenario", { length: 30 }).notNull(),
+  assumptionsJson: json("assumptions_json").$type<Record<string, number>>().notNull(),
+  amountKobo: bigint("amount_kobo", { mode: "number" }).notNull(),
+  opportunityCount: integer("opportunity_count").notNull(),
+  sourceHash: varchar("source_hash", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("crm_forecast_owner_idx").on(t.ownerUserId, t.scenario, t.createdAt)]);
+
+export const crmSequences = pgTable("crm_sequences", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  name: varchar("name", { length: 160 }).notNull(),
+  purpose: varchar("purpose", { length: 100 }).notNull(),
+  subjectTokenHash: varchar("subject_token_hash", { length: 64 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("draft"),
+  currentStep: integer("current_step").notNull().default(0),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("crm_sequence_opportunity_idx").on(t.opportunityId, t.state, t.updatedAt)]);
+
+export const crmSequenceSteps = pgTable("crm_sequence_steps", {
+  id: serial("id").primaryKey(),
+  sequenceId: integer("sequence_id").notNull().references(() => crmSequences.id),
+  stepNumber: integer("step_number").notNull(),
+  channel: varchar("channel", { length: 30 }).notNull(),
+  body: text("body").notNull(),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("pending"),
+  deliveryMode: varchar("delivery_mode", { length: 30 }).notNull().default("sandbox_simulation"),
+  completedByUserId: integer("completed_by_user_id").references(() => users.id),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  receiptHash: varchar("receipt_hash", { length: 64 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("crm_sequence_step_unique").on(t.sequenceId, t.stepNumber), index("crm_sequence_step_due_idx").on(t.state, t.dueAt)]);
+
+export const crmCollaborationNotes = pgTable("crm_collaboration_notes", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  authorUserId: integer("author_user_id").notNull().references(() => users.id),
+  body: text("body").notNull(),
+  visibility: varchar("visibility", { length: 30 }).notNull().default("team"),
+  mentionedUserIds: json("mentioned_user_ids").$type<number[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("crm_collaboration_opportunity_idx").on(t.opportunityId, t.createdAt)]);
+
+export const crmDuplicateReviews = pgTable("crm_duplicate_reviews", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  matchedOpportunityId: integer("matched_opportunity_id").notNull().references(() => opportunities.id),
+  matchType: varchar("match_type", { length: 60 }).notNull(),
+  confidence: integer("confidence").notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("open"),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("crm_duplicate_pair_unique").on(t.opportunityId, t.matchedOpportunityId), index("crm_duplicate_state_idx").on(t.state, t.createdAt)]);
+
+export const crmInfluenceTouchpoints = pgTable("crm_influence_touchpoints", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  campaignId: integer("campaign_id").references(() => campaigns.id),
+  promotionId: integer("promotion_id").references(() => vendorPromotions.id),
+  touchType: varchar("touch_type", { length: 60 }).notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  evidenceRef: varchar("evidence_ref", { length: 120 }).notNull(),
+  financialAttributionChanged: boolean("financial_attribution_changed").notNull().default(false),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("crm_influence_evidence_unique").on(t.opportunityId, t.touchType, t.evidenceRef), index("crm_influence_promotion_idx").on(t.promotionId, t.occurredAt)]);
+
+export const crmRoutingRules = pgTable("crm_routing_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  campusId: integer("campus_id").references(() => campuses.id),
+  productId: integer("product_id").references(() => products.id),
+  maxOpenOpportunities: integer("max_open_opportunities").notNull(),
+  priority: integer("priority").notNull().default(100),
+  active: boolean("active").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("crm_routing_match_idx").on(t.active, t.campusId, t.productId, t.priority)]);
+
+export const crmRoutingDecisions = pgTable("crm_routing_decisions", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  ruleId: integer("rule_id").references(() => crmRoutingRules.id),
+  proposedRepId: integer("proposed_rep_id").references(() => reps.id),
+  workload: integer("workload").notNull(),
+  reasonsJson: json("reasons_json").$type<string[]>().notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("proposed"),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("crm_routing_opportunity_idx").on(t.opportunityId, t.state, t.createdAt)]);
+
+export const crmFeedback = pgTable("crm_feedback", {
+  id: serial("id").primaryKey(),
+  opportunityId: integer("opportunity_id").notNull().references(() => opportunities.id),
+  category: varchar("category", { length: 60 }).notNull(),
+  rating: integer("rating").notNull(),
+  comment: text("comment").notNull(),
+  source: varchar("source", { length: 60 }).notNull(),
+  consentEventId: bigint("consent_event_id", { mode: "number" }).references(() => purposeAccessEvents.id),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("crm_feedback_opportunity_idx").on(t.opportunityId, t.category, t.createdAt)]);
+
+// Phase 17 case management: reviewed evidence, deterministic assistance and
+// support analytics cannot modify financial state.
+export const caseChannelIntakes = pgTable("case_channel_intakes", {
+  id: serial("id").primaryKey(),
+  intakeRef: varchar("intake_ref", { length: 48 }).notNull().unique(),
+  channel: varchar("channel", { length: 30 }).notNull(),
+  externalIdHash: varchar("external_id_hash", { length: 64 }).notNull(),
+  ticketId: integer("ticket_id").references(() => supportTickets.id),
+  state: varchar("state", { length: 30 }).notNull(),
+  mode: varchar("mode", { length: 30 }).notNull().default("sandbox_simulation"),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("case_channel_external_unique").on(t.channel, t.externalIdHash), index("case_channel_ticket_idx").on(t.ticketId, t.createdAt)]);
+
+export const caseRoutingRules = pgTable("case_routing_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  category: varchar("category", { length: 80 }),
+  vendorId: integer("vendor_id").references(() => vendors.id),
+  skill: varchar("skill", { length: 80 }).notNull(),
+  maxOpenCases: integer("max_open_cases").notNull(),
+  priority: integer("priority").notNull().default(100),
+  active: boolean("active").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_routing_match_idx").on(t.active, t.category, t.vendorId, t.priority)]);
+
+export const caseRoutingDecisions = pgTable("case_routing_decisions", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  ruleId: integer("rule_id").references(() => caseRoutingRules.id),
+  proposedUserId: integer("proposed_user_id").references(() => users.id),
+  workload: integer("workload").notNull(),
+  reasonsJson: json("reasons_json").$type<string[]>().notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("proposed"),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_routing_ticket_idx").on(t.ticketId, t.state, t.createdAt)]);
+
+export const caseSlaPolicies = pgTable("case_sla_policies", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  priority: varchar("priority", { length: 30 }).notNull(),
+  firstResponseMinutes: integer("first_response_minutes").notNull(),
+  resolutionMinutes: integer("resolution_minutes").notNull(),
+  timezone: varchar("timezone", { length: 60 }).notNull().default("Africa/Lagos"),
+  businessStartMinute: integer("business_start_minute").notNull().default(480),
+  businessEndMinute: integer("business_end_minute").notNull().default(1020),
+  businessDays: json("business_days").$type<number[]>().notNull().default([1, 2, 3, 4, 5]),
+  active: boolean("active").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_sla_policy_idx").on(t.priority, t.active)]);
+
+export const caseSlaIntervals = pgTable("case_sla_intervals", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  kind: varchar("kind", { length: 30 }).notNull(),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_sla_interval_ticket_idx").on(t.ticketId, t.kind, t.startedAt), index("case_sla_interval_open_idx").on(t.endedAt, t.kind)]);
+
+export const caseAttachments = pgTable("case_attachments", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  messageId: integer("message_id").references(() => caseMessages.id),
+  objectKey: varchar("object_key", { length: 600 }).notNull().unique(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  contentType: varchar("content_type", { length: 160 }).notNull(),
+  size: integer("size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  reviewStatus: varchar("review_status", { length: 40 }).notNull(),
+  visibility: varchar("visibility", { length: 30 }).notNull(),
+  uploadedByUserId: integer("uploaded_by_user_id").notNull().references(() => users.id),
+  deletedByUserId: integer("deleted_by_user_id").references(() => users.id),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_attachment_ticket_idx").on(t.ticketId, t.createdAt), index("case_attachment_uploader_idx").on(t.uploadedByUserId, t.createdAt)]);
+
+export const knowledgeArticles = pgTable("knowledge_articles", {
+  id: serial("id").primaryKey(),
+  articleKey: varchar("article_key", { length: 80 }).notNull(),
+  version: integer("version").notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  category: varchar("category", { length: 80 }).notNull(),
+  body: text("body").notNull(),
+  keywords: json("keywords").$type<string[]>().notNull().default([]),
+  state: varchar("state", { length: 30 }).notNull().default("draft"),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("knowledge_article_version_unique").on(t.articleKey, t.version), index("knowledge_article_search_idx").on(t.state, t.category)]);
+
+export const caseKnowledgeLinks = pgTable("case_knowledge_links", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  articleId: integer("article_id").notNull().references(() => knowledgeArticles.id),
+  helpful: boolean("helpful"),
+  linkedByUserId: integer("linked_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("case_knowledge_link_unique").on(t.ticketId, t.articleId), index("case_knowledge_article_idx").on(t.articleId, t.helpful)]);
+
+export const problemRecords = pgTable("problem_records", {
+  id: serial("id").primaryKey(),
+  problemRef: varchar("problem_ref", { length: 48 }).notNull().unique(),
+  title: varchar("title", { length: 200 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("investigating"),
+  rootCause: text("root_cause"),
+  workaround: text("workaround"),
+  ownerUserId: integer("owner_user_id").references(() => users.id),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("problem_state_idx").on(t.state, t.updatedAt)]);
+
+export const problemCaseLinks = pgTable("problem_case_links", {
+  id: serial("id").primaryKey(),
+  problemId: integer("problem_id").notNull().references(() => problemRecords.id),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("problem_case_unique").on(t.problemId, t.ticketId), index("problem_case_ticket_idx").on(t.ticketId)]);
+
+export const majorIncidents = pgTable("major_incidents", {
+  id: serial("id").primaryKey(),
+  incidentRef: varchar("incident_ref", { length: 48 }).notNull().unique(),
+  title: varchar("title", { length: 200 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("investigating"),
+  commanderUserId: integer("commander_user_id").notNull().references(() => users.id),
+  problemId: integer("problem_id").references(() => problemRecords.id),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("major_incident_state_idx").on(t.state, t.severity, t.updatedAt)]);
+
+export const incidentUpdates = pgTable("incident_updates", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").notNull().references(() => majorIncidents.id),
+  updateType: varchar("update_type", { length: 40 }).notNull(),
+  body: text("body").notNull(),
+  visibility: varchar("visibility", { length: 30 }).notNull().default("internal"),
+  authorUserId: integer("author_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("incident_update_timeline_idx").on(t.incidentId, t.createdAt)]);
+
+export const caseQualityReviews = pgTable("case_quality_reviews", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  reviewerUserId: integer("reviewer_user_id").notNull().references(() => users.id),
+  rubricVersion: varchar("rubric_version", { length: 40 }).notNull(),
+  scoresJson: json("scores_json").$type<Record<string, number>>().notNull(),
+  totalScore: integer("total_score").notNull(),
+  coachingNote: text("coaching_note").notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("completed"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_quality_ticket_idx").on(t.ticketId, t.createdAt), index("case_quality_reviewer_idx").on(t.reviewerUserId, t.createdAt)]);
+
+export const caseExperienceSurveys = pgTable("case_experience_surveys", {
+  id: serial("id").primaryKey(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  respondentTokenHash: varchar("respondent_token_hash", { length: 64 }).notNull(),
+  csat: integer("csat").notNull(),
+  effort: integer("effort").notNull(),
+  comment: varchar("comment", { length: 1000 }),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("case_experience_respondent_unique").on(t.ticketId, t.respondentTokenHash), index("case_experience_created_idx").on(t.createdAt)]);
+
+export const caseCopilotRuns = pgTable("case_copilot_runs", {
+  id: serial("id").primaryKey(),
+  runRef: varchar("run_ref", { length: 48 }).notNull().unique(),
+  ticketId: integer("ticket_id").notNull().references(() => supportTickets.id),
+  inputHash: varchar("input_hash", { length: 64 }).notNull(),
+  summary: text("summary").notNull(),
+  redactionsJson: json("redactions_json").$type<string[]>().notNull(),
+  suggestedActionsJson: json("suggested_actions_json").$type<string[]>().notNull(),
+  modelVersion: varchar("model_version", { length: 40 }).notNull(),
+  state: varchar("state", { length: 30 }).notNull().default("proposed"),
+  acceptedByUserId: integer("accepted_by_user_id").references(() => users.id),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("case_copilot_ticket_idx").on(t.ticketId, t.createdAt), index("case_copilot_state_idx").on(t.state, t.createdAt)]);
+
+export const caseAgentSkills = pgTable("case_agent_skills", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  skill: varchar("skill", { length: 80 }).notNull(),
+  level: integer("level").notNull(),
+  active: boolean("active").notNull().default(true),
+  assessedByUserId: integer("assessed_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("case_agent_skill_unique").on(t.userId, t.skill), index("case_agent_skill_lookup_idx").on(t.skill, t.active, t.level)]);

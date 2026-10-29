@@ -2,7 +2,7 @@
 
 Campus commerce, accounted for. KampusForce is a vendor-neutral attribution, commission, escrow and settlement layer connecting vendors, verified student representatives and customers.
 
-This repository contains an executable **Phase 16 vendor-promotion and recruitment-orchestration slice**, building on Phase 15 student/platform assurance, Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/lakehouse/Ray/financial-core robustness, and the preserved Phase 12 case-management, CRM, sales-training, campaign, vendor-service and growth workflows. Vendors can submit customer-facing promotion briefs for independent review; approved promotions orchestrate controlled internal recruitment, staffing and budget safeguards, signed acquisition links and verified-outcome reporting. Recruitment alone never creates commission. External-channel delivery remains sandbox-simulated, identity and biometric providers fail closed, Delta Lake and Ray are local executable references, TigerBeetle is an outbox/official-client adapter, and Mojaloop is a post-MVP fail-closed contract. This is not live institutional verification, KYC/KYB, external-channel delivery, a connected live vendor/financial integration, a real campus result, production or legal-compliance certification, or completion of the distributed target architecture.
+This repository contains an executable **Phase 17 innovation control plane**, adding ten platform innovations, ten CRM innovations and ten case-management innovations to the preserved promotion, assurance, identity, analytics and financial workflows. It includes hash-only activation lineage, simulation-only digital twins and controls, versioned metrics, universal purpose consent, independent outcome reconciliation, capability coaching, suppressed small-cohort benchmarks, recommendation-only payout timing, provider-portability drills, Relationship 360, explainable CRM decision support, consent-led sequences, non-destructive duplicate/routing controls, omnichannel case intake, business-hours SLAs, reviewed object-storage attachments, approved knowledge, problem/incident workflows, independent quality review and a redacting human-accepted case copilot. Recruitment alone never creates commission; CRM forecasts are planning estimates rather than earned commission. External delivery remains sandbox-simulated, live providers fail closed, and no simulation, recommendation or intelligence workflow can manufacture an activation or change financial outcomes. This is not live institutional verification, KYC/KYB, external-channel delivery, a connected live vendor/financial integration, a real campus result, production or legal-compliance certification, or completion of the distributed target architecture.
 
 ## Product thesis
 
@@ -176,6 +176,14 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Customer outcomes come only from vendor-verified activations. Normal confirmation still determines the 80/20 split, platform-funded Campus Lead override, escrow, payout and clawback behavior; clicks, invitations, recruitment and promotion approval create no commission entitlement.
 - Consent/suppression records use keyed hashes. External delivery is explicitly simulated and makes no external request. See the [promotion orchestration runbook](docs/promotion-orchestration-runbook.md).
 
+### Phase 17 platform, CRM and case innovation control plane
+
+- Platform controls add hash-only activation evidence lineage, bounded promotion simulations, independently published metric/control versions, purpose-checked consent events, independent outcome reconciliation, team-scoped capability coaching, small-cohort suppression, recommendation-only risk timing and hash-only provider-portability evidence.
+- CRM adds a Relationship 360 timeline, explainable next actions, stable versioned scorecards, commit/best/pipeline planning forecasts, independently approved consent-led sequences with sandbox receipts, mentions, non-destructive duplicate review, non-financial influence, capacity routing and consent-led customer feedback. Ownership routing never changes first-touch attribution.
+- Case management adds idempotent sandbox channel intake, skill/capacity routing, Africa/Lagos business-hours and waiting-time policies, reviewed platform object storage, independently approved knowledge, problem/known-error records, internal major-incident command, independent quality reviews, CSAT/effort analytics and a redacting copilot whose output requires human acceptance.
+- Attachment records persist object keys only. Request-time URLs are never persisted; representatives cannot read staff attachments, staff messages or derived staff-only copilot content. External sequence channels produce receipts only, and copilots never send autonomous replies.
+- See the [Phase 17 innovation runbook](docs/phase17-innovation-runbook.md) and [case/CRM robustness assessment](docs/sales-case-crm-robustness.md).
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -204,7 +212,7 @@ Useful commands:
 
 ```bash
 npm run check                  # TypeScript project check
-npm test                       # all 109 policy, promotion, identity, assurance, analytics and security unit tests
+npm test                       # all 118 policy, innovation, promotion, identity, assurance, analytics and security unit tests
 npm run build                  # frontend + bundled production server
 npm start                      # serve the production build
 npx tsx scripts/verify-phase2.ts # financial/support regression
@@ -226,6 +234,7 @@ npx tsx scripts/verify-phase13.ts # analytics, evidence, outbox and partner-rail
 npx tsx scripts/verify-phase14.ts # stakeholder identity, expiry, consent and financial-preservation acceptance
 npx tsx scripts/verify-phase15.ts # enrollment, uniqueness, quality, vendor and biometric-assurance acceptance
 npx tsx scripts/verify-phase16.ts # promotion orchestration, budget race, attribution and financial-preservation acceptance
+npx tsx scripts/verify-phase17.ts # thirty innovation workflows, real object storage and financial-preservation acceptance
 npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
 python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
 python scripts/verify-phase10-browser.py # launch/mobile/provider-guard gate; server required
@@ -235,11 +244,12 @@ KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase13-browser.
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase14-browser.py # identity/mobile gate; run the Phase 14 database journey first
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase15-browser.py # assurance/mobile gate; production server required
 KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase16-browser.py # promotion role/mobile gate; production server required
+KF_BROWSER_BASE_URL=http://127.0.0.1:3000 python scripts/verify-phase17-browser.py # thirty inspectors, role/mobile and mutation gate; production server required
 npm run db:backup -- backups/sandbox.dump
 KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- backups/sandbox.dump
 ```
 
-The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. The browser gate requires Python Playwright with Chromium installed; run `npm run build` and `npm start` first. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
+The acceptance scripts create unique sandbox records and are designed to remain repeatable. Use them only against a sandbox database. Phase 17 attachment acceptance requires the platform-injected `KIMI_AGENTGW_BASE_URL`, `KIMI_AGENTGW_API_KEY` and `KIMI_STORAGE_RESOURCE_ID`; it uses real reviewed object storage and never substitutes a local mock. The browser gate requires Python Playwright with Chromium installed; run `npm run build` and `npm start` first. Backup files and `*.dump` are ignored by Git. The restore drill requires the explicit `KF_RECOVERY_DRILL=sandbox` guard, creates and retains a separate `kf_restore_*` database for inspection, and never drops or restores over the source database. Set `PG_BIN` if PostgreSQL 16 client tools are outside `PATH`.
 
 For non-root/non-Docker sandboxes, PostgreSQL 16.15 was provisioned by downloading PGDG packages through an isolated apt configuration, extracting them with `dpkg-deb -x`, and initializing a separate data directory and loopback port. This is a development/acceptance workaround, not a production database deployment. When ordinary package downloads stall, `uv pip install --target ... --no-cache` with an explicit HTTP timeout provides a faster isolated route; keep the data and identity dependency targets separate to avoid binary-package conflicts.
 
@@ -307,19 +317,22 @@ Key paths:
 - `src/components/product/EnrollmentPanel.tsx` and `AssuranceDesk.tsx` — representative and Operations/Finance assurance workflows
 - `api/services/caseManagement.ts`, `crm.ts`, `training.ts`, `campaigns.ts`, `vendorServices.ts` and `growth.ts` — Phase 12 sales workflows and boundaries
 - `api/services/promotions.ts`, `promotionPolicy.ts` and `promotionSignals.ts` — Phase 16 lifecycle, durable triggers, staffing, budget and verified-outcome controls
-- `src/pages/Sales.tsx` and `src/components/sales/` — role-scoped case, pipeline, training, campaign, promotion, growth and integration workspaces
-- `scripts/verify-phase2.ts` through `scripts/verify-phase16.ts` — repeatable database-backed acceptance journeys
+- `api/services/platformInnovations.ts`, `crmInnovations.ts` and `caseInnovations.ts` — Phase 17 decision support, consent, CRM, case and storage controls
+- `api/lib/storage.ts` — server-only platform object-storage SDK; the browser never receives its credential
+- `src/pages/Sales.tsx` and `src/components/sales/` — role-scoped case, pipeline, training, campaign, promotion, growth, integration and innovation workspaces
+- `scripts/verify-phase2.ts` through `scripts/verify-phase17.ts` — repeatable database-backed acceptance journeys
 - `scripts/load-phase9.ts` and `scripts/verify-phase9-browser.py` — signed HTTP, throttled-onboarding, offline, rotation and mobile acceptance
 - `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
-- `docs/implementation-scorecard.md` — Phase 16 scores plus preserved Phase 15 through Phase 1 baselines
+- `docs/implementation-scorecard.md` — Phase 17 scores plus preserved Phase 16 through Phase 1 baselines
+- `docs/phase17-innovation-runbook.md` — thirty innovation controls, storage lifecycle, approval boundaries and acceptance
 - `docs/identity-onboarding-runbook.md` — identity triggers, stakeholder workflows, provider gates, privacy and operations
 - `docs/promotion-orchestration-runbook.md` — promotion review, event semantics, staffing, budget, consent and operating boundaries
 - `docs/sales-case-crm-robustness.md` — ten case innovations, ten CRM innovations, training/growth mapping and remaining gaps
 
 ## Verification status
 
-Latest Phase 16 checkpoint: the 17-migration series (`0000`–`0016`) and repeated seed ran on a fresh PostgreSQL 16 regression database, and ordered Phase 2–16 database acceptance passed. The Phase 16 production-browser journey also passed vendor draft/submission, independent Operations approval/start, eight trigger rules, Campus Lead signed link/QR and consented recruitment, vendor hashed consent and simulated delivery, and Finance read-only oversight. It recorded no runtime errors, HTTP errors, external requests or page-level overflow at 1440px and 375px. The final Phase 15 TypeScript, ESLint, 102-test, production-build, zero-known-vulnerability audit and production-smoke results remain preserved below; the consolidated Phase 16 release checks are recorded separately after execution. Real Delta Lake/Ray acceptance remains passing local-reference evidence; earlier signed HTTP load and custom-format backup/isolated restore results remain historical evidence at their recorded scope. All results are local sandbox evidence, not staging, managed-cluster, live-institution/provider or production certification.
+Latest Phase 17 checkpoint: the 19-migration series (`0000`–`0018`) and repeated seed ran on a fresh PostgreSQL 16.15 regression database, and ordered Phase 2–17 database acceptance passed. Real Delta Lake/Ray acceptance and manifest recording passed. Phase 17 covered all thirty innovation workflows and the complete real object-storage lifecycle; the production-browser journey passed all thirty inspectors, 64 desktop/mobile feature checks, three mutations and role/read-only controls with zero observed runtime errors, HTTP errors, external requests or page-level overflow. TypeScript, ESLint, 118 unit tests across 23 files, production build, production smoke and the production dependency audit passed, with zero known vulnerabilities at assessment time. A custom-format backup restored into an isolated database with 19 migrations, 20 user triggers and matching counts while leaving the source unchanged. All results are local sandbox evidence, not staging, managed-cluster, live-institution/provider or production certification.
 
 - PostgreSQL runtime: local user-space PostgreSQL 16.15 on `127.0.0.1:55432`; migrations and repeated seed passed without Docker or root. Local commands override both database URL variables so an external configured database is never selected accidentally.
 - Package-download workaround: pinned Delta/Ray and document dependencies installed with `uv` into separate `/tmp` targets. Docling models required an alternate Hugging Face endpoint in this sandbox; production must use reviewed, pre-cached artifacts rather than depending on a public mirror.

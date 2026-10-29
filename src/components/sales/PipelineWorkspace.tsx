@@ -5,6 +5,7 @@ import { ErrorState, Loading } from "@/components/product/Loading";
 import { money, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
+import { CrmInnovationWorkspace } from "./CrmInnovationWorkspace";
 
 type SegmentFilters = { stage?: string; stalled?: boolean; query?: string };
 const stages = ["targeted", "contacted", "qualified", "activation_pending", "won", "lost"] as const;
@@ -65,6 +66,7 @@ export function PipelineWorkspace() {
         <Panel title="Complete relationship timeline"><div className="sales-timeline">{data.activities.filter((item) => item.opportunityId === selected.opportunity.id).map((item) => <article key={item.id}><span>{shortDate(item.createdAt)}</span><div><strong>{item.activityType.replaceAll("_", " ")}</strong><p>{item.body}</p></div></article>)}</div></Panel>
       </> : <Panel title="Relationship detail"><EmptyState title="Select an opportunity" detail="Its score, activities, tasks, drafts and outcome controls will appear here." /></Panel>}</div>
     </div>
+    <CrmInnovationWorkspace />
     {errors.map((error, index) => <p className="form-error" key={index}>{error!.message}</p>)}
   </>;
 }

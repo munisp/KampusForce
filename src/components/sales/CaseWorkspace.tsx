@@ -5,6 +5,7 @@ import { ErrorState, Loading } from "@/components/product/Loading";
 import { shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
+import { CaseInnovationWorkspace } from "./CaseInnovationWorkspace";
 
 type CaseFilters = { query?: string; state?: string; unassigned?: boolean };
 
@@ -70,6 +71,7 @@ export function CaseWorkspace() {
         <Panel title="Collaboration and complete history"><div className="sales-timeline">{[...data.messages.filter((item) => item.ticketId === selected.ticket.id).map((item) => ({ id: `m-${item.id}`, at: item.createdAt, title: item.visibility === "public" ? "Public reply" : "Internal staff note", body: item.body })), ...data.events.filter((item) => item.ticketId === selected.ticket.id).map((item) => ({ id: `e-${item.id}`, at: item.createdAt, title: item.action.replaceAll("_", " "), body: item.note || "Case event recorded" }))].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).map((item) => <article key={item.id}><span>{shortDate(item.at)}</span><div><strong>{item.title}</strong><p>{item.body}</p></div></article>)}</div>{data.links.filter((item) => item.ticketId === selected.ticket.id || item.relatedTicketId === selected.ticket.id).map((item) => <p className="linked-case-note" key={item.id}>Case #{item.ticketId} <strong>{item.linkType}</strong> case #{item.relatedTicketId} · no destructive merge</p>)}</Panel>
       </> : <Panel title="Case detail"><EmptyState title="Select a case" detail="Its ownership, targets, collaboration and evidence will appear here." /></Panel>}</div>
     </div>
+    <CaseInnovationWorkspace />
     {errors.map((error, index) => <p className="form-error" key={index}>{error!.message}</p>)}
   </>;
 }

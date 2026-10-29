@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
-import { BarChart3, BookOpenCheck, BriefcaseBusiness, Megaphone, PlugZap, Target, Workflow } from "lucide-react";
+import { BarChart3, BookOpenCheck, BriefcaseBusiness, Megaphone, PlugZap, ShieldCheck, Target, Workflow } from "lucide-react";
 import { WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { useWorkspace } from "@/providers/workspace";
 import { CaseWorkspace } from "@/components/sales/CaseWorkspace";
@@ -10,10 +10,12 @@ import { CampaignWorkspace } from "@/components/sales/CampaignWorkspace";
 import { GrowthWorkspace } from "@/components/sales/GrowthWorkspace";
 import { IntegrationWorkspace } from "@/components/sales/IntegrationWorkspace";
 import { PromotionWorkspace } from "@/components/sales/PromotionWorkspace";
+import { PlatformInnovationWorkspace } from "@/components/sales/PlatformInnovationWorkspace";
 
 const views = [
   { key: "cases", label: "Case command", icon: Workflow, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "pipeline", label: "Relationship CRM", icon: BriefcaseBusiness, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "intelligence", label: "Decision intelligence", icon: ShieldCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "training", label: "Sales academy", icon: BookOpenCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "promotions", label: "Vendor promotions", icon: Megaphone, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "campaigns", label: "Campaign engine", icon: Megaphone, roles: ["rep", "vendor", "ops", "admin"] },
@@ -24,6 +26,7 @@ const views = [
 type ViewKey = typeof views[number]["key"];
 
 const copy: Record<ViewKey, { title: string; subtitle: string }> = {
+  intelligence: { title: "Evidence before decisions.", subtitle: "Ten platform controls connect outcome lineage, privacy, coaching and resilience—without manufacturing financial truth." },
   cases: { title: "Every case has a next move.", subtitle: "Ownership, response clocks, collaboration and evidence—without touching the financial ledger." },
   pipeline: { title: "Relationships, not pipeline theatre.", subtitle: "A complete activity record, explainable priorities and human-approved follow-up." },
   training: { title: "Skill before scale.", subtitle: "Short internal modules turn ethical sales, privacy and service boundaries into assessed readiness." },
@@ -44,6 +47,7 @@ export default function Sales() {
     <nav className="sales-view-tabs" aria-label="Sales workspace views">
       {allowed.map(({ key, label, icon: Icon }) => <button key={key} className={active === key ? "active" : ""} aria-current={active === key ? "page" : undefined} onClick={() => setView(key)}><Icon size={16} />{label}</button>)}
     </nav>
+    {active === "intelligence" && <PlatformInnovationWorkspace />}
     {active === "cases" && <CaseWorkspace />}
     {active === "pipeline" && <PipelineWorkspace />}
     {active === "training" && <TrainingWorkspace />}
@@ -51,6 +55,6 @@ export default function Sales() {
     {active === "campaigns" && <CampaignWorkspace />}
     {active === "growth" && <GrowthWorkspace />}
     {active === "integrations" && <IntegrationWorkspace />}
-    <footer className="sales-footer"><BarChart3 size={15} /><span>Phase 16 promotion orchestration · deterministic controls · sandbox evidence only</span></footer>
+    <footer className="sales-footer"><BarChart3 size={15} /><span>Phase 17 decision intelligence · 30 controlled innovations · sandbox evidence only</span></footer>
   </WorkspaceLayout>;
 }

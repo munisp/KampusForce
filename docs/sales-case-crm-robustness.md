@@ -8,6 +8,18 @@ The earlier support and sales records were a credible operational slice, but not
 
 Phase 12 closes those product gaps with eleven additive PostgreSQL migrations in the total schema history, a role-scoped `/sales` workspace and database-backed acceptance. Case management now scores **96/100** and the combined vendor funnel/CRM/command workstream scores **94/100**. These are sandbox implementation scores, not production, external-integration, deliverability or commercial-outcome certification.
 
+## Phase 17 addendum: advanced CRM and case control plane
+
+Phase 17 closes the principal local attachment, configurable-clock, collaboration, forecasting and decision-support gaps identified below. The Phase 17 case-management score is **99/100**, SLA/macros/CSAT quality is **99/100**, and vendor funnel/CRM/command is **98/100** in the consolidated scorecard. These remain sandbox implementation-depth scores.
+
+The ten new CRM controls are Relationship 360, explainable next best action, stable versioned lead scoring, commit/best/pipeline planning forecasts, independently approved consent-led sequences, team mentions, non-destructive duplicate review, non-financial influence, capacity-based ownership routing and consent-led voice-of-customer feedback. Forecasts are not earned commission; routing does not alter first-touch attribution; external steps produce sandbox receipts only.
+
+The ten new case controls are idempotent sandbox channel intake, skill/capacity routing, business-hours and waiting-aware SLAs, reviewed object-storage attachments, approved knowledge suggestions, problem/known-error management, internal major-incident command, independent quality reviews, CSAT/effort analytics and a redacting human-accepted copilot. Representatives cannot read staff attachments/messages or staff-derived copilot evidence.
+
+The Phase 17 database journey passed all thirty platform/CRM/case workflows, including real object-storage upload, independent metadata/list reads, Chromium byte verification, deletion and existence recheck. It also passed role isolation, independent approvals, consent revocation and deep-equal financial snapshots across deals, attribution, ledger, escrow and payouts. The production-browser journey passed all thirty inspectors, 64 desktop/mobile feature checks, three mutations, role scopes and Finance read-only oversight with zero observed runtime errors, HTTP errors, external requests or page-level overflow. See the [Phase 17 runbook](phase17-innovation-runbook.md).
+
+The historical Phase 12 assessment is preserved below. Its remaining-gap statements describe that checkpoint, not the later Phase 17 implementation.
+
 ## Ten case-management innovations
 
 1. **Named ownership with optimistic concurrency.** Assignment records a accountable user and requires the expected case version, so a stale operator cannot silently overwrite a newer assignment.

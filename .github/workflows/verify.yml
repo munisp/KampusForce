@@ -73,15 +73,22 @@ jobs:
           npm run db:backup -- /tmp/kampusforce-ci-recovery.dump
           KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- /tmp/kampusforce-ci-recovery.dump
       - run: npm audit --omit=dev
-      - name: Install Phase 16 browser acceptance runtime
+      - name: Install browser acceptance runtime
         run: |
           python3 -m pip install playwright
           python3 -m playwright install --with-deps chromium
+      - name: Verify all Phase 17 workflows with real platform object storage
+        if: ${{ vars.KF_PHASE17_STORAGE_ACCEPTANCE == 'true' }}
+        env:
+          KIMI_AGENTGW_BASE_URL: ${{ vars.KIMI_AGENTGW_BASE_URL }}
+          KIMI_AGENTGW_API_KEY: ${{ secrets.KIMI_AGENTGW_API_KEY }}
+          KIMI_STORAGE_RESOURCE_ID: ${{ vars.KIMI_STORAGE_RESOURCE_ID }}
+        run: npx tsx scripts/verify-phase17.ts
       - name: Start production server
         run: |
           npm start > /tmp/kampusforce-ci-server.log 2>&1 &
           echo $! > /tmp/kampusforce-ci-server.pid
-      - name: Verify Phase 16 production browser and mobile journeys
+      - name: Verify Phase 16 and Phase 17 production browser and mobile journeys
         env:
           KF_BROWSER_BASE_URL: http://127.0.0.1:3000
         run: |
@@ -93,3 +100,4 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:3000/api/health/ready
           python3 scripts/verify-phase16-browser.py
+          python3 scripts/verify-phase17-browser.py

@@ -120,6 +120,20 @@
       "when": 1793228917918,
       "tag": "0016_lean_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793237265112,
+      "tag": "0017_phase17_innovation_control_plane",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793238922585,
+      "tag": "0018_phase17_case_agent_skills",
+      "breakpoints": true
     }
   ]
 }

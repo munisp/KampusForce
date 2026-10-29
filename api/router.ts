@@ -10,6 +10,9 @@ import { architectureRouter } from "./architectureRouter";
 import { identityRouter } from "./identityRouter";
 import { assuranceRouter } from "./assuranceRouter";
 import { promotionRouter } from "./promotionRouter";
+import { platformInnovationRouter } from "./platformInnovationRouter";
+import { crmInnovationRouter } from "./crmInnovationRouter";
+import { caseInnovationRouter } from "./caseInnovationRouter";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, service: "kampusforce-api", ts: Date.now() })),
@@ -24,6 +27,9 @@ export const appRouter = createRouter({
   identity: identityRouter,
   assurance: assuranceRouter,
   promotion: promotionRouter,
+  intelligence: platformInnovationRouter,
+  crm: crmInnovationRouter,
+  caseInnovation: caseInnovationRouter,
 });
 
 export type AppRouter = typeof appRouter;

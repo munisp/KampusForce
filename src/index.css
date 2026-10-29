@@ -1069,3 +1069,109 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .promotion-receipts article > span:last-of-type { grid-column: 2 / -1; }
   .promotion-detail-grid .button, .promotion-list .button { min-height: 44px; }
 }
+
+
+/* Phase 17: evidence-dense innovation inspectors */
+.crm-innovation-workspace, .case-innovation-workspace { margin-top: 30px; border-top: 2px solid var(--navy); padding-top: 24px; }
+.innovation-shell { min-width: 0; display: grid; grid-template-columns: 238px minmax(0, 1fr); align-items: start; border-block: 1px solid var(--navy); background: var(--paper); }
+.innovation-feature-nav { min-width: 0; display: grid; border-right: 1px solid var(--navy); }
+.innovation-feature-nav button { min-width: 0; min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--muted); padding: 12px 14px; text-align: left; transition: background .18s, color .18s; }
+.innovation-feature-nav button:last-child { border-bottom: 0; }
+.innovation-feature-nav button > span { min-width: 0; display: grid; gap: 4px; }
+.innovation-feature-nav button strong { color: var(--navy); font-size: 11px; line-height: 1.35; }
+.innovation-feature-nav button small { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: 9px; font-weight: 500; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.innovation-feature-nav button svg { flex: 0 0 auto; opacity: 0; transform: translateX(-3px); transition: opacity .18s, transform .18s; }
+.innovation-feature-nav button:hover { background: var(--canvas); color: var(--teal); }
+.innovation-feature-nav button.active { background: var(--teal-soft); color: var(--teal); }
+.innovation-feature-nav button.active strong { color: var(--teal); }
+.innovation-feature-nav button:hover svg, .innovation-feature-nav button.active svg { opacity: 1; transform: translateX(0); }
+.innovation-feature-nav button:focus-visible, .innovation-record button:focus-visible, .innovation-toolbar button:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.innovation-inspector { min-width: 0; padding: 22px 24px 26px; }
+.innovation-inspector-head { display: grid; grid-template-columns: minmax(170px, .8fr) minmax(240px, 1.2fr); align-items: end; gap: 22px; margin-bottom: 20px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.innovation-inspector-head span { display: block; margin-bottom: 5px; color: var(--teal); font: 600 9px "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; }
+.innovation-inspector-head h2 { margin: 0; font-size: 23px; }
+.innovation-inspector-head p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+.innovation-context { max-width: 620px; margin-bottom: 20px; }
+.innovation-context select { font-size: 11px; }
+.innovation-two-forms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.innovation-form { min-width: 0; display: grid; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line); padding: 0 0 20px; }
+.innovation-form h3, .knowledge-suggestions h3 { margin: 0 0 3px; font-size: 13px; letter-spacing: -.015em; }
+.innovation-form.compact { padding: 13px 0 17px; border-block: 1px solid var(--line); }
+.innovation-form-grid { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.innovation-form-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.innovation-form label { min-width: 0; font-size: 10px; }
+.innovation-form input, .innovation-form select, .innovation-form textarea, .innovation-context select { min-width: 0; font-size: 11px; }
+.innovation-form textarea { min-height: 82px; }
+.innovation-form label small, .form-hint { color: var(--muted); font-size: 9px; font-weight: 500; line-height: 1.55; }
+.innovation-form .form-hint { margin: 0; }
+.innovation-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.innovation-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 18px; border-block: 1px solid var(--line); padding: 13px 0; }
+.innovation-toolbar > span { flex: 1 1 250px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.innovation-record-grid { min-width: 0; display: grid; }
+.innovation-record-grid + .innovation-record-grid { margin-top: 18px; border-top: 1px solid var(--navy); }
+.innovation-record { min-width: 0; border-bottom: 1px solid var(--line); padding: 14px 0; }
+.innovation-record:first-child { padding-top: 4px; }
+.innovation-record > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.innovation-record > header > div { min-width: 0; display: grid; gap: 4px; }
+.innovation-record > header strong { overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; }
+.innovation-record > header small, .innovation-record-body > small { color: var(--muted); font: 9px "IBM Plex Mono", monospace; line-height: 1.55; overflow-wrap: anywhere; }
+.innovation-record-body { display: grid; gap: 8px; margin-top: 9px; }
+.innovation-record-body p { margin: 0; color: var(--ink); font-size: 11px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.innovation-record-body > .text-link, .innovation-record-body > .button { justify-self: start; }
+.innovation-record > footer { margin-top: 10px; }
+.innovation-record-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.hash-value { flex: 0 0 auto; color: var(--teal); font: 9px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.innovation-number { color: var(--teal); font: 700 16px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.innovation-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.innovation-kv > span { display: grid; gap: 3px; border-left: 1px solid var(--line); padding-left: 9px; color: var(--muted); font-size: 9px; }
+.innovation-kv strong { color: var(--navy); font: 700 15px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.innovation-success { margin: 14px 0 0; border-left: 2px solid var(--teal); background: var(--teal-soft); padding: 10px 12px; color: var(--teal); font-size: 10px; line-height: 1.55; }
+.innovation-inspector > .form-error { margin-top: 12px; }
+.relationship-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; border-block: 1px solid var(--line); padding: 13px 0; }
+.relationship-summary > div { min-width: 0; display: grid; align-content: start; gap: 5px; }
+.relationship-summary span { color: var(--muted); font: 8px "IBM Plex Mono", monospace; letter-spacing: .05em; text-transform: uppercase; }
+.relationship-summary strong { font-size: 11px; overflow-wrap: anywhere; }
+.innovation-timeline { max-height: 600px; overflow-y: auto; }
+.forecast-value { color: var(--teal); font: 700 25px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+.sequence-steps { display: grid; gap: 8px; }
+.sequence-steps p { border-left: 1px solid var(--line); padding-left: 10px; }
+.sequence-steps small { color: var(--muted); font-size: 9px; }
+.benchmark-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.benchmark-cells > span { display: grid; gap: 3px; border-left: 1px solid var(--line); padding-left: 9px; }
+.benchmark-cells strong { font: 700 15px "IBM Plex Mono", monospace; }
+.benchmark-cells small { color: var(--muted); font-size: 9px; }
+.knowledge-suggestions { margin-bottom: 20px; border-bottom: 1px solid var(--navy); padding-bottom: 14px; }
+.knowledge-suggestions h3 { margin-bottom: 12px; }
+.innovation-action-list { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+@media (max-width: 1180px) {
+  .innovation-shell { grid-template-columns: 205px minmax(0, 1fr); }
+  .innovation-inspector { padding-inline: 18px; }
+  .innovation-two-forms { grid-template-columns: 1fr; gap: 0; }
+  .innovation-form-grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .innovation-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }
+}
+@media (max-width: 900px) {
+  .innovation-shell { grid-template-columns: 1fr; }
+  .innovation-feature-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--navy); overscroll-behavior-inline: contain; }
+  .innovation-feature-nav button { min-width: 190px; min-height: 62px; flex: 0 0 190px; border-right: 1px solid var(--line); border-bottom: 0; padding: 10px 12px; }
+  .innovation-feature-nav button small { -webkit-line-clamp: 1; }
+  .innovation-feature-nav button svg { display: none; }
+  .innovation-inspector-head { grid-template-columns: 1fr; gap: 8px; }
+  .relationship-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .crm-innovation-workspace, .case-innovation-workspace { margin-top: 22px; padding-top: 18px; }
+  .innovation-inspector { padding: 17px 14px 20px; }
+  .innovation-inspector-head h2 { font-size: 20px; }
+  .innovation-form-grid, .innovation-form-grid.three { grid-template-columns: 1fr; }
+  .innovation-form .button, .innovation-toolbar .button, .innovation-record-actions .button { width: 100%; min-height: 44px; }
+  .innovation-record > header { flex-wrap: wrap; }
+  .innovation-record .hash-value { max-width: 100%; }
+  .innovation-kv, .benchmark-cells { grid-template-columns: 1fr 1fr; }
+  .innovation-feature-nav button { min-width: 176px; flex-basis: 176px; min-height: 64px; }
+  .innovation-feature-nav button strong { font-size: 10px; }
+  .innovation-record-body > .text-link { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .innovation-feature-nav button, .innovation-feature-nav button svg { transition: none; }
+}

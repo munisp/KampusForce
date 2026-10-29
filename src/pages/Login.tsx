@@ -6,7 +6,7 @@ import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 
 const roles = [
-  { role: "rep" as const, title: "Campus lead", detail: "Ada · manage a team, overrides and escalations.", icon: UsersRound, path: "/rep" },
+  { role: "rep" as const, repCode: "KF-UNILAG-0001", title: "Campus lead", detail: "Ada · manage a team, overrides and escalations.", icon: UsersRound, path: "/rep" },
   { role: "rep" as const, repCode: "KF-UNILAG-0002", title: "Team rep", detail: "Tobi · share offers, open tickets and track earnings.", icon: UserRound, path: "/rep" },
   { role: "vendor" as const, title: "Vendor partner", detail: "Dry-run rules, fund escrow and resolve support.", icon: Store, path: "/vendor" },
   { role: "ops" as const, title: "Operations", detail: "Monitor SLAs, promote leads and run settlement.", icon: ShieldCheck, path: "/ops" },
@@ -81,6 +81,6 @@ export default function Login() {
         </div>
       </section>
     </main>
-    <footer className="entry-footer"><span>Phase 16 vendor promotion orchestration · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
+    <footer className="entry-footer"><span>Phase 17 decision intelligence · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
   </div>;
 }
