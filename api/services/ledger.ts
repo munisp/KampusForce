@@ -23,6 +23,7 @@ import { notifyUser } from "./notifications";
 import { assertNoFraudHold, blockingFraudHold } from "./fraud";
 import { assertCurrentIdentityApproval, currentIdentityApproval } from "./identity";
 import { assertCurrentStudentAssurance, studentAssurancePreflight } from "./studentAssurance";
+import { signalPromotionActivationConfirmed } from "./promotionSignals";
 import {
   assessReconciliation,
   MAX_PAYOUT_ATTEMPTS,
@@ -99,6 +100,7 @@ export async function confirmDueDeals(actorUserId?: number) {
       await tx.update(deals).set({ clawbackUntil, updatedAt: new Date() }).where(eq(deals.id, current.id));
       await stateChange(tx, current.id, "pending", "confirmed", actorUserId ? `staff:${actorUserId}` : "system:confirmation", "Refund-free window elapsed; escrow reserved");
       await stateChange(tx, current.id, "confirmed", "payable", actorUserId ? `staff:${actorUserId}` : "system:confirmation", override ? `Eligible for payout; ₦${override.overrideKobo / 100} lead override funded from platform margin` : "Eligible for the next payout batch");
+      await signalPromotionActivationConfirmed(current.id, actorUserId, tx);
       return true;
     });
     if (changed) confirmed += 1;

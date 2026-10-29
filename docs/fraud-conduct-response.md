@@ -2,7 +2,7 @@
 
 ## Scope
 
-This runbook governs the local Phase 8 activation-velocity control, payout holds, Operations conduct decisions and representative appeals, plus the Phase 15 duplicate-identity and activation-quality reviews that reuse the same hold infrastructure. It is an operating procedure for deterministic sandbox controls—not ML fraud scoring, production AML, legal advice, regulatory reporting, live institutional/identity verification or automatic financial reversal.
+This runbook governs the local Phase 8 activation-velocity control, payout holds, Operations conduct decisions and representative appeals, plus the Phase 15 duplicate-identity and activation-quality reviews that reuse the same hold infrastructure. Phase 16 promotion-linked recruitment and activation preserve these controls: promotion approval, staffing changes and budget/lifecycle events never clear a hold, create a commission entitlement or post a financial reversal. It is an operating procedure for deterministic sandbox controls—not ML fraud scoring, production AML, legal advice, regulatory reporting, live institutional/identity verification or automatic financial reversal.
 
 ## Control behavior
 
@@ -67,6 +67,14 @@ Releasing case A does not release case B. Any other active/upheld hold continues
 4. Clear or uphold through independent review. Clearing releases only the linked quality hold. No decision voids the source deal, changes commission or posts a reversal; any refund/clawback remains a separate vendor-event financial workflow.
 5. Refund correlation uses the persisted relational `vendor_events.deal_id`. Never join a vendor customer-reference hash to an attribution phone hash as though they shared a domain.
 
+## Phase 16 promotion interactions
+
+1. Promotion-linked Campus Lead invitations recheck current identity, enrollment, duplicate-identity and fraud clearance. An open or upheld hold blocks the ordinary activation/payout path even when a promotion is active.
+2. Staffing risk, target met, pause, end and budget exhaustion are orchestration signals, not fraud findings. Do not open a conduct case solely because a promotion changes state.
+3. Budget-exhausted or over-budget submissions remain quarantined. Never force them into activation or manually create a commissionable deal.
+4. Promotion lifecycle and assurance decisions preserve existing deals, ledger entries and earned payout history. Refund/clawback processing remains a separate signed vendor-event workflow.
+5. Use the [promotion orchestration runbook](promotion-orchestration-runbook.md) for lifecycle, consent, budget and verified-outcome procedures.
+
 ## Evidence and audit rules
 
 - Case, hold and representative transitions are row-locked. Invalid or competing transitions are rejected rather than overwriting a decision.
@@ -77,7 +85,7 @@ Releasing case A does not release case B. Any other active/upheld hold continues
 
 ## Verification
 
-Run `npx tsx scripts/verify-phase8.ts` and `npx tsx scripts/verify-phase15.ts` only against a sandbox database. Phase 8 covers cap boundaries, duplicate exclusion, concurrent serialization, case dedupe, post-release case creation, payout blocking, scoped release, suspension/appeal restoration, concurrent-decision rejection, immutable history, financial preservation and critical overdue monitoring. Phase 15 covers enrollment/eligibility, duplicate-subject linked holds, warning-versus-high-risk quality behavior, early-refund and repeated-customer detection, vendor-scoped credential suspension, biometric-evaluation coverage, opaque-reference non-persistence, append-only assurance events and byte-equivalent financial preservation. Run Phase 2–14 first for ordered regression coverage, then the isolated backup/restore drill.
+Run `npx tsx scripts/verify-phase8.ts`, `npx tsx scripts/verify-phase15.ts` and `npx tsx scripts/verify-phase16.ts` only against a sandbox database. Phase 8 covers cap boundaries, duplicate exclusion, concurrent serialization, case dedupe, post-release case creation, payout blocking, scoped release, suspension/appeal restoration, concurrent-decision rejection, immutable history, financial preservation and critical overdue monitoring. Phase 15 covers enrollment/eligibility, duplicate-subject linked holds, warning-versus-high-risk quality behavior, early-refund and repeated-customer detection, vendor-scoped credential suspension, biometric-evaluation coverage, opaque-reference non-persistence, append-only assurance events and byte-equivalent financial preservation. Phase 16 confirms that promotion-linked recruitment, lifecycle, budget and verified-outcome controls preserve those financial and assurance boundaries. Run Phase 2–14 first for ordered regression coverage, then the isolated backup/restore drill.
 
 The Phase 15 production-browser journey also passed Operations collision clearing and warning-only quality review with no runtime/HTTP errors, external requests or desktop/375px page overflow. Synthetic collisions and quality signals are control fixtures, not real fraud findings.
 

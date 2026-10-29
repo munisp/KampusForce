@@ -19,7 +19,7 @@ const navByRole = {
   ],
   vendor: [{ to: "/vendor", label: "Vendor command", icon: Store }, { to: "/identity", label: "KYB & onboarding", icon: ShieldCheck }, { to: "/sales", label: "Sales & cases", icon: Workflow }],
   ops: [{ to: "/ops", label: "Operations control", icon: ShieldCheck }, { to: "/identity", label: "Identity review", icon: UserCheck }, { to: "/sales", label: "Sales command", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
-  finance: [{ to: "/ops", label: "Operations control", icon: ShieldCheck }, { to: "/identity", label: "Identity & onboarding", icon: UserCheck }, { to: "/architecture", label: "Data & finance", icon: Network }],
+  finance: [{ to: "/ops", label: "Operations control", icon: ShieldCheck }, { to: "/identity", label: "Identity & onboarding", icon: UserCheck }, { to: "/sales", label: "Sales oversight", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
   admin: [{ to: "/ops", label: "Operations control", icon: ShieldCheck }, { to: "/identity", label: "Identity review", icon: UserCheck }, { to: "/sales", label: "Sales command", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
 };
 
@@ -46,7 +46,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
   return <div className="workspace-shell">
     <aside className="sidebar">
       <Brand inverse />
-      <div className="workspace-label">{user.role} workspace<span>Phase 15 · sandbox</span></div>
+      <div className="workspace-label">{user.role} workspace<span>Phase 16 · sandbox</span></div>
       <nav aria-label="Workspace navigation">
         {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={18} />{label}</NavLink>)}
       </nav>

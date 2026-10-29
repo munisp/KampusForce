@@ -4,7 +4,7 @@ Assessment date: 2026-10-29
 
 ## Scope and assurance boundary
 
-Phase 14 adds event-driven onboarding for representatives, Campus Leads, vendors, Operations/Finance reviewers and vendor-regulated customer handoffs. It integrates identity eligibility with recruitment, vendor activation, payout assembly/settlement, consent, durable expiry, audit and privacy-safe lakehouse events. Phase 15 adds a distinct student-assurance layer: current enrollment, provider-subject uniqueness review, activation-quality signals, vendor outcome reconciliation and durable biometric-evaluation coverage.
+Phase 14 adds event-driven onboarding for representatives, Campus Leads, vendors, Operations/Finance reviewers and vendor-regulated customer handoffs. It integrates identity eligibility with recruitment, vendor activation, payout assembly/settlement, consent, durable expiry, audit and privacy-safe lakehouse events. Phase 15 adds a distinct student-assurance layer: current enrollment, provider-subject uniqueness review, activation-quality signals, vendor outcome reconciliation and durable biometric-evaluation coverage. Phase 16 reuses those controls for promotion-linked Campus Lead recruitment: current tier, identity approval, enrollment validity, duplicate-identity clearance and fraud status remain mandatory, and neither promotion approval nor recruitment creates a commission entitlement.
 
 This is an executable control implementation, not proof of live institutional or identity verification or full production readiness. Synthetic providers, enrollment attestations, vendor samples and biometric evaluations are control fixtures. PaddleOCR and Docling ran locally against synthetic, non-sensitive documents; no institution, VLM, liveness or deepfake provider has been called. No PAD, injection-attack, deepfake, demographic-performance, legal, security or managed-deployment certification is claimed.
 
@@ -157,8 +157,8 @@ Logical Delta deletion is not physical erasure. Schedule and evidence Delta `VAC
 
 Latest local runtime checkpoint:
 
-- A user-space PostgreSQL 16.15 server ran the 16-migration series (`0000`–`0015`) and repeated seed; ordered Phase 2–15 database journeys passed. The Phase 10 legacy payout fixture completes independent synthetic representative KYC rather than bypassing the settlement identity gate, and Phase 15 separately proves that identity approval without current enrollment cannot activate a recruit.
-- Real Delta/Ray acceptance passed and its manifests were recorded in PostgreSQL. Phase 9–15 production-browser journeys passed; the identity and assurance browser reports had zero runtime errors and zero external requests. Phase 15 additionally verified representative submission/current-state refresh, Operations review, uniqueness clearing, warning-only quality review, vendor sampling, biometric-evidence registration and read-only Finance oversight at desktop and 375px widths.
+- A user-space PostgreSQL 16.15 server ran the 17-migration series (`0000`–`0016`) and repeated seed; ordered Phase 2–16 database journeys passed. The Phase 10 legacy payout fixture completes independent synthetic representative KYC rather than bypassing the settlement identity gate, Phase 15 separately proves that identity approval without current enrollment cannot activate a recruit, and Phase 16 preserves those gates for promotion-linked recruiting.
+- Real Delta/Ray acceptance passed and its manifests were recorded in PostgreSQL. Phase 9–16 production-browser journeys have passing local evidence at their recorded scope; the identity, assurance and promotion browser reports had zero runtime errors and zero external requests. Phase 16 additionally verified Campus Lead consented recruitment, vendor hashed consent/simulated delivery and read-only Finance oversight at desktop and 375px widths.
 - Finance now has a seeded sandbox login and workspace route. Its own-case journey supports consent, submission and withdrawal but offers neither processing nor approval controls. Operations/Admin review permissions remain separate.
 - Router-level browser execution found inherited session-token fields were incompatible with `.strict()` on secondary identity inputs; field-level Zod validation remains, while those secondary objects now compose correctly with the tRPC token middleware. The privileged own-case action boundary was also corrected.
 - Signed HTTP load accepted 100/100 events at concurrency 25. The earlier backup manifest validation and isolated restore passed across the then-current 13 migrations with unchanged source records; that recovery result is retained as historical evidence, not mislabelled as a new 15-migration restore.
@@ -185,11 +185,13 @@ npx tsx scripts/verify-phase12.ts
 npx tsx scripts/verify-phase13.ts
 npx tsx scripts/verify-phase14.ts
 npx tsx scripts/verify-phase15.ts
+npx tsx scripts/verify-phase16.ts
 npm run build
 npm start
 # In another shell, after the database journeys leave their synthetic review fixtures:
 python3 scripts/verify-phase14-browser.py
 python3 scripts/verify-phase15-browser.py
+python3 scripts/verify-phase16-browser.py
 ```
 
 The Phase 14 database journey checks incomplete-evidence rejection, independent review, payout eligibility, expiry, reverification, consent withdrawal/tombstones, vendor activation/pause, Operations self-approval rejection, customer-handoff boundaries, pseudonymized events and unchanged deals/ledger entries. It also covers concurrent open-case replay, premature/repeated reverification, append-only database rejection, and preservation of representative eligibility when a separate Campus Lead approval expires. Phase 15 adds enrollment/revocation, duplicate-subject linked holds, activation-quality severity and deterministic sweeps, vendor-scoped suspension, exact biometric-evaluation coverage/expiry, opaque-reference non-persistence and append-only assurance events. The browser journeys additionally check role workflows, external-request absence, runtime errors and document overflow. None of these results certifies a live institution, identity/biometric provider or production deployment.
@@ -199,5 +201,5 @@ The Phase 14 database journey checks incomplete-evidence rejection, independent 
 1. Execute the complete document pipeline with an approved VLM plus hosted liveness/deepfake providers in isolated staging, and independently evaluate security, PAD/injection/deepfake resistance, accessibility and demographic performance. Local PaddleOCR/Docling synthetic checks and Phase 15 evaluation-record bookkeeping do not satisfy this gate. Connect authoritative institutional enrollment and provider-generated stable-subject deduplication, then independently reconcile real vendor outcome samples before enabling live eligibility decisions.
 2. Complete DPIA/privacy notices, consent and withdrawal policy, retention/erasure schedules, processor contracts, redress and legal/security approvals.
 3. Integrate approved secrets management, malware scanning, container/egress isolation, authenticated risk callbacks, monitoring, incident response and evidence retention without sensitive-data logging.
-4. Prove migration, repeated seed, ordered Phase 2–15 regressions, lakehouse replay/tombstones, browser journeys, standalone bundle, backup/isolated restore and load/failure behavior in staging.
+4. Prove migration, repeated seed, ordered Phase 2–16 regressions, lakehouse replay/tombstones, browser journeys, standalone bundle, backup/isolated restore and load/failure behavior in staging.
 5. Complete privileged-access review, independent Operations procedures, vendor registry/source approval, customer-handoff review and production service-level evidence before enabling live execution.

@@ -1,7 +1,52 @@
 # KampusForce implementation scorecard
 
 Assessment date: 2026-10-29
-Scope: executable Phase 15 student and platform assurance, Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/data/financial architecture, and the preserved Phase 12 through Phase 1 assessments below. Scores measure implementation depth and available evidence—not production-readiness percentages, live institutional or identity assurance, legal compliance or external-provider certification.
+Scope: executable Phase 16 vendor-promotion and recruitment orchestration, Phase 15 student and platform assurance, Phase 14 stakeholder onboarding and identity controls, Phase 13 analytics/data/financial architecture, and the preserved Phase 12 through Phase 1 assessments below. Scores measure implementation depth and available evidence—not production-readiness percentages, live institutional or identity assurance, legal compliance or external-provider certification.
+
+## Phase 16 assessment
+
+The unweighted mean across the 16 longstanding workstreams is **93/100** (exact mean **93.375**, improved from **93.0625** in Phase 15). The increase is deliberately modest: Phase 16 closes the external-promotion/internal-recruitment orchestration gap with durable event controls, budget/escrow races, verified-outcome reporting and role/mobile acceptance, but earns no live-channel, real-customer, managed-infrastructure, legal/security or production-provider credit. The ordered Phase 2–16 PostgreSQL journey and the Phase 16 production-browser journey passed locally; `productionReady` remains false.
+
+| Workstream | Score | Implemented controls | Principal remaining gap |
+|---|---:|---|---|
+| Vendor Rule Studio | 96 | Existing exact dry runs, activation caps, typed publication and row-locked supersession | Product team permissions and live commercial controls |
+| Vendor funnel, CRM & command | 96 | Vendor promotion briefs, staffing/budget progress, vendor-verified outcomes and existing CRM/reconciliation | Real channels, independent outcome sources and external service operations |
+| Campus recruiting & team management | 99 | Parent/child promotion campaigns, Campus Lead-only consented recruiting, target controls and preserved assurance gates | Live institution/identity providers and real campus outcomes |
+| Top-decile lead designation | 92 | Existing ranking, designation, recalculation and demotion controls | Real cohorts and four-eyes policy review |
+| Campus Lead override accounting | 96 | Existing platform-funded 5% accrual, settlement, reversal/netting and immutable history | Live formal reconciliation |
+| Case management & escalation | 97 | Existing scoped cases plus budget/staffing operational signals and assurance integration | Attachments, external alerts and production queue analytics |
+| SLA, macros & CSAT quality | 96 | Existing durable SLA, macros and quality controls | External delivery and configurable clock policy |
+| Attribution & assisted onboarding | 93 | Signed promotion links/QR, customer-data-free URLs, first-touch preservation and current-state link checks | Device-lab and production deep-link evidence |
+| Event ingestion & historical rules | 99 | Existing signed ingestion plus promotion budget/escrow capacity, final-slot locking and retry re-resolution | Live capacity and distributed queueing |
+| Escrow, payout & clawbacks | 98 | Existing financial controls preserved through promotion pause/end/exhaustion and refund clawback | Real callbacks, bank evidence and tax policy |
+| Security, privacy & RBAC | 99 | Independent review, hashed tokens/consent, scoped vendor/Operations/Lead/Finance actions and read-only oversight | Independent provider evaluation, secrets/edge controls, legal review and penetration test |
+| Offline & installable shell | 90 | Existing read-only offline controls | Device-lab and broader read-only coverage |
+| Fifteen-campus rollout & KPI telemetry | 88 | Existing external-evidence and rollout registers | Real campus outcomes and national decision |
+| Automated verification | 99 | Ordered Phase 2–16 PostgreSQL, real Delta/Ray, Phase 16 production-browser role/mobile and existing static/load/recovery evidence | Staging, cross-browser, failure/HA and broader property evidence |
+| Target architecture & scale services | 74 | Existing local Delta/Ray references, TigerBeetle outbox, Mojaloop contract and durable promotion worker | Managed deployment and strict NestJS/Redis/polyglot parity |
+| Live providers & production operations | 82 | Existing guarded providers plus explicitly simulated promotion delivery with no external request | Real channels/providers, independent evaluation, connectivity and production approvals |
+
+### Phase 16 promotion implementation scores
+
+| Promotion area | Score | Assessment |
+|---|---:|---|
+| Vendor brief and independent lifecycle review | 96 | Self-service briefs, independent Operations approval, schedule/state controls and Finance oversight; live commercial approvals open |
+| Recruitment orchestration and staffing | 95 | Parent/child campaigns, eight durable triggers, Campus Lead gating, staffing risk/target closure and schedule sweep; external workforce outcomes open |
+| Attribution, budget and financial integrity | 99 | First-touch preservation, hashed signed links, open-deal commitments, uncommitted escrow, final-slot race and unchanged 80/20/clawback behavior |
+| Consent, privacy and channel boundaries | 97 | Keyed consent/suppression records, opaque evidence and explicitly simulated delivery; live channel/provider operations open |
+| Role workflows and reporting | 94 | Vendor, Operations, Campus Lead and Finance workspaces with verified-only customer outcomes and responsive mobile controls; broader accessibility/cross-browser evidence open |
+| Verification and regression evidence | 99 | Ordered Phase 2–16 database acceptance and production-browser role/mobile journey with zero observed runtime/HTTP errors or external requests; staging and failure/HA evidence open |
+
+The promotion-area mean is **97/100** (exact **96.6667**). These are implementation/control-depth scores, not live promotion performance or production-readiness percentages.
+
+### Phase 16 executed local evidence
+
+- The 17-migration series (`0000`–`0016`) ran on a fresh PostgreSQL 16 regression database. Phase 16 contributes additive migration `0016`. Ordered Phase 2–16 database acceptance passed after normalizing shared fixtures through ordinary workflows and deriving budget/economics expectations from the current published rule rather than stale seed-time assumptions.
+- The database journey passed independent review, linked Campus Lead-only recruitment, staffing-risk events, target-met invitation closure with existing onboarding preserved, first-touch preservation, one-accepted/one-quarantined final-budget-slot concurrency, escrow-depletion blocking, current-rule 80/20 economics, refund clawback, inactive-vendor propagation, automatic schedule closure and byte-equivalent lifecycle financial history.
+- Raw signed promotion tokens were not persisted. External delivery remained a sandbox simulation, and Finance remained read-only. Recruitment created no commission entitlement.
+- The Phase 16 production-browser journey passed vendor draft/submission, independent Operations approval/start, eight trigger rules and receipts, Campus Lead signed link/QR and consented recruitment, vendor hashed consent and simulated delivery, verified-outcome boundaries and Finance read-only oversight. Desktop and 375px layouts had no page-level overflow, browser/runtime errors, HTTP errors or external requests.
+- Final TypeScript, ESLint, 109-unit-test and production-build checks passed. The production server dependency was moved to the patched Hono Node server release, after which the production dependency audit reported zero known vulnerabilities.
+- These checks establish local sandbox behavior only. No external channel, institution, identity/biometric provider, live vendor budget, payment rail or real customer outcome was used or certified. See the [promotion orchestration runbook](promotion-orchestration-runbook.md).
 
 ## Phase 15 assessment
 

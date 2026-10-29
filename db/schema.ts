@@ -76,6 +76,12 @@ export const campaignEnrollmentStateEnum = pgEnum("campaign_enrollment_state", [
 export const integrationServiceEnum = pgEnum("integration_service", ["catalog", "crm", "support", "messaging"]);
 export const integrationModeEnum = pgEnum("integration_mode", ["sandbox", "live"]);
 export const integrationStateEnum = pgEnum("integration_state", ["configured", "verified", "degraded", "disabled"]);
+export const promotionStateEnum = pgEnum("promotion_state", ["draft", "pending_review", "approved", "scheduled", "active", "paused", "budget_exhausted", "completed", "rejected"]);
+export const promotionLinkStateEnum = pgEnum("promotion_link_state", ["active", "revoked"]);
+export const promotionOrchestrationStateEnum = pgEnum("promotion_orchestration_state", ["pending", "processing", "processed", "failed", "dead_letter"]);
+export const promotionChannelEnum = pgEnum("promotion_channel", ["email", "sms", "whatsapp"]);
+export const promotionConsentStateEnum = pgEnum("promotion_consent_state", ["consented", "suppressed"]);
+export const promotionDeliveryStateEnum = pgEnum("promotion_delivery_state", ["simulated", "blocked", "queued", "completed"]);
 export const recommendationStateEnum = pgEnum("recommendation_state", ["suggested", "accepted", "dismissed", "converted"]);
 export const studentReferralStateEnum = pgEnum("student_referral_state", ["suggested", "invited", "declined"]);
 export const financialPostingStateEnum = pgEnum("financial_posting_state", ["pending", "submitting", "submitted", "reconciled", "failed", "blocked"]);
@@ -210,13 +216,14 @@ export const attributionRecords = pgTable(
     customerPhoneHash: varchar("customer_phone_hash", { length: 64 }).notNull(),
     productId: integer("product_id").notNull().references(() => products.id),
     vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+    promotionId: integer("promotion_id").references(() => vendorPromotions.id),
     firstTouchAt: timestamp("first_touch_at", { withTimezone: true }).notNull().defaultNow(),
     source: attributionSourceEnum("source").notNull(),
     tokenSig: varchar("token_sig", { length: 128 }).notNull(),
     claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
     status: attributionStatusEnum("status").notNull().default("active"),
   },
-  (t) => [uniqueIndex("attribution_customer_vendor_unique").on(t.customerPhoneHash, t.vendorId)],
+  (t) => [uniqueIndex("attribution_customer_vendor_unique").on(t.customerPhoneHash, t.vendorId), index("attribution_promotion_idx").on(t.promotionId, t.firstTouchAt)],
 );
 
 export const vendorEvents = pgTable("vendor_events", {
@@ -252,6 +259,7 @@ export const vendorIngestionRetries = pgTable("vendor_ingestion_retries", {
   nextRetryAt: timestamp("next_retry_at", { withTimezone: true }).notNull(),
   lastErrorCode: varchar("last_error_code", { length: 80 }),
   vendorEventId: varchar("vendor_event_id", { length: 36 }).references(() => vendorEvents.id),
+  promotionLinkId: integer("promotion_link_id").references(() => promotionLinks.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
@@ -1017,6 +1025,108 @@ export const campaignEvents = pgTable("campaign_events", {
   metadataJson: json("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("campaign_event_idx").on(t.campaignId, t.eventType, t.createdAt)]);
+
+export const vendorPromotions = pgTable("vendor_promotions", {
+  id: serial("id").primaryKey(),
+  promotionKey: varchar("promotion_key", { length: 60 }).notNull().unique(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  campusId: integer("campus_id").references(() => campuses.id),
+  name: varchar("name", { length: 180 }).notNull(),
+  brief: text("brief").notNull(),
+  state: promotionStateEnum("state").notNull().default("draft"),
+  budgetCapKobo: bigint("budget_cap_kobo", { mode: "number" }).notNull(),
+  recruitmentTarget: integer("recruitment_target").notNull(),
+  staffingWarningPct: integer("staffing_warning_pct").notNull().default(80),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  recruitmentCampaignId: integer("recruitment_campaign_id").references(() => campaigns.id),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: text("review_note"),
+  targetMetAt: timestamp("target_met_at", { withTimezone: true }),
+  budgetStoppedAt: timestamp("budget_stopped_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("promotion_vendor_state_idx").on(t.vendorId, t.state, t.updatedAt), index("promotion_schedule_idx").on(t.state, t.startsAt, t.endsAt), index("promotion_recruitment_campaign_idx").on(t.recruitmentCampaignId)]);
+
+export const promotionTriggerRules = pgTable("promotion_trigger_rules", {
+  id: serial("id").primaryKey(),
+  promotionId: integer("promotion_id").notNull().references(() => vendorPromotions.id),
+  eventType: varchar("event_type", { length: 80 }).notNull(),
+  action: varchar("action", { length: 80 }).notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  configJson: json("config_json").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("promotion_trigger_event_unique").on(t.promotionId, t.eventType), index("promotion_trigger_enabled_idx").on(t.promotionId, t.enabled)]);
+
+export const promotionEvents = pgTable("promotion_events", {
+  id: serial("id").primaryKey(),
+  promotionId: integer("promotion_id").notNull().references(() => vendorPromotions.id),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  eventType: varchar("event_type", { length: 80 }).notNull(),
+  metadataJson: json("metadata_json").$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("promotion_event_idx").on(t.promotionId, t.createdAt)]);
+
+export const promotionOrchestrationEvents = pgTable("promotion_orchestration_events", {
+  id: serial("id").primaryKey(),
+  eventKey: varchar("event_key", { length: 180 }).notNull().unique(),
+  promotionId: integer("promotion_id").notNull().references(() => vendorPromotions.id),
+  eventType: varchar("event_type", { length: 80 }).notNull(),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  payloadJson: json("payload_json").$type<Record<string, unknown>>().notNull().default({}),
+  state: promotionOrchestrationStateEnum("state").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  lastError: varchar("last_error", { length: 1000 }),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("promotion_orchestration_due_idx").on(t.state, t.availableAt), index("promotion_orchestration_promotion_idx").on(t.promotionId, t.createdAt)]);
+
+export const promotionLinks = pgTable("promotion_links", {
+  id: serial("id").primaryKey(),
+  promotionId: integer("promotion_id").notNull().references(() => vendorPromotions.id),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  state: promotionLinkStateEnum("state").notNull().default("active"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("promotion_link_rep_idx").on(t.repId, t.state, t.expiresAt), index("promotion_link_promotion_idx").on(t.promotionId, t.state)]);
+
+export const promotionContactConsents = pgTable("promotion_contact_consents", {
+  id: serial("id").primaryKey(),
+  promotionId: integer("promotion_id").notNull().references(() => vendorPromotions.id),
+  customerRefHash: varchar("customer_ref_hash", { length: 64 }).notNull(),
+  channel: promotionChannelEnum("channel").notNull(),
+  state: promotionConsentStateEnum("state").notNull(),
+  evidenceRef: varchar("evidence_ref", { length: 160 }).notNull(),
+  policyVersion: varchar("policy_version", { length: 60 }).notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("promotion_consent_subject_channel_unique").on(t.promotionId, t.channel, t.customerRefHash), index("promotion_consent_state_idx").on(t.promotionId, t.channel, t.state)]);
+
+export const promotionDeliveryRequests = pgTable("promotion_delivery_requests", {
+  id: serial("id").primaryKey(),
+  promotionId: integer("promotion_id").notNull().references(() => vendorPromotions.id),
+  connectionId: integer("connection_id").references(() => vendorServiceConnections.id),
+  channel: promotionChannelEnum("channel").notNull(),
+  mode: integrationModeEnum("mode").notNull(),
+  state: promotionDeliveryStateEnum("state").notNull(),
+  consentedCount: integer("consented_count").notNull(),
+  suppressedCount: integer("suppressed_count").notNull(),
+  requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id),
+  failureReason: text("failure_reason"),
+  externalRequestMade: boolean("external_request_made").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+}, (t) => [index("promotion_delivery_idx").on(t.promotionId, t.createdAt), index("promotion_delivery_state_idx").on(t.state, t.mode)]);
 
 export const vendorServiceConnections = pgTable("vendor_service_connections", {
   id: serial("id").primaryKey(),

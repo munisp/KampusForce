@@ -16,6 +16,7 @@ import { randomReference } from "./security";
 import { assertCurrentIdentityApproval, ensureIdentityCase } from "./identity";
 import { assertCurrentStudentAssurance } from "./studentAssurance";
 import { assertNoFraudHold } from "./fraud";
+import { signalPromotionRecruitmentProgress } from "./promotionSignals";
 
 export const hashInvitationToken = (token: string) => createHash("sha256").update(`kf-recruit:${token}`).digest("hex");
 export const createInvitationToken = () => randomBytes(32).toString("base64url");
@@ -119,6 +120,7 @@ export async function activateRecruitment(recruitmentId: number, actorUserId: nu
     else await tx.insert(campusLeadAssignments).values({ leadRepId: invitation.leadRepId, repId: rep.id, campusId: invitation.campusId, assignedByUserId: actorUserId, assignedAt: activatedAt });
     await tx.update(campusRecruitments).set({ status: "activated", activatedAt, activatedByUserId: actorUserId }).where(eq(campusRecruitments.id, invitation.id));
     await tx.insert(auditLogs).values({ actorUserId, action: "recruitment.activated", entityType: "campus_recruitment", entityId: String(invitation.id), metadataJson: { repId: rep.id, campusId: invitation.campusId, identityCaseRef: identityApproval.caseRef, enrollmentCaseRef: enrollment.caseRef, duplicateIdentityReviewClear: true, rawIdentityDocumentsStored: false } });
+    await signalPromotionRecruitmentProgress(invitation.campaignId, actorUserId, tx);
     return { repId: rep.id, userId: user.id, campusId: invitation.campusId, activatedAt, identityCaseRef: identityApproval.caseRef };
   });
   await notifyUser({ userId: result.userId, type: "rep_activated", title: "Your rep workspace is active", body: "Approved identity controls and campus-team assignment are complete.", href: "/rep", entityType: "rep", entityId: result.repId });

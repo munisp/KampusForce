@@ -3,6 +3,7 @@ import { vendorEvents, vendorIngestionRetries, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { ingestVendorEvent, type IngestVendorEventOptions, type VendorEventInput } from "./events";
 import { hashCustomerRef, hashPhone } from "./security";
+import { resolvePromotionLink } from "./promotions";
 import {
   INGESTION_MAX_RETRY_ATTEMPTS,
   ingestionRetryBackoff,
@@ -19,6 +20,8 @@ export async function scheduleIngestionRetry(vendorKey: string, payload: VendorE
   const customerRefHash = options.identifiers?.customerRefHash || hashCustomerRef(payload.customer.customer_ref || payload.customer.phone);
   const id = crypto.randomUUID();
   const nextRetryAt = new Date(Date.now() + (ingestionRetryBackoff(1) || 60_000));
+  const rawPromotionToken = typeof payload.meta?.kf_token === "string" ? payload.meta.kf_token : null;
+  const promotionLink = rawPromotionToken ? await resolvePromotionLink(rawPromotionToken) : null;
   await db.insert(vendorIngestionRetries).values({
     id,
     dedupeKey,
@@ -27,6 +30,7 @@ export async function scheduleIngestionRetry(vendorKey: string, payload: VendorE
     payloadJson: redactVendorEventPayload(payload),
     customerPhoneHash,
     customerRefHash,
+    promotionLinkId: options.promotionLinkId || promotionLink?.link.id || null,
     maxAttempts: INGESTION_MAX_RETRY_ATTEMPTS,
     nextRetryAt,
     lastErrorCode: errorCode.slice(0, 80),
@@ -73,6 +77,7 @@ async function processIngestionRetry(retryId: string, ingest: IngestFunction, no
     try {
       const result = await ingest(vendor.webhookKey, retry.payloadJson as VendorEventInput, {
         identifiers: { customerPhoneHash: retry.customerPhoneHash, customerRefHash: retry.customerRefHash },
+        promotionLinkId: retry.promotionLinkId,
       });
       await tx.update(vendorIngestionRetries).set({
         attemptCount,

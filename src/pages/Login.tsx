@@ -81,6 +81,6 @@ export default function Login() {
         </div>
       </section>
     </main>
-    <footer className="entry-footer"><span>Phase 12 case management, CRM & sales growth · Nigeria</span><span>Cases → pipeline → training → verified outcomes</span></footer>
+    <footer className="entry-footer"><span>Phase 16 vendor promotion orchestration · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
   </div>;
 }

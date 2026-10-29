@@ -6,12 +6,14 @@ export const INGESTION_RETRY_BACKOFF_MS = [60_000, 5 * 60_000] as const;
 export const INGESTION_MAX_RETRY_ATTEMPTS = 3;
 
 export function redactVendorEventPayload(payload: VendorEventInput): VendorEventInput {
+  const meta = payload.meta ? Object.fromEntries(Object.entries(payload.meta).filter(([key]) => key !== "kf_token")) : undefined;
   return {
     ...payload,
     customer: {
       phone: "[redacted]",
       customer_ref: payload.customer.customer_ref ? "[hashed]" : undefined,
     },
+    ...(meta ? { meta } : { meta: undefined }),
   };
 }
 

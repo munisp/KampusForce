@@ -9,11 +9,13 @@ import { TrainingWorkspace } from "@/components/sales/TrainingWorkspace";
 import { CampaignWorkspace } from "@/components/sales/CampaignWorkspace";
 import { GrowthWorkspace } from "@/components/sales/GrowthWorkspace";
 import { IntegrationWorkspace } from "@/components/sales/IntegrationWorkspace";
+import { PromotionWorkspace } from "@/components/sales/PromotionWorkspace";
 
 const views = [
   { key: "cases", label: "Case command", icon: Workflow, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "pipeline", label: "Relationship CRM", icon: BriefcaseBusiness, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "training", label: "Sales academy", icon: BookOpenCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "promotions", label: "Vendor promotions", icon: Megaphone, roles: ["rep", "vendor", "ops", "finance", "admin"] },
   { key: "campaigns", label: "Campaign engine", icon: Megaphone, roles: ["rep", "vendor", "ops", "admin"] },
   { key: "growth", label: "Growth & recruiting", icon: Target, roles: ["rep", "ops", "finance", "admin"] },
   { key: "integrations", label: "Vendor services", icon: PlugZap, roles: ["vendor", "ops", "admin"] },
@@ -25,6 +27,7 @@ const copy: Record<ViewKey, { title: string; subtitle: string }> = {
   cases: { title: "Every case has a next move.", subtitle: "Ownership, response clocks, collaboration and evidence—without touching the financial ledger." },
   pipeline: { title: "Relationships, not pipeline theatre.", subtitle: "A complete activity record, explainable priorities and human-approved follow-up." },
   training: { title: "Skill before scale.", subtitle: "Short internal modules turn ethical sales, privacy and service boundaries into assessed readiness." },
+  promotions: { title: "External demand. Internal readiness.", subtitle: "Vendor customer promotions orchestrate campus recruitment, signed acquisition and verified-outcome reporting." },
   campaigns: { title: "Campaigns with a control tower.", subtitle: "Audience rules, independent approval, in-app delivery and record-derived conversion." },
   growth: { title: "Grow the right relationships.", subtitle: "Verified-outcome leaderboards, explainable product targets and consent-led student recruiting." },
   integrations: { title: "Vendor services, visibly bounded.", subtitle: "Local configuration, tests and synchronization evidence with no hidden external execution." },
@@ -44,9 +47,10 @@ export default function Sales() {
     {active === "cases" && <CaseWorkspace />}
     {active === "pipeline" && <PipelineWorkspace />}
     {active === "training" && <TrainingWorkspace />}
+    {active === "promotions" && <PromotionWorkspace />}
     {active === "campaigns" && <CampaignWorkspace />}
     {active === "growth" && <GrowthWorkspace />}
     {active === "integrations" && <IntegrationWorkspace />}
-    <footer className="sales-footer"><BarChart3 size={15} /><span>Phase 12 coordinated sales release · deterministic rules · sandbox evidence only</span></footer>
+    <footer className="sales-footer"><BarChart3 size={15} /><span>Phase 16 promotion orchestration · deterministic controls · sandbox evidence only</span></footer>
   </WorkspaceLayout>;
 }

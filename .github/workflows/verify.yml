@@ -67,8 +67,29 @@ jobs:
       - run: npx tsx scripts/verify-phase13.ts
       - run: npx tsx scripts/verify-phase14.ts
       - run: npx tsx scripts/verify-phase15.ts
+      - run: npx tsx scripts/verify-phase16.ts
       - name: Verify non-destructive backup and isolated restore
         run: |
           npm run db:backup -- /tmp/kampusforce-ci-recovery.dump
           KF_RECOVERY_DRILL=sandbox npm run db:verify-restore -- /tmp/kampusforce-ci-recovery.dump
       - run: npm audit --omit=dev
+      - name: Install Phase 16 browser acceptance runtime
+        run: |
+          python3 -m pip install playwright
+          python3 -m playwright install --with-deps chromium
+      - name: Start production server
+        run: |
+          npm start > /tmp/kampusforce-ci-server.log 2>&1 &
+          echo $! > /tmp/kampusforce-ci-server.pid
+      - name: Verify Phase 16 production browser and mobile journeys
+        env:
+          KF_BROWSER_BASE_URL: http://127.0.0.1:3000
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health/ready > /tmp/kampusforce-ci-ready.json; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3000/api/health/ready
+          python3 scripts/verify-phase16-browser.py

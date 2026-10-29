@@ -13,6 +13,7 @@ import {
   trainingModules,
   trainingProgress,
   users,
+  vendorPromotions,
   vendors,
 } from "@db/schema";
 import { getDb } from "../queries/connection";
@@ -25,6 +26,7 @@ type AudienceRules = {
   minQualityScore?: number;
   requiredTrainingModuleKey?: string;
   includeCampusLeads?: boolean;
+  campusLeadsOnly?: boolean;
 };
 
 async function campaignForActor(actor: SalesActor, campaignId: number) {
@@ -189,8 +191,11 @@ export async function activateCampaign(input: { actor: SalesActor; campaignId: n
     const [campaign] = await tx.select().from(campaigns).where(eq(campaigns.id, input.campaignId)).limit(1).for("update");
     if (!campaign || !["approved", "scheduled", "paused"].includes(campaign.state)) throw new TRPCError({ code: "CONFLICT", message: "Campaign must be independently approved before activation" });
     if (campaign.startsAt > now || campaign.endsAt <= now) throw new TRPCError({ code: "BAD_REQUEST", message: "Campaign can only activate inside its scheduled window" });
+    const [parentPromotion] = await tx.select().from(vendorPromotions).where(eq(vendorPromotions.recruitmentCampaignId, campaign.id)).limit(1);
+    if (parentPromotion && (parentPromotion.state !== "active" || parentPromotion.targetMetAt)) throw new TRPCError({ code: "CONFLICT", message: "The parent promotion or recruitment target currently blocks campaign activation" });
     let eligibleReps = await tx.select({ rep: reps, user: users }).from(reps).innerJoin(users, eq(reps.userId, users.id)).where(eq(reps.status, "active"));
     const rules = campaign.audienceRules as AudienceRules;
+    if (rules.campusLeadsOnly) eligibleReps = eligibleReps.filter((row) => row.rep.tier === "campus_lead");
     if (campaign.campusId) eligibleReps = eligibleReps.filter((row) => row.rep.campusId === campaign.campusId);
     if (rules.minQualityScore !== undefined) eligibleReps = eligibleReps.filter((row) => row.rep.qualityScore >= Number(rules.minQualityScore));
     if (rules.includeCampusLeads === false) eligibleReps = eligibleReps.filter((row) => row.rep.tier !== "campus_lead");
