@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { products, reps } from "@db/schema";
 import { getDb } from "../queries/connection";
-import { attributionToken, ensureAttribution } from "../services/attribution";
+import { attributionToken } from "../services/attribution";
 
 export const linkRoutes = new Hono();
 linkRoutes.get("/:code", async (c) => {
@@ -12,8 +12,8 @@ linkRoutes.get("/:code", async (c) => {
   const [rep] = await getDb().select().from(reps).where(and(eq(reps.code, code), eq(reps.status, "active"))).limit(1);
   const [product] = await getDb().select().from(products).where(and(eq(products.vendorRef, productRef), eq(products.status, "active"))).limit(1);
   if (!rep || !product) return c.text("This KampusForce link is invalid or no longer active", 404);
-  const phone = c.req.query("phone");
-  if (phone) await ensureAttribution({ repId: rep.id, productId: product.id, customerPhone: phone, source: "link" });
+  // First-touch attribution is created by the authenticated rep before sharing.
+  // Public redirects never accept or persist customer identifiers.
   const token = attributionToken(rep.id, product.id, product.vendorId);
   const target = new URL(product.landingUrl);
   target.searchParams.set("kf_token", token);

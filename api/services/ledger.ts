@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import {
   auditLogs,
   campusLeadAssignments,
@@ -6,6 +7,7 @@ import {
   commissionRules,
   dealStateHistory,
   deals,
+  disputes,
   escrowWallets,
   ledgerEntries,
   payoutAttempts,
@@ -114,40 +116,116 @@ export async function confirmDueDeals(actorUserId?: number) {
   return { due: due.length, confirmed, queuedForEscrow, overridesAccrued };
 }
 
-export async function reverseDeal(dealId: number, actor = "vendor:refund") {
-  return db().transaction(async (tx) => {
-    const [deal] = await tx.select().from(deals).where(eq(deals.id, dealId)).limit(1).for("update");
-    if (!deal || ["void", "clawed_back"].includes(deal.state) || !["pending", "confirmed", "payable", "paid"].includes(deal.state)) return { reversed: false };
-    if (deal.state !== "pending") {
-      const [wallet] = await tx.select().from(escrowWallets).where(eq(escrowWallets.vendorId, deal.vendorId)).limit(1).for("update");
-      if (wallet) await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo + deal.vendorCommissionKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, deal.vendorId));
-      const group = randomReference("reverse");
-      await tx.insert(ledgerEntries).values([
-        { dealId: deal.id, account: "rep_payable", direction: "debit", amountKobo: deal.repCommissionKobo, entryGroup: group },
-        { dealId: deal.id, account: "platform_revenue", direction: "debit", amountKobo: deal.platformFeeKobo, entryGroup: group },
-        { dealId: deal.id, account: "vendor_escrow", direction: "credit", amountKobo: deal.vendorCommissionKobo, entryGroup: group },
-      ]);
-      const [override] = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.dealId, deal.id)).limit(1).for("update");
-      if (override && override.state !== "reversed") {
-        await tx.insert(ledgerEntries).values([
-          { dealId: deal.id, account: "lead_override_payable", direction: "debit", amountKobo: override.overrideKobo, entryGroup: group },
-          { dealId: deal.id, account: "platform_revenue", direction: "credit", amountKobo: override.overrideKobo, entryGroup: group },
-        ]);
-        await tx.update(campusLeadOverrides).set({ state: "reversed", reversedAt: new Date() }).where(eq(campusLeadOverrides.id, override.id));
-      }
-      await enqueueFinancialPosting(tx, {
-        entryGroup: group,
-        operation: "activation_reversal",
-        accountRefs: {
-          vendor_escrow: `vendor:${deal.vendorId}`,
-          rep_payable: `rep:${deal.repId}`,
-          platform_revenue: "platform",
-          ...(override ? { lead_override_payable: `rep:${override.leadRepId}` } : {}),
-        },
-      });
+async function reverseDealLocked(tx: Transaction, dealId: number, actor: string) {
+  const [deal] = await tx.select().from(deals).where(eq(deals.id, dealId)).limit(1).for("update");
+  if (!deal) throw new Error("Deal not found");
+  let effectiveState = deal.state;
+  let activeDispute: typeof disputes.$inferSelect | undefined;
+  if (deal.state === "disputed") {
+    [activeDispute] = await tx.select().from(disputes).where(and(
+      eq(disputes.dealId, deal.id),
+      inArray(disputes.state, ["open", "reviewing"]),
+    )).orderBy(desc(disputes.createdAt)).limit(1).for("update");
+    if (!activeDispute?.previousDealState) {
+      throw new TRPCError({ code: "CONFLICT", message: "This legacy dispute has no preserved deal state and requires manual financial review" });
     }
-    await stateChange(tx, deal.id, deal.state, deal.state === "paid" ? "clawed_back" : "void", actor, deal.state === "paid" ? "Refund inside clawback window; negative balances net future payouts, including paid lead overrides" : "Refund before payout; commission and any lead override reversed");
-    return { reversed: true };
+    effectiveState = activeDispute.previousDealState;
+  }
+  if (!["pending", "confirmed", "payable", "paid"].includes(effectiveState)) return { state: deal.state, reversed: false };
+  const target = effectiveState === "paid" ? "clawed_back" : "void";
+  if (effectiveState !== "pending") {
+    const [wallet] = await tx.select().from(escrowWallets).where(eq(escrowWallets.vendorId, deal.vendorId)).limit(1).for("update");
+    if (!wallet) throw new Error("Vendor escrow wallet missing");
+    await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo + deal.vendorCommissionKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, deal.vendorId));
+    const group = randomReference("reverse");
+    await tx.insert(ledgerEntries).values([
+      { dealId: deal.id, account: "rep_payable", direction: "debit", amountKobo: deal.repCommissionKobo, entryGroup: group },
+      { dealId: deal.id, account: "platform_revenue", direction: "debit", amountKobo: deal.platformFeeKobo, entryGroup: group },
+      { dealId: deal.id, account: "vendor_escrow", direction: "credit", amountKobo: deal.vendorCommissionKobo, entryGroup: group },
+    ]);
+    const [override] = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.dealId, deal.id)).limit(1).for("update");
+    if (override && override.state !== "reversed") {
+      await tx.insert(ledgerEntries).values([
+        { dealId: deal.id, account: "lead_override_payable", direction: "debit", amountKobo: override.overrideKobo, entryGroup: group },
+        { dealId: deal.id, account: "platform_revenue", direction: "credit", amountKobo: override.overrideKobo, entryGroup: group },
+      ]);
+      await tx.update(campusLeadOverrides).set({ state: "reversed", reversedAt: new Date() }).where(eq(campusLeadOverrides.id, override.id));
+    }
+    await enqueueFinancialPosting(tx, {
+      entryGroup: group,
+      operation: "activation_reversal",
+      accountRefs: {
+        vendor_escrow: `vendor:${deal.vendorId}`,
+        rep_payable: `rep:${deal.repId}`,
+        platform_revenue: "platform",
+        ...(override ? { lead_override_payable: `rep:${override.leadRepId}` } : {}),
+      },
+    });
+  }
+  if (activeDispute) {
+    await tx.update(disputes).set({
+      state: "rejected",
+      decision: "Vendor refund received during dispute; the prior financial entitlement was reversed.",
+      decidedAt: new Date(),
+    }).where(eq(disputes.id, activeDispute.id));
+  }
+  await stateChange(tx, deal.id, deal.state, target, actor, activeDispute ? "Vendor refund during dispute; prior entitlement reversed" : effectiveState === "paid" ? "Refund inside clawback window; negative balances net future payouts, including paid lead overrides" : "Refund before payout; commission and any lead override reversed");
+  return { state: target, reversed: true };
+}
+
+export async function reverseDeal(dealId: number, actor = "vendor:refund") {
+  return db().transaction((tx) => reverseDealLocked(tx, dealId, actor));
+}
+
+export async function openDealDispute(input: { dealId: number; repId: number; actorUserId: number; reasonCode: string; evidence?: string }) {
+  return db().transaction(async (tx) => {
+    const [deal] = await tx.select().from(deals).where(and(eq(deals.id, input.dealId), eq(deals.repId, input.repId))).limit(1).for("update");
+    if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
+    if (!["pending", "confirmed", "payable", "paid"].includes(deal.state)) {
+      throw new TRPCError({ code: "CONFLICT", message: "Only a pending or financially active deal can be disputed" });
+    }
+    const [existing] = await tx.select({ id: disputes.id }).from(disputes).where(and(eq(disputes.dealId, deal.id), inArray(disputes.state, ["open", "reviewing"]))).limit(1);
+    if (existing) throw new TRPCError({ code: "CONFLICT", message: "This deal already has an open dispute" });
+    const [dispute] = await tx.insert(disputes).values({
+      dealId: deal.id,
+      openedBy: input.actorUserId,
+      reasonCode: input.reasonCode,
+      evidenceJson: { note: input.evidence || null },
+      previousDealState: deal.state,
+    }).returning();
+    await stateChange(tx, deal.id, deal.state, "disputed", `rep:${input.repId}`, input.reasonCode);
+    await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.opened", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousDealState: deal.state } });
+    return { disputeId: dispute.id, state: "open" as const, previousDealState: deal.state };
+  });
+}
+
+export async function resolveDealDispute(input: { disputeId: number; actorUserId: number; upholdRep: boolean; decision: string }) {
+  return db().transaction(async (tx) => {
+    const [dispute] = await tx.select().from(disputes).where(eq(disputes.id, input.disputeId)).limit(1).for("update");
+    if (!dispute) throw new TRPCError({ code: "NOT_FOUND", message: "Dispute not found" });
+    if (!["open", "reviewing"].includes(dispute.state)) throw new TRPCError({ code: "CONFLICT", message: "This dispute has already been decided" });
+    const [deal] = await tx.select().from(deals).where(eq(deals.id, dispute.dealId)).limit(1).for("update");
+    if (!deal || deal.state !== "disputed" || !dispute.previousDealState) {
+      throw new TRPCError({ code: "CONFLICT", message: "The dispute and deal state are inconsistent; manual financial review is required" });
+    }
+    const previousState = dispute.previousDealState;
+    if (input.upholdRep) {
+      await tx.update(disputes).set({ state: "resolved", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
+      await stateChange(tx, deal.id, "disputed", previousState, `user:${input.actorUserId}`, "Dispute upheld; prior deal state restored");
+      if (previousState === "confirmed") await stateChange(tx, deal.id, "confirmed", "payable", `user:${input.actorUserId}`, "Restored confirmed entitlement returned to payout eligibility");
+      await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.resolved", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, restoredState: previousState, payoutEligibleState: previousState === "confirmed" ? "payable" : previousState } });
+      return { disputeId: dispute.id, state: "resolved" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false };
+    }
+    if (previousState === "pending") {
+      await tx.update(disputes).set({ state: "rejected", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
+      await stateChange(tx, deal.id, "disputed", "void", `user:${input.actorUserId}`, "Dispute rejected before commission confirmation");
+      await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousState, dealState: "void" } });
+      return { disputeId: dispute.id, state: "rejected" as const, dealState: "void" as const, reversed: false };
+    }
+    const result = await reverseDealLocked(tx, deal.id, `user:${input.actorUserId}:dispute`);
+    await tx.update(disputes).set({ decision: input.decision, decidedByUserId: input.actorUserId }).where(eq(disputes.id, dispute.id));
+    await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousState, dealState: result.state } });
+    return { disputeId: dispute.id, state: "rejected" as const, dealState: result.state, reversed: result.reversed };
   });
 }
 

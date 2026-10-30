@@ -51,7 +51,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
         {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={18} />{label}</NavLink>)}
       </nav>
       <div className="sidebar-bottom">
-        <NavLink to="/implementation"><BarChart3 size={18} />Implementation score</NavLink>
+        <NavLink to="/implementation"><BarChart3 size={18} />Implementation status</NavLink>
         <button onClick={() => logout.mutate({ token })}><LogOut size={18} />Switch workspace</button>
       </div>
     </aside>

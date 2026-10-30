@@ -6,6 +6,7 @@ import { z } from "zod";
 import { authSessions, users, type User } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { publicQuery } from "../middleware";
+import { env } from "../lib/env";
 
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "kampusforce-sandbox-auth-secret-change-in-production");
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -47,6 +48,12 @@ export const authedQuery = publicQuery
 
 export function requireRole(user: User, roles: User["role"][]) {
   if (!roles.includes(user.role)) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have access to this workspace" });
+}
+
+export function requireSandboxAuthentication() {
+  if (!env.sandboxMode) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Sandbox authentication is disabled. Configure a production identity provider before enabling public sign-in." });
+  }
 }
 
 export async function invalidateToken(token: string) {

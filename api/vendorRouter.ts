@@ -1,8 +1,9 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
   attributionRecords,
+  auditLogs,
   commissionRuleDrafts,
   commissionRules,
   deals,
@@ -97,10 +98,21 @@ export const vendorRouter = createRouter({
   topupEscrow: authedQuery.input(z.object({ amountKobo: z.number().int().min(10000).max(1000000000) })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["vendor"]);
     const vendor = await currentVendor(ctx.user.id);
-    const [wallet] = await getDb().select().from(escrowWallets).where(eq(escrowWallets.vendorId, vendor.id)).limit(1);
-    if (!wallet) throw new TRPCError({ code: "NOT_FOUND", message: "Escrow wallet not found" });
-    await getDb().update(escrowWallets).set({ balanceKobo: wallet.balanceKobo + input.amountKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, vendor.id));
-    return { balanceKobo: wallet.balanceKobo + input.amountKobo, provider: "paystack_sandbox", status: "funded" };
+    return getDb().transaction(async (tx) => {
+      const [wallet] = await tx.update(escrowWallets).set({
+        balanceKobo: sql`${escrowWallets.balanceKobo} + ${input.amountKobo}`,
+        updatedAt: new Date(),
+      }).where(eq(escrowWallets.vendorId, vendor.id)).returning();
+      if (!wallet) throw new TRPCError({ code: "NOT_FOUND", message: "Escrow wallet not found" });
+      await tx.insert(auditLogs).values({
+        actorUserId: ctx.user.id,
+        action: "sandbox.escrow_topup",
+        entityType: "escrow_wallet",
+        entityId: String(vendor.id),
+        metadataJson: { amountKobo: input.amountKobo, balanceKobo: wallet.balanceKobo, provider: "paystack_sandbox" },
+      });
+      return { balanceKobo: wallet.balanceKobo, provider: "paystack_sandbox", status: "funded" };
+    });
   }),
   ruleDryRun: authedQuery.input(ruleInput).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["vendor"]);

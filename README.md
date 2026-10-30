@@ -208,6 +208,10 @@ Phase 2 adds a Campus Lead override of **5% of the assigned team rep’s confirm
 - Commission rules support 1–12-month renewal intervals and maximum eligible cycles. Initial verified renewals create schedules; due sweeps only move schedules to `awaiting_evidence`. Early, excess, unattributed or otherwise unqualified renewals create no deal. Accepted subsequent renewals preserve the original first-touch representative and `commissionRuleId` and append immutable receipts.
 - Finance has aggregate read-only ATS and recurrence oversight and cannot execute recurrence sweeps. The vendor-funded 80/20 split and platform-funded 5% Campus Lead override are unchanged. See the [Phase 19 runbook](docs/phase19-institutional-connectors-recurrence-runbook.md).
 
+## Comprehensive post-Phase 19 audit
+
+The [comprehensive audit register](docs/comprehensive-audit-2026-10-30.md) records twelve remediated implementation and regression-harness findings with runtime paths, severity and evidence. The fixes cover phone-free sharing, ordinary signed vendor handoffs, single-use OTP verification, conflict-safe first touch, atomic escrow credits, forward-only assisted onboarding, dispute-safe financial restoration/reversal, offline-shell integrity, explicit sandbox authentication controls and current public reporting. Additive migration `0022` preserves existing records while adding dispute provenance and uniqueness controls. Deliberate sandbox adapters remain clearly labelled; they are not live provider integrations. `productionReady` remains false.
+
 ## Run locally
 
 Requirements: Node.js 20+ and PostgreSQL 16+.
@@ -262,6 +266,8 @@ npx tsx scripts/verify-phase16.ts # promotion orchestration, budget race, attrib
 npx tsx scripts/verify-phase17.ts # thirty innovation workflows, real object storage and financial-preservation acceptance
 npx tsx scripts/verify-phase18.ts # ATS, eight campaign journeys, 1,000-row import, storage and financial-preservation acceptance
 npx tsx scripts/verify-phase19.ts # nine institutional journeys, document controls, connectors, recurrence and financial preservation
+npx tsx scripts/verify-audit.ts   # adversarial OTP, attribution, escrow, onboarding and dispute acceptance
+python scripts/verify-audit-browser.py # reporting, share privacy, signed handoff and offline-shell acceptance
 npx tsx scripts/load-phase9.ts   # signed HTTP load gate; production server required
 python scripts/verify-phase9-browser.py # throttled/offline/mobile gate; server required
 python scripts/verify-phase10-browser.py # launch/mobile/provider-guard gate; server required
@@ -286,6 +292,8 @@ For non-root/non-Docker sandboxes, PostgreSQL 16.15 was provisioned by downloadi
 ### Phase 19 verification checkpoint
 
 The final local gates passed TypeScript, ESLint, 25 unit-test files with 128 tests, production build and entry checks, app-shell/manifest/service-worker/liveness/readiness smoke, the complete Phase 19 database/storage journey and both Phase 19 and Phase 18 production-browser journeys. All nine new institutional campaign/outcome types passed independent governance, partner and outcome review with enforced study-level/graduation eligibility. Real object storage, source-hash validation, fail-closed unconfigured processing, metadata-only fixture analysis, bounded persistence, independent human review, withdrawal, deletion, consent withdrawal and retention purges passed. A later complete direct-worker run executed real PaddleOCR 3.7.0, Docling 2.144.0 and pinned Qwen2-VL 2B inference successfully against one synthetic transcript, with exact schema validation, semantic review and independent-human-review flags. This single synthetic run is not accuracy, fairness, malicious-input, scale or production-provider certification. Connector HMAC/timestamp/ownership/replay controls, pseudonymous mappings, signed handoffs, observed-versus-verified economics and confirmed target accounting passed. Recurrence preserved original representatives/rules, rejected early/exhausted renewals, capped cycles and created zero deals or ledger entries from sweeps. Financial snapshots remained deep-equal wherever no qualifying verified activation existed. Browser acceptance completed fourteen Phase 19 mutations and eighteen desktop/mobile feature checks with zero runtime errors, HTTP errors, external requests or page overflow; the Phase 18 regression passed eleven inspectors and 32 checks. Browser testing caught and corrected the partner-state control mismatch and asynchronous document-form reference defect before delivery. `productionReady` remains false.
+
+The subsequent comprehensive audit remediated twelve implementation and regression-harness findings. Its focused adversarial journey passed OTP, attribution, signed handoff, escrow, assisted-onboarding and dispute controls; the final browser audit passed reporting, phone-free sharing and offline-shell integrity. Real local Delta/Ray acceptance and manifest recording passed. Ordered Phase 2–19 database journeys and Phase 9–19 production-browser journeys passed, including real reviewed object storage, the 1,000-row ATS import, all 30 innovation inspectors, institutional connectors and recurrence controls. The final Phase 19 browser run used the required explicit metadata-only fixture and completed 14 mutations and 18 desktop/mobile checks with zero runtime errors, HTTP errors, external requests or page overflow. These results do not close any external production gate.
 
 ## End-to-end sandbox exercise
 
@@ -361,6 +369,7 @@ Key paths:
 - `scripts/load-phase9.ts` and `scripts/verify-phase9-browser.py` — signed HTTP, throttled-onboarding, offline, rotation and mobile acceptance
 - `scripts/backup-postgres.ts` and `scripts/verify-postgres-restore.ts` — non-destructive backup and isolated restore drill
 - `docs/review-and-research.md` — document, financial, market and regulatory review
+- `docs/comprehensive-audit-2026-10-30.md` — findings, remediations, sandbox boundaries and verification evidence
 - `docs/implementation-scorecard.md` — Phase 19 scores plus preserved Phase 18 through Phase 1 baselines
 - `docs/phase19-institutional-connectors-recurrence-runbook.md` — institutional governance, document processing, connector security and recurrence operations
 - `docs/phase17-innovation-runbook.md` — thirty innovation controls, storage lifecycle, approval boundaries and acceptance
@@ -370,7 +379,7 @@ Key paths:
 
 ## Verification status
 
-Latest Phase 19 checkpoint: migrations `0000`–`0021` ran on the local PostgreSQL 16 sandbox. Phase 19 service acceptance passed all nine institutional journeys, real object storage and document privacy controls, signed connector/financial ingestion, recurrence evidence and append-only protections. The Phase 18 service regression also passed, including its 1,000-row import and storage lifecycle. Production-browser acceptance passed all four new workstreams, role scopes and Finance read-only oversight, followed by the eleven-inspector Phase 18 browser regression. TypeScript, ESLint, 128 unit tests across 25 files, production build and runtime smoke passed. Browser verification exposed and fixed two real UI defects before the final green run. These are local synthetic sandbox results—not staging, external-provider, live-institution, identity, scale, real-recruitment or production certification.
+Latest post-audit checkpoint: migrations `0000`–`0022` ran on the local PostgreSQL 16 sandbox. The focused adversarial audit passed OTP replay/failure controls, conflict-safe first touch, signed vendor handoffs, atomic escrow credits, forward-only assisted onboarding and dispute-safe restoration/reversal. Real Delta/Ray acceptance and manifest recording passed. Ordered Phase 2–19 database journeys and Phase 9–19 production-browser journeys passed, as did the final reporting/share-privacy/offline-shell browser audit. TypeScript, ESLint, 128 unit tests across 25 files, 13 document-worker contract tests, production build and standalone runtime smoke passed. Backup/isolated restore preserved 23 migrations and 24 user triggers. These are local synthetic sandbox results—not staging, external-provider, live-institution, identity, scale, real-recruitment or production certification. `productionReady` remains false.
 
 - PostgreSQL runtime: local user-space PostgreSQL 16.15 on `127.0.0.1:55432`; migrations and repeated seed passed without Docker or root. Local commands override both database URL variables so an external configured database is never selected accidentally.
 - Package-download workaround: pinned Delta/Ray and document dependencies installed with `uv` into separate `/tmp` targets. Docling models required an alternate Hugging Face endpoint in this sandbox; production must use reviewed, pre-cached artifacts rather than depending on a public mirror.

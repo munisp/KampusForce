@@ -91,7 +91,7 @@ export const dataPlatformRunStateEnum = pgEnum("data_platform_run_state", ["runn
 
 export const campuses = pgTable("campuses", {
   id: serial("id").primaryKey(),
-  name: varchar("name", { length: 160 }).notNull(),
+  name: varchar("name", { length: 160 }).notNull().unique(),
   state: varchar("state", { length: 80 }).notNull(),
   status: campusStatusEnum("status").notNull().default("planned"),
   launchDate: timestamp("launch_date", { withTimezone: true }),
@@ -129,7 +129,7 @@ export const reps = pgTable("reps", {
   leadDemotionReason: varchar("lead_demotion_reason", { length: 300 }),
   leadEligibilitySyncedAt: timestamp("lead_eligibility_synced_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [uniqueIndex("reps_user_unique").on(t.userId)]);
 
 export const vendors = pgTable("vendors", {
   id: serial("id").primaryKey(),
@@ -749,10 +749,12 @@ export const disputes = pgTable("disputes", {
   reasonCode: varchar("reason_code", { length: 80 }).notNull(),
   evidenceJson: json("evidence_json"),
   state: disputeStateEnum("state").notNull().default("open"),
+  previousDealState: dealStateEnum("previous_deal_state"),
   decision: text("decision"),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
-});
+}, (t) => [index("disputes_deal_state_idx").on(t.dealId, t.state)]);
 
 export const supportTickets = pgTable(
   "support_tickets",

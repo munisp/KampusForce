@@ -86,11 +86,12 @@ with sync_playwright() as playwright:
         REPORT["mobile"] = {"status": "passed", **dimensions}
         mobile_page.goto(BASE_URL + "/implementation", wait_until="networkidle")
         mobile_page.locator(".score-list").wait_for()
-        assert mobile_page.locator(".score-list article").count() == 16
-        assert mobile_page.locator(".overall-score strong").inner_text().replace("\n", "") == "91/100"
+        assert mobile_page.locator(".score-list article").count() == 20
+        assert mobile_page.locator(".overall-score strong").inner_text().strip() == "False"
+        mobile_page.get_by_text("Twenty workstreams. No invented score.", exact=True).wait_for()
         score_dimensions = mobile_page.evaluate("({viewport: window.innerWidth, document: document.documentElement.scrollWidth})")
         assert score_dimensions["document"] <= score_dimensions["viewport"] + 1, score_dimensions
-        REPORT["scorecard"] = {"status": "passed", "workstreams": 16, "overall": 91, **score_dimensions}
+        REPORT["implementationRegister"] = {"status": "passed", "workstreams": 20, "productionReady": False, **score_dimensions}
         mobile.close()
     finally:
         browser.close()

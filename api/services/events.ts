@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { attributionRecords, commissionRules, consentLogs, dealStateHistory, deals, products, promotionLinks, vendorEvents, vendors } from "@db/schema";
+import { attributionRecords, commissionRules, consentLogs, dealStateHistory, deals, products, promotionLinks, reps, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
 import { enforceActivationVelocity } from "./fraud";
@@ -9,6 +9,7 @@ import { redactVendorEventPayload, VENDOR_PAYLOAD_RETENTION_MS } from "./ingesti
 import { promotionCapacityForNewDeal, resolvePromotionLink, resolvePromotionLinkById } from "./promotions";
 import { enqueuePromotionEvent } from "./promotionSignals";
 import { recordVerifiedRenewalRecurrence, renewalAdmissionProblem, renewalScheduleForCustomer } from "./recurrence";
+import { resolveAttributionToken } from "./attribution";
 
 export type VendorEventInput = {
   event_id: string;
@@ -55,17 +56,24 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     return { status: "quarantined" as const, kf_event_id: eventId, reason: "Unknown product_ref" };
   }
   let promotionLink: Awaited<ReturnType<typeof resolvePromotionLink>> | null = null;
+  let attributionHandoff: ReturnType<typeof resolveAttributionToken> = null;
+  let attributionHandoffToken: string | null = null;
   if (payload.type !== "refund") {
-    const rawPromotionToken = typeof payload.meta?.kf_token === "string" ? payload.meta.kf_token : null;
+    const rawHandoffToken = typeof payload.meta?.kf_token === "string" ? payload.meta.kf_token : null;
     try {
-      if (rawPromotionToken) promotionLink = await resolvePromotionLink(rawPromotionToken);
-      else if (options.promotionLinkId) promotionLink = await resolvePromotionLinkById(options.promotionLinkId);
+      if (rawHandoffToken) {
+        attributionHandoff = resolveAttributionToken(rawHandoffToken, { productId: product.id, vendorId: vendor.id });
+        if (attributionHandoff) attributionHandoffToken = rawHandoffToken;
+        else promotionLink = await resolvePromotionLink(rawHandoffToken);
+      } else if (options.promotionLinkId) {
+        promotionLink = await resolvePromotionLinkById(options.promotionLinkId);
+      }
       if (promotionLink && (promotionLink.promotion.vendorId !== vendor.id || promotionLink.promotion.productId !== product.id)) {
         throw new Error("Promotion link does not match the vendor product");
       }
     } catch {
-      await db.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "Invalid, expired, paused, or product-mismatched promotion link" });
-      return { status: "quarantined" as const, kf_event_id: eventId, reason: "Promotion link is not eligible for new acquisition" };
+      await db.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "Invalid, expired, paused, or product-mismatched attribution or promotion link" });
+      return { status: "quarantined" as const, kf_event_id: eventId, reason: "Attribution or promotion link is not eligible for new acquisition" };
     }
   }
   if (payload.type === "refund") {
@@ -95,6 +103,29 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
       }).returning();
       attribution = created;
       await tx.insert(consentLogs).values({ phoneHash, purpose: "Promotion attribution and vendor-assisted onboarding", policyVersion: "privacy-v1.0" });
+    }
+    if (!attribution && attributionHandoff && attributionHandoffToken) {
+      const [activeRep] = await tx.select({ id: reps.id }).from(reps).where(and(eq(reps.id, attributionHandoff.repId), eq(reps.status, "active"))).limit(1);
+      if (!activeRep) {
+        await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "Signed attribution representative is not active" });
+        return { status: "quarantined" as const, kf_event_id: eventId, reason: "Signed attribution representative is not active" };
+      }
+      const inserted = await tx.insert(attributionRecords).values({
+        repId: activeRep.id,
+        customerPhoneHash: phoneHash,
+        productId: product.id,
+        vendorId: vendor.id,
+        source: "link",
+        tokenSig: attributionHandoffToken.slice(-48),
+        claimExpiresAt: new Date(Date.now() + 24 * 3_600_000),
+      }).onConflictDoNothing({ target: [attributionRecords.customerPhoneHash, attributionRecords.vendorId] }).returning();
+      if (inserted.length) {
+        attribution = inserted[0];
+        await tx.insert(consentLogs).values({ phoneHash, purpose: "Signed vendor handoff attribution and onboarding", policyVersion: "privacy-v1.0" });
+      } else {
+        const [firstTouch] = await tx.select().from(attributionRecords).where(and(eq(attributionRecords.customerPhoneHash, phoneHash), eq(attributionRecords.vendorId, vendor.id))).limit(1);
+        if (firstTouch?.status === "active") attribution = firstTouch;
+      }
     }
     if (!attribution) {
       await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "No active first-touch attribution; eligible for 24h claim review" });

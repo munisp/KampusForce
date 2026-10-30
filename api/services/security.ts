@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import "../lib/env";
 
 const PHONE_SALT = process.env.PHONE_HASH_SALT || "kampusforce-sandbox-phone-salt";
 
@@ -32,6 +33,16 @@ export function safeSignatureEqual(received: string, expected: string): boolean 
 export function signedToken(payload: string, secret: string): string {
   const encoded = Buffer.from(payload).toString("base64url");
   return `${encoded}.${createHmac("sha256", secret).update(encoded).digest("base64url")}`;
+}
+
+export function verifySignedToken(token: string, secret: string): string | null {
+  const [encoded, signature, extra] = token.split(".");
+  if (!encoded || !signature || extra) return null;
+  const expected = createHmac("sha256", secret).update(encoded).digest("base64url");
+  const receivedBuffer = Buffer.from(signature, "base64url");
+  const expectedBuffer = Buffer.from(expected, "base64url");
+  if (receivedBuffer.length !== expectedBuffer.length || !timingSafeEqual(receivedBuffer, expectedBuffer)) return null;
+  return Buffer.from(encoded, "base64url").toString("utf8");
 }
 
 export function randomReference(prefix: string): string {

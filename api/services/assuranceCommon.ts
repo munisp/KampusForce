@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import "../lib/env";
 import { eq } from "drizzle-orm";
 import { assuranceEvents, fraudCases } from "@db/schema";
 import { getDb } from "../queries/connection";

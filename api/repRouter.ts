@@ -11,7 +11,6 @@ import {
   commissionRules,
   dealStateHistory,
   deals,
-  disputes,
   payouts,
   products,
   reps,
@@ -27,6 +26,7 @@ import { normalizePhone } from "./services/security";
 import { createSupportTicket, escalateSupportTicket, isSlaBreached, rateSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { createInvitationToken, hashInvitationToken, revokeRecruitment } from "./services/recruiting";
 import { listRepFraudCases, requestFraudAppeal } from "./services/fraud";
+import { openDealDispute } from "./services/ledger";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -137,12 +137,14 @@ export const repRouter = createRouter({
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
     if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations must activate your rep profile before you can share attribution links" });
-    const [product] = await getDb().select().from(products).where(eq(products.id, input.productId)).limit(1);
-    if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+    const [product] = await getDb().select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
+    if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Active product not found" });
     let attributed = false;
     if (input.customerPhone) attributed = (await ensureAttribution({ repId: rep.id, productId: product.id, customerPhone: input.customerPhone, source: input.source, actorUserId: ctx.user.id })).created;
     const origin = ctx.req.headers.get("origin") || `${ctx.req.headers.get("x-forwarded-proto") || "http"}://${ctx.req.headers.get("host")}`;
-    const url = `${origin}/l/${rep.code}?p=${encodeURIComponent(product.vendorRef)}${input.customerPhone ? `&phone=${encodeURIComponent(input.customerPhone)}` : ""}`;
+    // Attribution is already persisted above. Never put customer identifiers in a
+    // copied URL, browser history, referrer, screenshot, QR code, or access log.
+    const url = `${origin}/l/${rep.code}?p=${encodeURIComponent(product.vendorRef)}`;
     const qr = await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: "#102a43", light: "#fffdf7" } });
     const text = `I can help you activate ${product.name} at the vendor’s listed price. Use my KampusForce link: ${url}`;
     return { url, qr, text, whatsappUrl: `https://wa.me/?text=${encodeURIComponent(text)}`, attributed };
@@ -160,8 +162,21 @@ export const repRouter = createRouter({
     const rep = await currentRep(ctx.user.id);
     const [session] = await getDb().select().from(assistedSessions).where(and(eq(assistedSessions.id, input.sessionId), eq(assistedSessions.repId, rep.id))).limit(1);
     if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Assisted session not found" });
+    if (input.step === session.currentStep) return { sessionId: session.id, currentStep: session.currentStep, status: session.status };
+    if (session.status !== "active" || input.step !== session.currentStep + 1) {
+      throw new TRPCError({ code: "CONFLICT", message: "Assisted onboarding must advance one step at a time and cannot reopen a completed session" });
+    }
     const completed = input.step === 6;
-    await getDb().update(assistedSessions).set({ currentStep: input.step, status: completed ? "completed" : "active", updatedAt: new Date() }).where(eq(assistedSessions.id, session.id));
+    const [updated] = await getDb().update(assistedSessions).set({
+      currentStep: input.step,
+      status: completed ? "completed" : "active",
+      updatedAt: new Date(),
+    }).where(and(
+      eq(assistedSessions.id, session.id),
+      eq(assistedSessions.currentStep, session.currentStep),
+      eq(assistedSessions.status, "active"),
+    )).returning({ id: assistedSessions.id });
+    if (!updated) throw new TRPCError({ code: "CONFLICT", message: "This assisted session changed in another request. Refresh before continuing." });
     return { sessionId: session.id, currentStep: input.step, status: completed ? "completed" : "active" };
   }),
   earnings: authedQuery.query(async ({ ctx }) => {
@@ -237,11 +252,6 @@ export const repRouter = createRouter({
   openDispute: authedQuery.input(z.object({ dealId: z.number().int().positive(), reasonCode: z.string().min(3).max(80), evidence: z.string().max(1000).optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
-    const [deal] = await getDb().select().from(deals).where(and(eq(deals.id, input.dealId), eq(deals.repId, rep.id))).limit(1);
-    if (!deal) throw new TRPCError({ code: "NOT_FOUND", message: "Deal not found" });
-    await getDb().update(deals).set({ state: "disputed", updatedAt: new Date() }).where(eq(deals.id, deal.id));
-    await getDb().insert(dealStateHistory).values({ dealId: deal.id, fromState: deal.state, toState: "disputed", actor: `rep:${rep.id}`, reason: input.reasonCode });
-    const [{ id }] = await getDb().insert(disputes).values({ dealId: deal.id, openedBy: ctx.user.id, reasonCode: input.reasonCode, evidenceJson: { note: input.evidence || null } }).returning({ id: disputes.id });
-    return { disputeId: id, state: "open" };
+    return openDealDispute({ ...input, repId: rep.id, actorUserId: ctx.user.id });
   }),
 });

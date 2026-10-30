@@ -27,6 +27,7 @@ import {
   reconcilePayoutBatch,
   recordSandboxPayoutOutcome,
   recoverFailedPayout,
+  resolveDealDispute,
   runPayoutBatch,
 } from "./services/ledger";
 import { campusLeadRankings, recalculateCampusLeadEligibility } from "./services/leadEligibility";
@@ -405,12 +406,6 @@ export const opsRouter = createRouter({
   }),
   resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
-    const [dispute] = await getDb().select().from(disputes).where(eq(disputes.id, input.disputeId)).limit(1);
-    if (!dispute) throw new TRPCError({ code: "NOT_FOUND", message: "Dispute not found" });
-    await getDb().update(disputes).set({ state: input.upholdRep ? "resolved" : "rejected", decision: input.decision, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
-    const [deal] = await getDb().select().from(deals).where(eq(deals.id, dispute.dealId)).limit(1);
-    if (deal) await getDb().update(deals).set({ state: input.upholdRep ? "payable" : "void", updatedAt: new Date() }).where(eq(deals.id, deal.id));
-    await getDb().insert(auditLogs).values({ actorUserId: ctx.user.id, action: "dispute.decided", entityType: "dispute", entityId: String(dispute.id), metadataJson: { upholdRep: input.upholdRep, decision: input.decision } });
-    return { disputeId: dispute.id, state: input.upholdRep ? "resolved" : "rejected" };
+    return resolveDealDispute({ ...input, actorUserId: ctx.user.id });
   }),
 });

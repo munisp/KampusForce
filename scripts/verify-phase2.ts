@@ -85,9 +85,16 @@ async function main() {
   const [product] = await db.select().from(products).where(eq(products.vendorRef, "savings-01")).limit(1);
   const [vendorUser] = await db.select().from(users).where(eq(users.id, vendor.userId!)).limit(1);
   const [opsUser] = await db.select().from(users).where(eq(users.phoneE164, "+2348000000003")).limit(1);
+  assert.ok(teamRep && leadRep && vendor && product && vendorUser && opsUser);
+  // Later-phase acceptance suites legitimately demote/reassign these shared
+  // identities. Restore the seeded team relationship before testing the Phase 2
+  // override economics so repeated ordered runs exercise the same preconditions.
+  await db.update(reps).set({ tier: "campus_lead", status: "active" }).where(eq(reps.id, leadRep.id));
+  await db.update(reps).set({ status: "active" }).where(eq(reps.id, teamRep.id));
+  await db.update(campusLeadAssignments).set({ leadRepId: leadRep.id, campusId: teamRep.campusId, revokedAt: null }).where(eq(campusLeadAssignments.repId, teamRep.id));
   const [assignment] = await db.select().from(campusLeadAssignments)
     .where(and(eq(campusLeadAssignments.repId, teamRep.id), eq(campusLeadAssignments.leadRepId, leadRep.id), isNull(campusLeadAssignments.revokedAt))).limit(1);
-  assert.ok(teamRep && leadRep && vendor && product && vendorUser && opsUser && assignment);
+  assert.ok(assignment);
 
   const [wallet] = await db.select().from(escrowWallets).where(eq(escrowWallets.vendorId, vendor.id)).limit(1);
   if (wallet.balanceKobo < 5_000_000) {
