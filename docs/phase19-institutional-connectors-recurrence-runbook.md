@@ -87,7 +87,18 @@ The external worker uses restrictive temporary files, timeout/output bounds and 
 5. Withdrawal purges the analysis. Document deletion, applicant consent withdrawal and retention enforcement follow their existing purge paths.
 6. Finance cannot access applicant contacts, documents or analysis mutation forms.
 
-Local ATS acceptance used a structurally valid synthetic PDF and real platform object storage. The subsequent toolchain audit separately executed real PaddleOCR 3.7.0 and Docling 2.144.0 against a synthetic education image; both recognized the expected terms, and Docling used reviewed official model artifacts offline after the primary model host timed out. Seven document-worker contract tests also passed. A configured VLM endpoint was not available, so the complete PaddleOCR/Docling/VLM ATS workflow has not executed and no production extraction-quality claim is made.
+Local platform ATS acceptance used a structurally valid synthetic PDF and real platform object storage with the explicitly labelled metadata-only fixture. A separate direct-worker acceptance run on 2026-10-30 executed the complete real workflow against a synthetic PNG transcript (source SHA-256 `fc5a39befcb040302d7325a569b8490bdad27f796ce9af049c045e3248f624ce`). This was not a real person, institution or recruitment outcome.
+
+The accepted run used:
+
+- The actual `identity_platform/talent_document_worker.py`, Python 3.12.12, PaddleOCR 3.7.0/PaddlePaddle 3.3.1 and Docling 2.144.0 with offline reviewed Docling/RapidOCR artifacts. Both document providers recognized every expected source term.
+- llama.cpp v0.8.0 source build (commit `8642541`) serving pinned `ggml-org/Qwen2-VL-2B-Instruct-GGUF` through an OpenAI-compatible endpoint behind authenticated loopback HTTPS. The language artifact was `Qwen2-VL-2B-Instruct-Q4_K_M.gguf`, SHA-256 `5745685d2e607a82a0696c1118e56a2a1ae0901da450fd9cd4f161c6b62867d7`; the Q8 vision projector SHA-256 was `a0ad91f00a7a80dcf84d719a61b00ee2e07b71794f4ee2dfa81a254621a8c418`.
+- Disposable spawned PaddleOCR and Docling processes so native allocations exited before on-demand VLM startup, a one-token warm-up, the source image plus transient OCR/Docling representations, exact strict JSON-schema generation and independent worker validation. The VLM timeout remained bounded to 300 seconds; the reviewed local worker CPU limit was 300 seconds. Final VLM inference took 67.784 seconds: 48.051 seconds of prompt processing and 19.733 seconds generating 115 tokens.
+- Exact accepted evidence: `transcript`; courses `Applied Mathematics`, `Structural Geology`, `Mineralogy`, `Data Analysis with Python`; institution `Synthetic University`; qualification `BSc Geology`; skills `Python`, `data analysis`, `geological mapping`; education summary `BSc Geology at Synthetic University.`; empty experience summary; language `en`; and no provider quality flags. Output retained `human_review_required` and `automated_decision: false`, with OCR confidence 9999 bps and one page. Only an exact absence-only experience phrase was canonicalized to the required empty string.
+
+Earlier SmolVLM outputs were malformed, empty or semantically noisy and were rejected. A complete SmolVLM2 run exited zero but duplicated evidence and misused the fixture disclaimer, so it was not accepted. Qwen2.5-VL 3B exceeded the bounded timeout on the two-core sandbox. Initial Qwen2-VL 2B runs also duplicated courses/qualifications or returned disclaimer/noncanonical experience text and were rejected; prompt/schema refinements, cross-field duplicate rejection and narrow absence-only normalization preceded the final accepted run. A sandbox reset also required rebuilding the temporary runtime; it was not treated as extraction evidence.
+
+Thirteen document-worker contract tests passed. Source text and provider representations remained transient and were not written to stdout or persistence. This single synthetic-image run proves execution and one reviewed extraction only; it does not establish extraction accuracy across documents, fairness, malicious-input resistance, production scale, provider certification or autonomous selection readiness.
 
 ## 3. CompanyA-style vendor connectors
 
@@ -157,12 +168,12 @@ Latest local evidence:
 - Fourteen Phase 19 browser mutations and eighteen desktop/mobile checks passed with zero runtime errors, HTTP errors, external requests or page overflow.
 - Phase 18 service and browser regressions passed, including eleven ATS inspectors and 32 browser checks.
 - TypeScript, ESLint, 25 test files/128 tests, production build, bundled entry and health/PWA smoke passed.
-- The extended audit passed all Phase 2–19 service journeys on isolated PostgreSQL 16, the Delta/Ray control suite, seven Python document-worker tests, Go native tests/race/vet, Rust Cargo tests/checks, and standalone real PaddleOCR/Docling synthetic-image smokes. No first-party Go or Rust module exists; those were toolchain conformance checks only.
+- The extended audit passed all Phase 2–19 service journeys on isolated PostgreSQL 16, the Delta/Ray control suite, Go native tests/race/vet and Rust Cargo tests/checks. Thirteen Python document-worker tests and the complete real PaddleOCR/Docling/Qwen2-VL synthetic-image worker run also passed. No first-party Go or Rust module exists; those were toolchain conformance checks only.
 - Browser verification found and corrected a partner-state control mismatch and an asynchronous document-form reference defect before the final green run.
 
 ## Remaining production gates
 
-1. Execute and evaluate the complete ATS PaddleOCR/Docling/VLM worker with a configured VLM, reviewed documents, malicious-input tests, model/version evidence, accuracy evaluation and production retention/monitoring. Standalone OCR/Docling smokes do not satisfy this gate.
+1. Evaluate the complete ATS worker across representative reviewed documents and malicious inputs, measure extraction accuracy/fairness and failure behavior, and establish production retention/monitoring and provider operations. The accepted single synthetic-image run does not satisfy these broader production gates.
 2. Obtain real institutional governance and outcome evidence; synthetic approvals never certify a government, university, NGO or international programme.
 3. Integrate live vendor connector APIs with production credential management, signed callback reconciliation, capacity/failure testing and explicit account-provisioning authorization.
 4. Complete staging, cross-browser, accessibility, failure/HA, scheduler and production-scale verification.
