@@ -6,6 +6,8 @@ import { campuses, otpChallenges, reps, users } from "@db/schema";
 import { createRouter, publicQuery } from "./middleware";
 import { authedQuery, invalidateToken, issueToken, requireSandboxAuthentication } from "./services/auth";
 import { normalizePhone } from "./services/security";
+import { oidcConfig, verifyProviderToken } from "./services/oidc";
+import { env } from "./lib/env";
 import { getDb } from "./queries/connection";
 
 const otpSecret = process.env.AUTH_SECRET || "kampusforce-sandbox-auth-secret-change-in-production";
@@ -73,6 +75,31 @@ export const authRouter = createRouter({
       ? await getDb().select({ user: users }).from(users).innerJoin(reps, eq(reps.userId, users.id)).where(and(eq(users.role, input.role), eq(reps.code, input.repCode))).limit(1).then((rows) => rows.map((row) => row.user))
       : await getDb().select().from(users).where(eq(users.role, input.role)).limit(1);
     if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Sandbox user not found. Run the database seed." });
+    return { ...(await issueToken(user.id)), user };
+  }),
+  // How this deployment signs people in: the provider (if configured) and whether the sandbox sign-ins are open.
+  methods: publicQuery.query(() => ({ oidc: oidcConfig(), sandbox: env.sandboxMode })),
+  // An access token from the identity provider for an existing KampusForce user, matched by phone number. A new
+  // phone opens a user with the provider's role; a new rep starts pending, as with phone sign-in.
+  oidcLogin: publicQuery.input(z.object({ accessToken: z.string().min(20).max(20000) })).mutation(async ({ input }) => {
+    const claims = await verifyProviderToken(input.accessToken);
+    const phone = normalizePhone(claims.phone);
+    const user = await getDb().transaction(async (tx) => {
+      await tx.insert(users).values({ phoneE164: phone, name: claims.name, role: claims.role }).onConflictDoNothing({ target: users.phoneE164 });
+      const [u] = await tx.select().from(users).where(eq(users.phoneE164, phone)).limit(1).for("update");
+      if (!u) throw new Error("Signed-in user could not be loaded");
+      if (u.role === "rep") {
+        const [rep] = await tx.select().from(reps).where(eq(reps.userId, u.id)).limit(1);
+        if (!rep) {
+          await tx.insert(campuses).values({ name: "University of Lagos", state: "Lagos", status: "live" }).onConflictDoNothing({ target: campuses.name });
+          const [campus] = await tx.select().from(campuses).where(eq(campuses.name, "University of Lagos")).limit(1);
+          if (!campus) throw new Error("Default campus could not be loaded");
+          await tx.insert(reps).values({ userId: u.id, campusId: campus.id, code: `KF-UNILAG-${randomBytes(6).toString("hex").toUpperCase()}`, status: "pending" });
+        }
+      }
+      return u;
+    });
+    if (user.role !== claims.role) throw new TRPCError({ code: "FORBIDDEN", message: "Your KampusForce role and your sign-in role differ. Ask an administrator to align them." });
     return { ...(await issueToken(user.id)), user };
   }),
   me: authedQuery.query(({ ctx }) => ({ user: ctx.user })),

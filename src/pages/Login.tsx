@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { Brand } from "@/components/product/Brand";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
+import { startSignIn } from "@/lib/oidc";
 
 const roles = [
   { role: "rep" as const, repCode: "KF-UNILAG-0001", title: "Campus lead", detail: "Ada · manage a team, overrides and escalations.", icon: UsersRound, path: "/rep" },
@@ -23,6 +24,9 @@ export default function Login() {
   const [code, setCode] = useState("");
   const [sandboxCode, setSandboxCode] = useState("");
   const [error, setError] = useState("");
+  const methods = trpc.auth.methods.useQuery();
+  const oidc = methods.data?.oidc;
+  const sandbox = methods.data?.sandbox ?? false;
   const demo = trpc.auth.demoLogin.useMutation({
     onSuccess: (data, variables) => {
       setSession({ token: data.token, user: data.user });
@@ -40,7 +44,7 @@ export default function Login() {
   });
 
   return <div className="entry-page">
-    <header className="entry-nav"><Brand /><a href="#sandbox">Open sandbox <ArrowRight size={16} /></a></header>
+    <header className="entry-nav"><Brand /><a href="#sandbox">{sandbox ? "Open sandbox" : "Sign in"} <ArrowRight size={16} /></a></header>
     <main>
       <section className="entry-hero">
         <div className="entry-copy">
@@ -63,6 +67,10 @@ export default function Login() {
       </section>
 
       <section className="sandbox-section" id="sandbox">
+        {oidc && <div className="otp-block"><div><KeyRound size={22} /><span><strong>Sign in</strong><small>With your KampusForce account.</small></span></div>
+          <button className="button primary" onClick={() => { setError(""); startSignIn(oidc).catch(() => setError("Sign-in could not start. Try again.")); }}>Sign in with Keycloak<ArrowRight size={16} /></button></div>}
+        {!sandbox && error && <p className="form-error" role="alert">{error}</p>}
+        {sandbox && <>
         <div className="section-intro"><p className="eyebrow">Executable product slice</p><h2>Choose a workspace.</h2><p>Use seeded sandbox identities to exercise the same database-backed activation, escrow and settlement records. No real money or KYC checks occur.</p></div>
         {token && user && <button className="continue-session" onClick={() => navigate(workspacePath(user.role))}>Continue as {user.name}<ArrowRight size={17} /></button>}
         <div className="role-grid">
@@ -79,6 +87,7 @@ export default function Login() {
             <button className="button primary" disabled={requestOtp.isPending || verifyOtp.isPending}>{sandboxCode ? "Verify & enter" : "Send sandbox OTP"}<ArrowRight size={16} /></button>
           </form>
         </div>
+        </>}
       </section>
     </main>
     <footer className="entry-footer"><span>Phase 19 institutional & connector controls · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
