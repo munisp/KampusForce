@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { notifications, users } from "@db/schema";
+import { notificationDeliveries, notifications, users } from "@db/schema";
 import { getDb } from "../queries/connection";
+import { notificationDeliveryConfiguration } from "./notificationDelivery";
 
 export async function notifyUser(input: {
   userId: number;
@@ -11,11 +12,16 @@ export async function notifyUser(input: {
   entityType?: string;
   entityId?: string | number;
 }) {
-  const [{ id }] = await getDb().insert(notifications).values({
-    ...input,
-    entityId: input.entityId === undefined ? null : String(input.entityId),
-  }).returning({ id: notifications.id });
-  return id;
+  return getDb().transaction(async (tx) => {
+    const [{ id }] = await tx.insert(notifications).values({
+      ...input,
+      entityId: input.entityId === undefined ? null : String(input.entityId),
+    }).returning({ id: notifications.id });
+    if (notificationDeliveryConfiguration().enabled) {
+      await tx.insert(notificationDeliveries).values({ notificationId: id }).onConflictDoNothing();
+    }
+    return id;
+  });
 }
 
 export async function notifyOperations(input: Omit<Parameters<typeof notifyUser>[0], "userId">) {

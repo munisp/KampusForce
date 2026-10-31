@@ -37,6 +37,8 @@ async function main() {
     KF_LIVE_CUTOVER_AUTHORIZED: process.env.KF_LIVE_CUTOVER_AUTHORIZED,
     KF_APP_URL: process.env.KF_APP_URL,
     PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY,
+    KF_SANDBOX_MODE: process.env.KF_SANDBOX_MODE,
+    KF_PAYOUT_ENCRYPTION_KEY: process.env.KF_PAYOUT_ENCRYPTION_KEY,
   };
   try {
     process.env.KF_PROVIDER_MODE = "sandbox";
@@ -105,6 +107,9 @@ async function main() {
 
     process.env.KF_PROVIDER_MODE = "live";
     process.env.KF_LIVE_CUTOVER_AUTHORIZED = "true";
+    process.env.KF_SANDBOX_MODE = "false";
+    process.env.KF_PAYOUT_ENCRYPTION_KEY = "11".repeat(32);
+    process.env.PAYSTACK_SECRET_KEY = "phase10-sandbox-configuration-fixture";
     process.env.KF_APP_URL = "https://example.invalid";
     await assert.rejects(() => assertLiveProviderExecutionAuthorized(), /every required launch gate/);
     process.env.KF_PROVIDER_MODE = "sandbox";
@@ -129,11 +134,12 @@ async function main() {
       withholdingKobo: 10_000,
       provider: "paystack",
       providerRef: reference("payout_record"),
+      executionMode: "live",
       state: "processing",
       batchId: `P10-${suffix.slice(0, 12)}`,
       attempts: 1,
     }).returning();
-    const [attempt] = await db.insert(payoutAttempts).values({ payoutId: payout.id, attemptNo: 1, provider: "paystack", providerRef: successRef, state: "initiated" }).returning();
+    const [attempt] = await db.insert(payoutAttempts).values({ payoutId: payout.id, attemptNo: 1, provider: "paystack", providerRef: successRef, executionMode: "live", state: "initiated" }).returning();
     // A payable entitlement and its existing credit are the minimum valid ledger
     // fixture. No real vendor, provider or bank transaction is represented here.
     const [vendorUser] = await db.insert(users).values({ phoneE164: phone(), name: "Phase Ten Fixture Vendor", role: "vendor" }).returning();

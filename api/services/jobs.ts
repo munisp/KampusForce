@@ -1,5 +1,5 @@
 import { and, desc, eq, lte } from "drizzle-orm";
-import { commissionRuleDrafts, jobRuns, rateLimitBuckets } from "@db/schema";
+import { authSessions, commissionRuleDrafts, jobRuns, otpChallenges, rateLimitBuckets } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { confirmDueDeals, dispatchDuePayouts, runPayoutBatch } from "./ledger";
 import { dailyPayoutSlotKey, isDailyPayoutWindow } from "./payoutPolicy";
@@ -12,8 +12,9 @@ import { monitoringSlotKey } from "./incidentPolicy";
 import { processDueIngestionRetries, purgeExpiredVendorEventPayloads } from "./ingestionRetries";
 import { expireIdentityApprovals } from "./identity";
 import { runPromotionScheduleSweep } from "./promotions";
+import { processDueNotificationDeliveries } from "./notificationDelivery";
 
-export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup", "ingestion_retry", "event_retention", "identity_expiry", "promotion_orchestration"] as const;
+export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup", "ingestion_retry", "event_retention", "identity_expiry", "promotion_orchestration", "notification_delivery", "auth_session_cleanup"] as const;
 export type JobKey = typeof JOB_KEYS[number] | "payout_batch" | "lead_eligibility" | "monitoring_sweep";
 
 export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
@@ -72,6 +73,17 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
     } else if (jobKey === "promotion_orchestration") {
       result = await runPromotionScheduleSweep();
       processedCount = Number(result.processed || 0);
+    } else if (jobKey === "notification_delivery") {
+      const delivery = await processDueNotificationDeliveries();
+      result = delivery;
+      processedCount = delivery.delivered + delivery.retryScheduled + delivery.deadLetter;
+    } else if (jobKey === "auth_session_cleanup") {
+      const [sessions, challenges] = await Promise.all([
+        db.delete(authSessions).where(lte(authSessions.expiresAt, new Date())).returning({ id: authSessions.id }),
+        db.delete(otpChallenges).where(lte(otpChallenges.expiresAt, new Date())).returning({ id: otpChallenges.id }),
+      ]);
+      result = { expiredSessionsDeleted: sessions.length, expiredChallengesDeleted: challenges.length };
+      processedCount = sessions.length + challenges.length;
     } else {
       result = await expireRecruitments();
       processedCount = Number(result.expired || 0);
@@ -106,11 +118,26 @@ export async function recentJobRuns() {
 }
 
 let worker: ReturnType<typeof setInterval> | undefined;
+let workerPassRunning = false;
+async function runScheduledPass() {
+  if (workerPassRunning) {
+    log.warn("scheduled worker pass skipped because the previous pass is still running");
+    return;
+  }
+  workerPassRunning = true;
+  try {
+    await runDueJobs("schedule");
+  } catch (error) {
+    log.error("scheduled worker pass failed", { error: error instanceof Error ? error.message : String(error) });
+  } finally {
+    workerPassRunning = false;
+  }
+}
+
 export function startDurableWorker() {
   if (worker) return;
-  worker = setInterval(() => {
-    runDueJobs("schedule").catch((error) => log.error("scheduled worker pass failed", { error: error instanceof Error ? error.message : String(error) }));
-  }, 60_000);
+  void runScheduledPass();
+  worker = setInterval(() => { void runScheduledPass(); }, 60_000);
   worker.unref();
-  log.info("durable PostgreSQL worker started", { intervalSeconds: 60, jobs: JOB_KEYS });
+  log.info("durable PostgreSQL worker started", { intervalSeconds: 60, overlapPrevention: true, jobs: JOB_KEYS });
 }

@@ -69,6 +69,7 @@ jobs:
       - run: npx tsx scripts/verify-phase14.ts
       - run: npx tsx scripts/verify-phase15.ts
       - run: npx tsx scripts/verify-phase16.ts
+      - run: npx tsx scripts/verify-production-gates.ts
       - name: Verify non-destructive backup and isolated restore
         run: |
           npm run db:backup -- /tmp/kampusforce-ci-recovery.dump

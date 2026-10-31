@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { rateLimitBuckets } from "@db/schema";
 import { getDb } from "../queries/connection";
 
-export type RateLimitPolicy = "otp_request" | "otp_verify" | "demo_login" | "recruitment_inspect" | "vendor_event";
+export type RateLimitPolicy = "otp_request" | "otp_verify" | "demo_login" | "recruitment_inspect" | "vendor_event" | "vendor_connector_progress" | "provider_payout_webhook";
 
 type RateLimitOptions = {
   policy: RateLimitPolicy;

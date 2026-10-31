@@ -630,6 +630,35 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("notification_user_idx").on(t.userId, t.readAt, t.createdAt)]);
 
+export const notificationDeliveries = pgTable("notification_deliveries", {
+  id: serial("id").primaryKey(),
+  notificationId: integer("notification_id").notNull().references(() => notifications.id),
+  channel: varchar("channel", { length: 30 }).notNull().default("signed_webhook"),
+  state: varchar("state", { length: 30 }).notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  lastError: varchar("last_error", { length: 120 }),
+  receiptHash: varchar("receipt_hash", { length: 64 }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("notification_delivery_unique").on(t.notificationId, t.channel), index("notification_delivery_dispatch_idx").on(t.state, t.availableAt)]);
+
+export const payoutDestinations = pgTable("payout_destinations", {
+  userId: integer("user_id").primaryKey().references(() => users.id),
+  accountNumberCiphertext: text("account_number_ciphertext").notNull(),
+  accountNumberIv: varchar("account_number_iv", { length: 32 }).notNull(),
+  accountNumberTag: varchar("account_number_tag", { length: 32 }).notNull(),
+  accountNumberHash: varchar("account_number_hash", { length: 64 }).notNull(),
+  bankCode: varchar("bank_code", { length: 12 }).notNull(),
+  accountName: varchar("account_name", { length: 160 }).notNull(),
+  accountLast4: varchar("account_last4", { length: 4 }).notNull(),
+  keyVersion: varchar("key_version", { length: 40 }).notNull().default("v1"),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const campusLeadOverrides = pgTable(
   "campus_lead_overrides",
   {
@@ -681,6 +710,7 @@ export const payouts = pgTable("payouts", {
   withholdingKobo: bigint("withholding_kobo", { mode: "number" }).notNull().default(0),
   provider: varchar("provider", { length: 40 }).notNull(),
   providerRef: varchar("provider_ref", { length: 100 }).notNull().unique(),
+  executionMode: varchar("execution_mode", { length: 20 }).notNull().default("sandbox"),
   state: payoutStateEnum("state").notNull().default("queued"),
   batchId: varchar("batch_id", { length: 64 }).notNull(),
   attempts: integer("attempts").notNull().default(0),
@@ -697,8 +727,10 @@ export const payoutAttempts = pgTable("payout_attempts", {
   attemptNo: integer("attempt_no").notNull(),
   provider: varchar("provider", { length: 40 }).notNull(),
   providerRef: varchar("provider_ref", { length: 100 }).notNull().unique(),
+  executionMode: varchar("execution_mode", { length: 20 }).notNull().default("sandbox"),
   state: payoutAttemptStateEnum("state").notNull().default("initiated"),
   failureCode: varchar("failure_code", { length: 120 }),
+  providerAcceptedAt: timestamp("provider_accepted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
 }, (t) => [uniqueIndex("payout_attempt_number_unique").on(t.payoutId, t.attemptNo), index("payout_attempt_payout_idx").on(t.payoutId, t.state)]);

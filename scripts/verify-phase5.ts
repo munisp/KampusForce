@@ -110,8 +110,10 @@ async function verifyHealth() {
   const ready = await readyResponse.json();
   assert.equal(ready.status, "ready");
   assert.equal(ready.checks.database, "up");
-  assert.equal(ready.checks.worker, "postgresql_minute_worker");
-  return { liveness: live.status, readiness: ready.status, database: ready.checks.database };
+  assert.equal(ready.checks.worker, "fresh");
+  assert.equal(ready.checks.providerConfiguration, "valid");
+  assert.ok(ready.checks.latestSuccessfulJobAt);
+  return { liveness: live.status, readiness: ready.status, database: ready.checks.database, worker: ready.checks.worker };
 }
 
 async function verifyRateLimits() {

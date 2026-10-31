@@ -27,6 +27,7 @@ import { createSupportTicket, escalateSupportTicket, isSlaBreached, rateSupportT
 import { createInvitationToken, hashInvitationToken, revokeRecruitment } from "./services/recruiting";
 import { listRepFraudCases, requestFraudAppeal } from "./services/fraud";
 import { openDealDispute } from "./services/ledger";
+import { configurePayoutDestination, payoutDestinationStatus } from "./services/payoutDestinations";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -186,7 +187,16 @@ export const repRouter = createRouter({
     const history = await getDb().select({ history: dealStateHistory }).from(dealStateHistory).innerJoin(deals, eq(dealStateHistory.dealId, deals.id)).where(eq(deals.repId, rep.id)).orderBy(desc(dealStateHistory.createdAt)).limit(80);
     const repPayouts = await getDb().select().from(payouts).where(eq(payouts.repId, rep.id)).orderBy(desc(payouts.createdAt));
     const overrides = rep.tier === "campus_lead" ? await getDb().select({ override: campusLeadOverrides, sourceRepCode: reps.code }).from(campusLeadOverrides).innerJoin(reps, eq(campusLeadOverrides.sourceRepId, reps.id)).where(eq(campusLeadOverrides.leadRepId, rep.id)).orderBy(desc(campusLeadOverrides.createdAt)) : [];
-    return { deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides };
+    const destination = await payoutDestinationStatus(ctx.user.id);
+    return { deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides, destination };
+  }),
+  configurePayoutDestination: authedQuery.input(z.object({
+    accountNumber: z.string().trim().regex(/^\d{10}$/),
+    bankCode: z.string().trim().regex(/^[A-Za-z0-9-]{2,12}$/),
+    accountName: z.string().trim().min(3).max(160),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    return configurePayoutDestination(ctx.user.id, input);
   }),
   fraudCases: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep"]);

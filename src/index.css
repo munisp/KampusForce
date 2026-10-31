@@ -527,7 +527,8 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .dashboard-grid, .vendor-grid, .share-layout, .case-workspace, .team-layout, .team-lower, .rule-studio, .support-config { grid-template-columns: 1fr; }
   .assist-layout { grid-template-columns: 250px 1fr; }
   .header-status { display: none; }
-  .audit-list > div { grid-template-columns: auto 100px 1fr; }
+  .audit-list > div { grid-template-columns: auto 100px minmax(0, 1fr); }
+  .audit-list > div > strong { min-width: 0; overflow-wrap: anywhere; }
   .audit-list > div > span:nth-last-child(-n+2) { display: none; }
   .score-hero { grid-template-columns: 1fr; }
   .overall-score { max-width: 360px; }

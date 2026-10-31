@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { secureHeaders } from "hono/secure-headers";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
@@ -56,6 +57,8 @@ app.use("*", async (c, next) => {
   });
 });
 
+app.use("*", secureHeaders());
+
 // Sensitive public procedures use fixed-window PostgreSQL counters. Only hashed
 // policy/subject/window keys are stored; raw IP addresses and phone numbers are not.
 app.use("/api/trpc/auth.requestOtp", ipRateLimit("otp_request", 5, 10 * 60));
@@ -68,6 +71,13 @@ app.use("/v1/webhooks/:vendorKey/events", rateLimit({
   windowSeconds: 60,
   subject: (c) => c.req.param("vendorKey") || "unknown_vendor",
 }));
+app.use("/v1/webhooks/:vendorKey/connector-progress", rateLimit({
+  policy: "vendor_connector_progress",
+  limit: 120,
+  windowSeconds: 60,
+  subject: (c) => c.req.param("vendorKey") || "unknown_vendor",
+}));
+app.use("/api/integrations/providers/:provider/payout", ipRateLimit("provider_payout_webhook", 120, 60));
 
 // Scoped to the tRPC route, NOT global: on the dev server (@hono/vite-dev-server)
 // a global bodyLimit breaks bodyless requests. Hono's bodyLimit reads any truthy

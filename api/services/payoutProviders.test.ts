@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FlutterwavePayoutAdapter,
   PaystackPayoutAdapter,
+  ProviderPayoutError,
   validateProviderPayoutInput,
   verifyFlutterwaveWebhook,
   verifyPaystackWebhook,
@@ -69,6 +70,26 @@ describe("provider payout boundaries", () => {
     const receipt = await new FlutterwavePayoutAdapter("test-secret", request, "https://provider.invalid/v3").initiate(input);
     expect(receipt.providerRef).toBe(input.reference);
     expect(receipt.settlementEligible).toBe(false);
+  });
+
+  it("classifies only explicit ordinary 4xx responses as safely retryable rejection", async () => {
+    for (const [status, rejected] of [[400, true], [422, true], [408, false], [409, false], [429, false], [500, false]] as const) {
+      const request = vi.fn(async () => new Response(JSON.stringify({ status: "error", message: "sandbox response" }), { status })) as typeof fetch;
+      const error = await new FlutterwavePayoutAdapter("test-secret", request, "https://provider.invalid/v3").initiate(input).catch((cause: unknown) => cause);
+      expect(error).toBeInstanceOf(ProviderPayoutError);
+      expect((error as ProviderPayoutError).rejected).toBe(rejected);
+    }
+  });
+
+  it("treats malformed and oversized success responses as ambiguous rather than acceptance", async () => {
+    const malformed = vi.fn(async () => new Response("not-json", { status: 200 })) as typeof fetch;
+    const malformedError = await new FlutterwavePayoutAdapter("test-secret", malformed, "https://provider.invalid/v3").initiate(input).catch((cause: unknown) => cause);
+    expect(malformedError).toBeInstanceOf(ProviderPayoutError);
+    expect((malformedError as ProviderPayoutError).rejected).toBe(false);
+    const oversized = vi.fn(async () => new Response("x".repeat(256 * 1024 + 1), { status: 200 })) as typeof fetch;
+    const oversizedError = await new FlutterwavePayoutAdapter("test-secret", oversized, "https://provider.invalid/v3").initiate(input).catch((cause: unknown) => cause);
+    expect(oversizedError).toBeInstanceOf(ProviderPayoutError);
+    expect((oversizedError as ProviderPayoutError).rejected).toBe(false);
   });
 
   it("rejects provider reference mismatches", async () => {

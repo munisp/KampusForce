@@ -1,0 +1,1 @@
+ALTER TABLE "payout_attempts" ADD COLUMN "provider_accepted_at" timestamp with time zone;

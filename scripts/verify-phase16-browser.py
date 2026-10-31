@@ -58,7 +58,22 @@ def login(page, role):
 
 
 def open_promotions(page):
-    page.locator('a[href="/sales"]:visible').first.click()
+    mobile_sales = page.locator('.mobile-nav a[href="/sales"]')
+    if mobile_sales.is_visible():
+        box = mobile_sales.bounding_box()
+        assert box and page.viewport_size
+        x = box["x"] + box["width"] / 2
+        y = box["y"] + box["height"] / 2
+        assert 0 <= x <= page.viewport_size["width"] and 0 <= y <= page.viewport_size["height"], box
+        hit = page.evaluate("""({x, y}) => {
+            const link = document.querySelector('.mobile-nav a[href="/sales"]');
+            const target = document.elementFromPoint(x, y);
+            return Boolean(link && target && (target === link || link.contains(target)));
+        }""", {"x": x, "y": y})
+        assert hit, "The visible mobile Sales link must be the actual touch target"
+        page.touchscreen.tap(x, y)
+    else:
+        page.locator('.sidebar a[href="/sales"]').click()
     page.locator(".sales-view-tabs").wait_for(timeout=30_000)
     page.get_by_role("button", name="Vendor promotions", exact=True).click()
     page.get_by_text("External demand. Internal readiness.", exact=False).wait_for(timeout=30_000)
@@ -72,8 +87,9 @@ def promotion_panel(page, name):
 
 
 def dimensions(page):
+    expected_width = page.viewport_size["width"]
     result = page.evaluate("({viewport: window.innerWidth, document: document.documentElement.scrollWidth})")
-    assert result["document"] <= result["viewport"] + 1, result
+    assert result["document"] <= expected_width + 1 and result["viewport"] <= expected_width + 1, result
     return result
 
 
@@ -193,7 +209,7 @@ with sync_playwright() as playwright:
         REPORT["finance"] = {"status": "passed", "readOnly": True, "dimensions": finance_dimensions}
         finance_context.close()
 
-        mobile_context = browser.new_context(viewport={"width": 375, "height": 812}, is_mobile=True)
+        mobile_context = browser.new_context(viewport={"width": 375, "height": 812}, is_mobile=True, has_touch=True)
         mobile = mobile_context.new_page()
         monitor(mobile, "campus-lead-mobile")
         login(mobile, "Campus lead")

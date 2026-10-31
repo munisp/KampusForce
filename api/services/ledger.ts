@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import {
   auditLogs,
@@ -33,8 +33,13 @@ import {
   payoutProviderForAttempt,
   retryDelayMinutes,
 } from "./payoutPolicy";
+import { integrationConfiguration } from "./integrationConfig";
+import { assertLiveProviderExecutionAuthorized } from "./launchReadiness";
+import { initiateLiveProviderPayout, ProviderPayoutError, type ProviderPayoutInput } from "./payoutProviders";
+import { resolvePayoutDestination } from "./payoutDestinations";
 
 const db = () => getDb();
+const payoutExecutionMode = () => integrationConfiguration().requestedMode === "live" ? "live" as const : "sandbox" as const;
 type Database = ReturnType<typeof getDb>;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type LedgerClient = Database | Transaction;
@@ -290,8 +295,9 @@ export async function runPayoutBatch(actorUserId?: number) {
         amountGrossKobo: adjustedGross,
         amountNetKobo: net,
         withholdingKobo: tax,
-        provider: "paystack_sandbox",
+        provider: payoutExecutionMode() === "live" ? "paystack" : "paystack_sandbox",
         providerRef: randomReference("payout_batch"),
+        executionMode: payoutExecutionMode(),
         state: "queued",
         batchId,
         attempts: 0,
@@ -316,12 +322,70 @@ export async function runPayoutBatch(actorUserId?: number) {
   return { eligibleDeals: payable.length, eligibleOverrides: accruedOverrides.length, results };
 }
 
-export async function dispatchDuePayouts(actorUserId?: number) {
-  const due = await db().select({ id: payouts.id }).from(payouts)
+const DISPATCH_RECOVERY_TIMEOUT_MS = 2 * 60_000;
+
+/** Recover process interruptions without ever re-emitting an uncertain live transfer. */
+export async function recoverInterruptedPayoutDispatches(now = new Date()) {
+  const staleBefore = new Date(now.getTime() - DISPATCH_RECOVERY_TIMEOUT_MS);
+  const stale = await db().select({ id: payouts.id }).from(payouts)
+    .where(and(eq(payouts.state, "processing"), lt(payouts.updatedAt, staleBefore)))
+    .orderBy(payouts.updatedAt).limit(100);
+  const results: Array<Record<string, unknown>> = [];
+  for (const candidate of stale) {
+    const recovered = await db().transaction(async (tx) => {
+      const [payout] = await tx.select().from(payouts).where(eq(payouts.id, candidate.id)).limit(1).for("update");
+      if (!payout || payout.state !== "processing" || payout.updatedAt >= staleBefore) return null;
+      const [attempt] = await tx.select().from(payoutAttempts).where(eq(payoutAttempts.payoutId, payout.id))
+        .orderBy(desc(payoutAttempts.attemptNo)).limit(1).for("update");
+      if (!attempt || attempt.state !== "initiated" || attempt.providerAcceptedAt) return null;
+      if (payout.executionMode === "live" || attempt.executionMode === "live") {
+        await tx.update(payouts).set({ state: "held", lastFailureCode: "provider_outcome_unknown", nextRetryAt: null, updatedAt: now }).where(eq(payouts.id, payout.id));
+        await tx.insert(auditLogs).values({
+          actorUserId: null,
+          action: "payout.interrupted_live_dispatch_held",
+          entityType: "payout",
+          entityId: String(payout.id),
+          metadataJson: { attemptId: attempt.id, provider: attempt.provider, providerRef: attempt.providerRef, automaticRetryBlocked: true, verifiedLateOutcomeAccepted: true },
+        });
+        return { payoutId: payout.id, attemptId: attempt.id, status: "held" as const, mode: "live" as const };
+      }
+      const exhausted = payout.attempts >= MAX_PAYOUT_ATTEMPTS;
+      await tx.update(payoutAttempts).set({ state: "failed", failureCode: "sandbox_dispatch_interrupted", completedAt: now }).where(eq(payoutAttempts.id, attempt.id));
+      await tx.update(payouts).set({ state: exhausted ? "failed" : "queued", lastFailureCode: "sandbox_dispatch_interrupted", nextRetryAt: exhausted ? null : now, updatedAt: now }).where(eq(payouts.id, payout.id));
+      await tx.insert(auditLogs).values({
+        actorUserId: null,
+        action: "payout.interrupted_sandbox_dispatch_recovered",
+        entityType: "payout",
+        entityId: String(payout.id),
+        metadataJson: { attemptId: attempt.id, exhausted, liveTransferImplied: false },
+      });
+      return { payoutId: payout.id, attemptId: attempt.id, status: exhausted ? "failed" as const : "queued" as const, mode: "sandbox" as const };
+    });
+    if (recovered) results.push(recovered);
+  }
+  return { examined: stale.length, recovered: results.length, results };
+}
+
+export async function dispatchDuePayouts(
+  actorUserId?: number,
+  executeProvider: typeof initiateLiveProviderPayout = initiateLiveProviderPayout,
+  authorizeLive: typeof assertLiveProviderExecutionAuthorized = assertLiveProviderExecutionAuthorized,
+) {
+  await recoverInterruptedPayoutDispatches();
+  const due = await db().select({ id: payouts.id, executionMode: payouts.executionMode }).from(payouts)
     .where(and(eq(payouts.state, "queued"), or(isNull(payouts.nextRetryAt), lte(payouts.nextRetryAt, new Date()))))
     .orderBy(payouts.createdAt).limit(100);
-  const results = [];
+  const results: Array<Record<string, unknown>> = [];
   for (const payout of due) {
+    if (payout.executionMode === "live") {
+      try {
+        await authorizeLive();
+      } catch (error) {
+        results.push({ payoutId: payout.id, status: "live_execution_blocked", reason: error instanceof Error ? error.message : "Live provider execution is not authorized" });
+        continue;
+      }
+    }
+    const liveRequests: Array<{ payoutId: number; attemptId: number; provider: "paystack" | "flutterwave"; providerRef: string; input: ProviderPayoutInput }> = [];
     const result = await db().transaction(async (tx) => {
       const [current] = await tx.select().from(payouts).where(eq(payouts.id, payout.id)).limit(1).for("update");
       if (!current || current.state !== "queued" || (current.nextRetryAt && current.nextRetryAt > new Date())) {
@@ -339,31 +403,97 @@ export async function dispatchDuePayouts(actorUserId?: number) {
       if (!dispatchRep || !dispatchUser || dispatchRep.status !== "active" || dispatchUser.kycState !== "verified" || !dispatchUser.bankNameMatch || !dispatchIdentity || !dispatchAssurance?.eligible) {
         return { payoutId: current.id, status: "assurance_hold" as const, reason: dispatchAssurance?.reason || "Identity or representative eligibility changed before dispatch" };
       }
+      const mode = current.executionMode === "live" ? "live" as const : "sandbox" as const;
+      let destination: ProviderPayoutInput | null = null;
+      if (mode === "live") {
+        try {
+          const resolved = await resolvePayoutDestination(dispatchUser.id, tx);
+          destination = { ...resolved, amountNetKobo: current.amountNetKobo, reference: "", narration: `KampusForce payout ${current.batchId}` };
+        } catch (error) {
+          return { payoutId: current.id, status: "destination_hold" as const, reason: error instanceof Error ? error.message : "Encrypted payout destination is unavailable" };
+        }
+      }
       const attemptNo = current.attempts + 1;
       if (attemptNo > MAX_PAYOUT_ATTEMPTS) {
         await tx.update(payouts).set({ state: "failed", updatedAt: new Date() }).where(eq(payouts.id, current.id));
         return { payoutId: payout.id, status: "failed" as const, reason: "Retry limit exhausted" };
       }
-      const provider = payoutProviderForAttempt(attemptNo);
-      const providerRef = randomReference("sandbox_transfer");
+      const provider = mode === "live"
+        ? (attemptNo === MAX_PAYOUT_ATTEMPTS ? "flutterwave" as const : "paystack" as const)
+        : payoutProviderForAttempt(attemptNo);
+      const providerRef = randomReference(mode === "live" ? "live_transfer" : "sandbox_transfer");
       const [attempt] = await tx.insert(payoutAttempts).values({
         payoutId: current.id,
         attemptNo,
         provider,
         providerRef,
+        executionMode: mode,
         state: "initiated",
       }).returning({ id: payoutAttempts.id });
       await tx.update(payouts).set({ state: "processing", attempts: attemptNo, provider, updatedAt: new Date() }).where(eq(payouts.id, current.id));
       await tx.insert(auditLogs).values({
         actorUserId: actorUserId || null,
-        action: "payout.attempt_initiated",
+        action: "payout.attempt_reserved",
         entityType: "payout",
         entityId: String(current.id),
-        metadataJson: { attemptId: attempt.id, attemptNo, provider, providerRef, mode: "sandbox_only", liveTransferInitiated: false },
+        metadataJson: { attemptId: attempt.id, attemptNo, provider, providerRef, mode, liveTransferInitiated: false },
       });
-      return { payoutId: current.id, attemptId: attempt.id, attemptNo, provider, providerRef, status: "processing" as const, mode: "sandbox_only" as const };
+      if (destination && (provider === "paystack" || provider === "flutterwave")) {
+        destination.reference = providerRef;
+        liveRequests.push({ payoutId: current.id, attemptId: attempt.id, provider, providerRef, input: destination });
+      }
+      return { payoutId: current.id, attemptId: attempt.id, attemptNo, provider, providerRef, status: "processing" as const, mode: mode === "live" ? "live_reserved" as const : "sandbox_only" as const };
     });
-    results.push(result);
+    const [request] = liveRequests;
+    if (!request) {
+      results.push(result);
+      continue;
+    }
+    try {
+      const receipt = await executeProvider(request.provider, request.input);
+      if (receipt.provider !== request.provider || receipt.providerRef !== request.providerRef || receipt.settlementEligible !== false) {
+        throw new ProviderPayoutError("Provider acceptance receipt does not match the reserved attempt");
+      }
+      await db().transaction(async (tx) => {
+        await tx.update(payoutAttempts).set({ providerAcceptedAt: new Date() }).where(and(eq(payoutAttempts.id, request.attemptId), eq(payoutAttempts.state, "initiated")));
+        await tx.insert(auditLogs).values({
+        actorUserId: actorUserId || null,
+        action: "payout.provider_accepted",
+        entityType: "payout",
+        entityId: String(request.payoutId),
+        metadataJson: { attemptId: request.attemptId, provider: request.provider, providerRef: request.providerRef, providerStatus: receipt.providerStatus.slice(0, 60), mode: "live", settlementEligible: false },
+        });
+      });
+      results.push({ ...result, status: "processing", mode: "live", providerStatus: receipt.providerStatus, settlementEligible: false });
+    } catch (error) {
+      if (error instanceof ProviderPayoutError && error.rejected) {
+        const rejected = await recordPayoutOutcome({
+          payoutId: request.payoutId,
+          outcome: "failure",
+          actorUserId: actorUserId || null,
+          failureCode: "provider_request_rejected",
+          mode: "live",
+          provider: request.provider,
+          providerRef: request.providerRef,
+          providerEventId: `dispatch-rejection:${request.attemptId}`,
+          amountNetKobo: request.input.amountNetKobo,
+        });
+        results.push({ payoutId: request.payoutId, attemptId: request.attemptId, status: rejected.status, mode: "live", reason: error.message });
+      } else {
+        const reason = error instanceof Error ? error.message : "Provider outcome is unknown";
+        await db().transaction(async (tx) => {
+          await tx.update(payouts).set({ state: "held", lastFailureCode: "provider_outcome_unknown", nextRetryAt: null, updatedAt: new Date() }).where(eq(payouts.id, request.payoutId));
+          await tx.insert(auditLogs).values({
+            actorUserId: actorUserId || null,
+            action: "payout.provider_outcome_unknown",
+            entityType: "payout",
+            entityId: String(request.payoutId),
+            metadataJson: { attemptId: request.attemptId, provider: request.provider, providerRef: request.providerRef, mode: "live", automaticRetryBlocked: true, reason: reason.slice(0, 200) },
+          });
+        });
+        results.push({ payoutId: request.payoutId, attemptId: request.attemptId, status: "held", mode: "live", reason: "Provider outcome is unknown; reconcile before any further attempt" });
+      }
+    }
   }
   return { due: due.length, dispatched: results.filter((result) => result.status === "processing").length, results };
 }
@@ -382,21 +512,25 @@ async function recordPayoutOutcome(input: {
   const outcome = await db().transaction(async (tx) => {
     const [payout] = await tx.select().from(payouts).where(eq(payouts.id, input.payoutId)).limit(1).for("update");
     if (!payout) throw new Error("Payout not found");
-    if (payout.state === "paid" && input.outcome === "success") {
-      return { payoutId: payout.id, status: "paid" as const, idempotent: true };
-    }
     const [attempt] = await tx.select().from(payoutAttempts).where(eq(payoutAttempts.payoutId, payout.id))
       .orderBy(desc(payoutAttempts.attemptNo)).limit(1).for("update");
-    if (payout.state !== "processing" || !attempt || attempt.state !== "initiated") {
-      throw new Error("Payout has no initiated attempt awaiting an outcome");
+    if (payout.executionMode !== input.mode || (attempt && attempt.executionMode !== input.mode)) {
+      throw new Error("Payout outcome mode does not match the reserved execution mode");
     }
     if (input.mode === "live") {
-      if (!input.provider || attempt.provider !== input.provider || attempt.providerRef !== input.providerRef) {
+      if (!attempt || !input.provider || attempt.provider !== input.provider || attempt.providerRef !== input.providerRef) {
         throw new Error("Verified provider reference does not match the initiated payout attempt");
       }
       if (!Number.isSafeInteger(input.amountNetKobo) || input.amountNetKobo !== payout.amountNetKobo) {
         throw new Error("Verified provider amount does not match the payout net amount");
       }
+    }
+    if (payout.state === "paid" && input.outcome === "success") {
+      return { payoutId: payout.id, status: "paid" as const, idempotent: true };
+    }
+    const reconcilingUnknownLiveOutcome = input.mode === "live" && payout.state === "held" && payout.lastFailureCode === "provider_outcome_unknown";
+    if ((payout.state !== "processing" && !reconcilingUnknownLiveOutcome) || !attempt || attempt.state !== "initiated") {
+      throw new Error("Payout has no initiated attempt awaiting an outcome");
     }
     const [rep] = await tx.select().from(reps).where(eq(reps.id, payout.repId)).limit(1);
     const [user] = rep ? await tx.select().from(users).where(eq(users.id, rep.userId)).limit(1) : [];
@@ -554,8 +688,9 @@ export async function recoverFailedPayout(payoutId: number, actorUserId: number)
       amountGrossKobo: failed.amountGrossKobo,
       amountNetKobo: failed.amountNetKobo,
       withholdingKobo: failed.withholdingKobo,
-      provider: "paystack_sandbox",
+      provider: failed.executionMode === "live" ? "paystack" : "paystack_sandbox",
       providerRef: randomReference("payout_recovery"),
+      executionMode: failed.executionMode,
       state: "queued",
       batchId: failed.batchId,
       attempts: 0,
@@ -567,7 +702,7 @@ export async function recoverFailedPayout(payoutId: number, actorUserId: number)
       action: "payout.finance_recovery_queued",
       entityType: "payout",
       entityId: String(replacement.id),
-      metadataJson: { replacesFailedPayoutId: failed.id, batchId: failed.batchId, preservedFailureHistory: true, automaticRetryLimit: MAX_PAYOUT_ATTEMPTS, mode: "sandbox_only" },
+      metadataJson: { replacesFailedPayoutId: failed.id, batchId: failed.batchId, preservedFailureHistory: true, automaticRetryLimit: MAX_PAYOUT_ATTEMPTS, mode: failed.executionMode },
     });
     return { payoutId: replacement.id, replacesFailedPayoutId: failed.id, status: "queued" as const };
   });
@@ -590,6 +725,8 @@ export async function reconcilePayoutBatch(input: { batchId: string; bankNetKobo
     providerKobo,
     bankKobo: input.bankNetKobo,
   });
+  const live = batchPayouts.every((payout) => payout.executionMode === "live");
+  const evidence = live ? "live_records_supplied_bank_figure" : "sandbox_records_and_supplied_bank_figure";
   const [report] = await db().insert(reconciliationRuns).values({
     batchId: input.batchId,
     actorUserId: input.actorUserId,
@@ -598,14 +735,14 @@ export async function reconcilePayoutBatch(input: { batchId: string; bankNetKobo
     bankKobo: input.bankNetKobo,
     varianceKobo: assessment.varianceKobo,
     state: assessment.state,
-    evidence: "sandbox_records_and_supplied_bank_figure",
+    evidence,
   }).returning({ id: reconciliationRuns.id });
   await db().insert(auditLogs).values({
     actorUserId: input.actorUserId,
     action: "reconciliation.batch_recorded",
     entityType: "payout_batch",
     entityId: input.batchId,
-    metadataJson: { reconciliationRunId: report.id, ledgerKobo, providerKobo, bankKobo: input.bankNetKobo, ...assessment, toleranceKobo: 100000, evidence: "sandbox_only" },
+    metadataJson: { reconciliationRunId: report.id, ledgerKobo, providerKobo, bankKobo: input.bankNetKobo, ...assessment, toleranceKobo: 100000, evidence, externalBankFigureIndependentlyVerified: false },
   });
-  return { id: report.id, batchId: input.batchId, ledgerKobo, providerKobo, bankKobo: input.bankNetKobo, ...assessment, evidence: "sandbox_only" as const };
+  return { id: report.id, batchId: input.batchId, ledgerKobo, providerKobo, bankKobo: input.bankNetKobo, ...assessment, evidence, externalBankFigureIndependentlyVerified: false as const };
 }

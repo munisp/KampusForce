@@ -48,13 +48,48 @@ export function verifyFlutterwaveWebhook(signature: string, configuredHash: stri
   return Boolean(signature && configuredHash && equalText(signature, configuredHash));
 }
 
+export class ProviderPayoutError extends Error {
+  readonly rejected: boolean;
+
+  constructor(message: string, rejected = false) {
+    super(message);
+    this.rejected = rejected;
+  }
+}
+
 async function providerJson(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Provider request failed with HTTP ${response.status}`);
+  if (!response.body) throw new ProviderPayoutError("Provider returned an empty response stream");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > 256 * 1024) {
+      await reader.cancel();
+      throw new ProviderPayoutError("Provider response exceeded its bounded size");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  // An ordinary 4xx rejection is safe to retry under a new merchant reference.
+  // Timeouts, conflicts, rate limits, 5xx and malformed successes are ambiguous:
+  // the provider may have accepted money movement, so dispatch must hold instead.
+  if (!response.ok) {
+    const rejected = response.status >= 400 && response.status < 500 && ![408, 409, 429].includes(response.status);
+    throw new ProviderPayoutError(`Provider request was rejected with HTTP ${response.status}`, rejected);
+  }
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    throw new Error("Provider returned an invalid JSON response");
+    throw new ProviderPayoutError("Provider returned an invalid JSON response");
   }
 }
 
@@ -80,11 +115,15 @@ const flutterwaveTransferSchema = z.object({
 });
 
 export class PaystackPayoutAdapter {
-  constructor(
-    private readonly secretKey: string,
-    private readonly request: typeof fetch = fetch,
-    private readonly baseUrl = "https://api.paystack.co",
-  ) {}
+  private readonly secretKey: string;
+  private readonly request: typeof fetch;
+  private readonly baseUrl: string;
+
+  constructor(secretKey: string, request: typeof fetch = fetch, baseUrl = "https://api.paystack.co") {
+    this.secretKey = secretKey;
+    this.request = request;
+    this.baseUrl = baseUrl;
+  }
 
   async initiate(input: ProviderPayoutInput): Promise<ProviderPayoutReceipt> {
     validateProviderPayoutInput(input);
@@ -131,11 +170,15 @@ export class PaystackPayoutAdapter {
 }
 
 export class FlutterwavePayoutAdapter {
-  constructor(
-    private readonly secretKey: string,
-    private readonly request: typeof fetch = fetch,
-    private readonly baseUrl = "https://api.flutterwave.com/v3",
-  ) {}
+  private readonly secretKey: string;
+  private readonly request: typeof fetch;
+  private readonly baseUrl: string;
+
+  constructor(secretKey: string, request: typeof fetch = fetch, baseUrl = "https://api.flutterwave.com/v3") {
+    this.secretKey = secretKey;
+    this.request = request;
+    this.baseUrl = baseUrl;
+  }
 
   async initiate(input: ProviderPayoutInput): Promise<ProviderPayoutReceipt> {
     validateProviderPayoutInput(input);
@@ -166,8 +209,8 @@ export class FlutterwavePayoutAdapter {
 }
 
 /**
- * Live-only entry point for a future dispatch worker. Acceptance returned here
- * must remain `processing`; verified webhooks alone can settle the payout.
+ * Live-only dispatch entry point. Acceptance returned here must remain
+ * `processing`; verified webhooks alone can settle the payout.
  */
 export async function initiateLiveProviderPayout(provider: LiveProvider, input: ProviderPayoutInput) {
   await assertLiveProviderExecutionAuthorized();

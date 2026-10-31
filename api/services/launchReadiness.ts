@@ -197,7 +197,7 @@ export async function getLaunchReadiness() {
   };
 }
 
-/** Guard for any future live payout entry point. It deliberately fails closed. */
+/** Guard for every live provider execution path. It deliberately fails closed. */
 export async function assertLiveProviderExecutionAuthorized() {
   requireProviderModeLive();
   await ensureLaunchGateCatalog();

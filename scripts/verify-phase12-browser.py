@@ -37,15 +37,31 @@ def login_phone(page, phone, name):
 
 
 def open_sales(page, view=None):
-    page.locator('a[href="/sales"]:visible').first.click()
+    mobile_sales = page.locator('.mobile-nav a[href="/sales"]')
+    if mobile_sales.is_visible():
+        box = mobile_sales.bounding_box()
+        assert box and page.viewport_size
+        x = box["x"] + box["width"] / 2
+        y = box["y"] + box["height"] / 2
+        assert 0 <= x <= page.viewport_size["width"] and 0 <= y <= page.viewport_size["height"], box
+        hit = page.evaluate("""({x, y}) => {
+            const link = document.querySelector('.mobile-nav a[href="/sales"]');
+            const target = document.elementFromPoint(x, y);
+            return Boolean(link && target && (target === link || link.contains(target)));
+        }""", {"x": x, "y": y})
+        assert hit, "The visible mobile Sales link must be the actual touch target"
+        page.touchscreen.tap(x, y)
+    else:
+        page.locator('.sidebar a[href="/sales"]').click()
     page.locator(".sales-view-tabs").wait_for(timeout=30_000)
     if view:
         page.get_by_role("button", name=view, exact=True).click()
 
 
 def no_horizontal_overflow(page):
+    expected_width = page.viewport_size["width"]
     dimensions = page.evaluate("({viewport: window.innerWidth, document: document.documentElement.scrollWidth})")
-    assert dimensions["document"] <= dimensions["viewport"] + 1, dimensions
+    assert dimensions["document"] <= expected_width + 1 and dimensions["viewport"] <= expected_width + 1, dimensions
     return dimensions
 
 
@@ -186,7 +202,7 @@ with sync_playwright() as playwright:
         REPORT["integrations"] = {"status": "passed", "sandboxConfiguredOrReused": True, "localTest": True, "localCountSync": True, "credentialFields": False, "externalRequestMade": False}
         vendor_context.close()
 
-        mobile_context = browser.new_context(viewport={"width": 375, "height": 812}, is_mobile=True)
+        mobile_context = browser.new_context(viewport={"width": 375, "height": 812}, is_mobile=True, has_touch=True)
         mobile = mobile_context.new_page()
         mobile.on("pageerror", lambda error: errors.append(f"mobile pageerror: {error}"))
         login(mobile, "Operations")
@@ -200,7 +216,7 @@ with sync_playwright() as playwright:
         REPORT["mobile"] = {"status": "passed", "cases": dimensions, "campaigns": campaign_dimensions}
         mobile_context.close()
 
-        rep_mobile_context = browser.new_context(viewport={"width": 375, "height": 812}, is_mobile=True)
+        rep_mobile_context = browser.new_context(viewport={"width": 375, "height": 812}, is_mobile=True, has_touch=True)
         rep_mobile = rep_mobile_context.new_page()
         rep_mobile.on("pageerror", lambda error: errors.append(f"rep mobile pageerror: {error}"))
         login(rep_mobile, "Team rep")
