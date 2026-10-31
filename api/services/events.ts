@@ -144,6 +144,18 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
       await tx.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: "Event does not trigger the active commission rule" });
       return { status: "ignored" as const, kf_event_id: eventId };
     }
+    // A one-time activation commission is earned once per customer: a later event of the same kind (a second
+    // deposit, or a vendor retry with a new event_id) must not pay again. Renewals are paid per cycle above. The
+    // attribution row is locked so two concurrent events cannot both pass.
+    if (payload.type !== "renewal") {
+      await tx.select({ id: attributionRecords.id }).from(attributionRecords).where(eq(attributionRecords.id, attribution.id)).for("update");
+      const [earned] = await tx.select({ id: deals.id }).from(deals)
+        .where(and(eq(deals.attributionId, attribution.id), eq(deals.productId, product.id), eq(deals.triggerEvent, trigger))).limit(1);
+      if (earned) {
+        await tx.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: `Commission already earned for this customer (deal ${earned.id})` });
+        return { status: "ignored" as const, kf_event_id: eventId, reason: "Commission already earned for this customer", deal_id: earned.id, dealCreated: false };
+      }
+    }
     const recurrenceProblem = payload.type === "renewal" ? renewalAdmissionProblem(recurrenceSchedule, new Date()) : null;
     if (recurrenceProblem) {
       await tx.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: recurrenceProblem });
