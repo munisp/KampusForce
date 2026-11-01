@@ -67,12 +67,12 @@ export default function Login() {
       </section>
 
       <section className="sandbox-section" id="sandbox">
+        {token && user && <button className="continue-session" onClick={() => navigate(workspacePath(user.role))}>Continue as {user.name}<ArrowRight size={17} /></button>}
         {oidc && <div className="otp-block"><div><KeyRound size={22} /><span><strong>Sign in</strong><small>With your KampusForce account.</small></span></div>
           <button className="button primary" onClick={() => { setError(""); startSignIn(oidc).catch(() => setError("Sign-in could not start. Try again.")); }}>Sign in with Keycloak<ArrowRight size={16} /></button></div>}
         {!sandbox && error && <p className="form-error" role="alert">{error}</p>}
         {sandbox && <>
         <div className="section-intro"><p className="eyebrow">Executable product slice</p><h2>Choose a workspace.</h2><p>Use seeded sandbox identities to exercise the same database-backed activation, escrow and settlement records. No real money or KYC checks occur.</p></div>
-        {token && user && <button className="continue-session" onClick={() => navigate(workspacePath(user.role))}>Continue as {user.name}<ArrowRight size={17} /></button>}
         <div className="role-grid">
           {roles.map(({ role, repCode, title, detail, icon: Icon }) => <button className="role-card" key={title} onClick={() => { setError(""); demo.mutate({ role, repCode }); }} disabled={demo.isPending}>
             <span className="role-icon"><Icon size={22} /></span><span><strong>{title}</strong><small>{detail}</small></span><ArrowRight size={18} />

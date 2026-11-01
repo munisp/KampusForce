@@ -78,7 +78,7 @@ export const authRouter = createRouter({
     return { ...(await issueToken(user.id)), user };
   }),
   // How this deployment signs people in: the provider (if configured) and whether the sandbox sign-ins are open.
-  methods: publicQuery.query(() => ({ oidc: oidcConfig(), sandbox: env.sandboxMode })),
+  methods: publicQuery.query(() => ({ oidc: oidcConfig(), sandbox: env.sandboxMode && !oidcConfig() })),
   // An access token from the identity provider for an existing KampusForce user, matched by phone number. A new
   // phone opens a user with the provider's role; a new rep starts pending, as with phone sign-in.
   oidcLogin: publicQuery.input(z.object({ accessToken: z.string().min(20).max(20000) })).mutation(async ({ input }) => {

@@ -7,6 +7,7 @@ import { authSessions, users, type User } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { publicQuery } from "../middleware";
 import { env } from "../lib/env";
+import { oidcConfig } from "./oidc";
 
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "kampusforce-sandbox-auth-secret-change-in-production");
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -51,7 +52,8 @@ export function requireRole(user: User, roles: User["role"][]) {
 }
 
 export function requireSandboxAuthentication() {
-  if (!env.sandboxMode) {
+  // With an identity provider configured it is the only way in, whatever the sandbox setting says.
+  if (!env.sandboxMode || oidcConfig()) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Sandbox authentication is disabled. Configure a production identity provider before enabling public sign-in." });
   }
 }
