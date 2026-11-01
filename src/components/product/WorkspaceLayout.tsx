@@ -1,7 +1,8 @@
-import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, ClipboardCheck, ExternalLink, LayoutDashboard, LifeBuoy, LogOut, Network, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UserCheck, UsersRound, Workflow, X } from "lucide-react";
+import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, ClipboardCheck, LayoutDashboard, LifeBuoy, LogOut, Network, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UserCheck, UsersRound, Workflow, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router";
 import { useState, type ReactNode } from "react";
 import { Brand } from "./Brand";
+import { endProviderSession } from "@/lib/oidc";
 import { useWorkspace } from "@/providers/workspace";
 import { trpc } from "@/providers/trpc";
 
@@ -41,7 +42,7 @@ function NotificationCenter() {
 export function WorkspaceLayout({ children, title, subtitle }: { children: ReactNode; title: string; subtitle: string }) {
   const { user, token, setSession } = useWorkspace();
   const navigate = useNavigate();
-  const logout = trpc.auth.logout.useMutation({ onSettled: () => { setSession(null); navigate("/"); } });
+  const logout = trpc.auth.logout.useMutation({ onSettled: () => { setSession(null); if (!endProviderSession()) navigate("/"); } });
   const nav = navByRole[user.role as keyof typeof navByRole] || navByRole.rep;
   return <div className="workspace-shell">
     <aside className="sidebar">
@@ -52,7 +53,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
       </nav>
       <div className="sidebar-bottom">
         <NavLink to="/implementation"><BarChart3 size={18} />Implementation status</NavLink>
-        <button onClick={() => logout.mutate({ token })}><LogOut size={18} />Switch workspace</button>
+        <button onClick={() => logout.mutate({ token })}><LogOut size={18} />Sign out</button>
       </div>
     </aside>
     <main className="workspace-main">
@@ -66,7 +67,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
       {nav.slice(0, 5).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={20} /><span>{label.split(" ")[0]}</span></NavLink>)}
       <NavLink to="/implementation"><BookOpenCheck size={20} /><span>Score</span></NavLink>
     </nav>
-    <button className="mobile-logout" onClick={() => logout.mutate({ token })} aria-label="Switch workspace"><ExternalLink size={18} /></button>
+    <button className="mobile-logout" onClick={() => logout.mutate({ token })} aria-label="Sign out"><LogOut size={18} /></button>
   </div>;
 }
 

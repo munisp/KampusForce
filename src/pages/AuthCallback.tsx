@@ -12,14 +12,15 @@ export default function AuthCallback() {
   const { setSession } = useWorkspace();
   const [error, setError] = useState("");
   const started = useRef(false);
+  const returnTo = useRef<string | undefined>(undefined);
   const login = trpc.auth.oidcLogin.useMutation({
-    onSuccess: (data) => { setSession({ token: data.token, user: data.user }); navigate(workspacePath(data.user.role), { replace: true }); },
+    onSuccess: (data) => { setSession({ token: data.token, user: data.user }); navigate(returnTo.current || workspacePath(data.user.role), { replace: true }); },
     onError: (e) => setError(e.message),
   });
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    finishSignIn(window.location.search).then((accessToken) => login.mutate({ accessToken })).catch((e: Error) => setError(e.message));
+    finishSignIn(window.location.search).then((done) => { returnTo.current = done.returnTo; login.mutate({ accessToken: done.accessToken }); }).catch((e: Error) => setError(e.message));
   }, [login]);
   return <div className="entry-page"><header className="entry-nav"><Brand /></header>
     <main className="sandbox-section">{error
