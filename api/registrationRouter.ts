@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { auditLogs, campuses, escrowWallets, reps, users, vendors, vendorWebhookCredentials } from "@db/schema";
+import { auditLogs, campuses, campusInterest, escrowWallets, reps, users, vendors, vendorWebhookCredentials } from "@db/schema";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { ensureIdentityCase } from "./services/identity";
@@ -19,11 +19,24 @@ const person = {
   returnTo: z.string().max(400).regex(/^\/recruit\/accept\?token=[\w%.~-]+$/).optional(),
 };
 
+// Students can register only where KampusForce is open.
+const OPEN_CAMPUS = ["live", "launching"] as const;
+
 export const registrationRouter = createRouter({
   options: publicQuery.query(async () => ({
     open: Boolean(oidcConfig() && keycloakAdminConfigured()),
-    campuses: await getDb().select({ id: campuses.id, name: campuses.name, state: campuses.state }).from(campuses).orderBy(campuses.name),
+    campuses: await getDb().select({ id: campuses.id, name: campuses.name, state: campuses.state }).from(campuses).where(inArray(campuses.status, [...OPEN_CAMPUS])).orderBy(campuses.name),
   })),
+
+  // Same answer whether or not this person has asked before.
+  registerInterest: publicQuery.input(z.object({
+    university: z.string().trim().min(3).max(160),
+    state: z.string().trim().min(2).max(80),
+    email: z.string().trim().toLowerCase().email().max(254),
+  })).mutation(async ({ input }) => {
+    await getDb().insert(campusInterest).values(input).onConflictDoNothing();
+    return { recorded: true };
+  }),
 
   // Answers the same whether or not the email is already registered, so it can't be used to find out who has an account.
   complete: publicQuery.input(z.discriminatedUnion("kind", [
@@ -33,7 +46,7 @@ export const registrationRouter = createRouter({
     if (!oidcConfig() || !keycloakAdminConfigured()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Registration is not open yet." });
     const db = getDb();
     if (input.kind === "student") {
-      const [campus] = await db.select({ id: campuses.id }).from(campuses).where(eq(campuses.id, input.campusId)).limit(1);
+      const [campus] = await db.select({ id: campuses.id }).from(campuses).where(and(eq(campuses.id, input.campusId), inArray(campuses.status, [...OPEN_CAMPUS]))).limit(1);
       if (!campus) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose your campus from the list." });
     }
     const appUrl = (process.env.KF_APP_URL || "").replace(/\/$/, "");
