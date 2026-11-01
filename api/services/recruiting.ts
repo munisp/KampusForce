@@ -127,6 +127,28 @@ export async function activateRecruitment(recruitmentId: number, actorUserId: nu
   return { recruitmentId, repId: result.repId, status: "activated" as const, mode: "identity_case" as const, identityCaseRef: result.identityCaseRef, activatedAt: result.activatedAt };
 }
 
+// A student who registered without an invitation: the same checks as an invitation's activation, with no campus lead.
+export async function activateSelfRegisteredRep(repId: number, actorUserId: number) {
+  const result = await getDb().transaction(async (tx) => {
+    const [rep] = await tx.select().from(reps).where(eq(reps.id, repId)).limit(1).for("update");
+    if (!rep || rep.status !== "pending") throw new TRPCError({ code: "CONFLICT", message: "Only a pending rep can be activated" });
+    const [open] = await tx.select({ id: campusRecruitments.id }).from(campusRecruitments).where(and(eq(campusRecruitments.acceptedUserId, rep.userId), eq(campusRecruitments.status, "accepted"))).limit(1);
+    if (open) throw new TRPCError({ code: "CONFLICT", message: "This rep accepted an invitation: activate it from the invitation." });
+    const [user] = await tx.select().from(users).where(eq(users.id, rep.userId)).limit(1).for("update");
+    if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Rep account not found" });
+    if (!rep.contractorAgreementSignedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Contractor terms must be accepted before activation" });
+    const identityApproval = await assertCurrentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc"] }, tx);
+    if (user.kycState !== "verified" || !user.bankNameMatch) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Identity approval and bank-name match must be current" });
+    await assertNoFraudHold(tx, rep.id);
+    await assertCurrentStudentAssurance(user.id, tx);
+    await tx.update(reps).set({ status: "active" }).where(eq(reps.id, rep.id));
+    await tx.insert(auditLogs).values({ actorUserId, action: "rep.activated", entityType: "rep", entityId: String(rep.id), metadataJson: { selfRegistered: true, identityCaseRef: identityApproval.caseRef } });
+    return { userId: user.id };
+  });
+  await notifyUser({ userId: result.userId, type: "rep_activated", title: "Your rep workspace is active", body: "Your identity and enrollment are approved. You can now share offers." });
+  return { repId, status: "active" as const };
+}
+
 export async function expireRecruitments() {
   const expired = await getDb().update(campusRecruitments).set({ status: "expired" })
     .where(and(eq(campusRecruitments.status, "invited"), lte(campusRecruitments.expiresAt, new Date()), isNull(campusRecruitments.acceptedAt)))

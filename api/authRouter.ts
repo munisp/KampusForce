@@ -11,8 +11,8 @@ import { env } from "./lib/env";
 import { getDb } from "./queries/connection";
 
 const otpSecret = process.env.AUTH_SECRET || "kampusforce-sandbox-auth-secret-change-in-production";
-const codeHash = (code: string) => createHmac("sha256", otpSecret).update(`kf-otp:${code}`).digest("hex");
-const matchingCode = (receivedHash: string, expectedHash: string) => {
+export const codeHash = (code: string) => createHmac("sha256", otpSecret).update(`kf-otp:${code}`).digest("hex");
+export const matchingCode = (receivedHash: string, expectedHash: string) => {
   const received = Buffer.from(receivedHash, "hex");
   const expected = Buffer.from(expectedHash, "hex");
   return received.length === expected.length && timingSafeEqual(received, expected);
