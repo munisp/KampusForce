@@ -52,7 +52,7 @@ export const promotionRouter = createRouter({
   invite: authedQuery.input(z.object({
     promotionId: id,
     name: z.string().trim().min(3).max(160),
-    phone: z.string().trim().min(7).max(20),
+    email: z.string().trim().toLowerCase().email().max(254),
     note: z.string().trim().max(500).optional(),
     consentConfirmed: z.literal(true),
   })).mutation(async ({ ctx, input }) => createPromotionRecruitmentInvite({ ...input, actor: await salesActorForUser(ctx.user) })),

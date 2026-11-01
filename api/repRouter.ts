@@ -22,7 +22,6 @@ import { createRouter } from "./middleware";
 import { authedQuery, requireRole } from "./services/auth";
 import { ensureAttribution } from "./services/attribution";
 import { getDb } from "./queries/connection";
-import { normalizePhone } from "./services/security";
 import { createSupportTicket, escalateSupportTicket, isSlaBreached, rateSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { createInvitationToken, hashInvitationToken, revokeRecruitment } from "./services/recruiting";
 import { listRepFraudCases, requestFraudAppeal } from "./services/fraud";
@@ -105,16 +104,15 @@ export const repRouter = createRouter({
       recruitments,
     };
   }),
-  recruitRep: authedQuery.input(z.object({ name: z.string().trim().min(3).max(160), phone: z.string().min(7).max(20), note: z.string().trim().max(300).optional() })).mutation(async ({ ctx, input }) => {
+  recruitRep: authedQuery.input(z.object({ name: z.string().trim().min(3).max(160), email: z.string().trim().toLowerCase().email().max(254), note: z.string().trim().max(300).optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const lead = await currentRep(ctx.user.id);
     if (lead.tier !== "campus_lead" || lead.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Only an active campus lead can own recruiting invitations" });
-    const phoneE164 = normalizePhone(input.phone);
-    const [existing] = await getDb().select().from(campusRecruitments).where(and(eq(campusRecruitments.leadRepId, lead.id), eq(campusRecruitments.phoneE164, phoneE164), eq(campusRecruitments.status, "invited"))).limit(1);
+    const [existing] = await getDb().select().from(campusRecruitments).where(and(eq(campusRecruitments.leadRepId, lead.id), eq(campusRecruitments.email, input.email), eq(campusRecruitments.status, "invited"))).limit(1);
     if (existing) throw new TRPCError({ code: "CONFLICT", message: "This recruit already has an open invitation" });
     const invitationToken = createInvitationToken();
-    const [{ id }] = await getDb().insert(campusRecruitments).values({ leadRepId: lead.id, campusId: lead.campusId, name: input.name, phoneE164, note: input.note || null, tokenHash: hashInvitationToken(invitationToken), expiresAt: new Date(Date.now() + 7 * 86_400_000) }).returning({ id: campusRecruitments.id });
-    return { recruitmentId: id, status: "invited" as const, acceptancePath: `/recruit/accept?token=${encodeURIComponent(invitationToken)}`, nextStep: "recruit_phone_verified_acceptance" };
+    const [{ id }] = await getDb().insert(campusRecruitments).values({ leadRepId: lead.id, campusId: lead.campusId, name: input.name, email: input.email, note: input.note || null, tokenHash: hashInvitationToken(invitationToken), expiresAt: new Date(Date.now() + 7 * 86_400_000) }).returning({ id: campusRecruitments.id });
+    return { recruitmentId: id, status: "invited" as const, acceptancePath: `/recruit/accept?token=${encodeURIComponent(invitationToken)}`, nextStep: "recruit_email_verified_acceptance" };
   }),
   revokeRecruitment: authedQuery.input(z.object({ recruitmentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);

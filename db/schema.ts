@@ -100,7 +100,9 @@ export const campuses = pgTable("campuses", {
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  phoneE164: varchar("phone_e164", { length: 20 }).notNull().unique(),
+  phoneE164: varchar("phone_e164", { length: 20 }).unique(),
+  // The verified email from the identity provider: what a sign-in is matched on.
+  email: varchar("email", { length: 320 }).unique(),
   name: varchar("name", { length: 160 }).notNull(),
   role: userRoleEnum("role").notNull().default("rep"),
   kycState: kycStateEnum("kyc_state").notNull().default("unverified"),
@@ -392,7 +394,8 @@ export const campusRecruitments = pgTable("campus_recruitments", {
   leadRepId: integer("lead_rep_id").notNull().references(() => reps.id),
   campusId: integer("campus_id").notNull().references(() => campuses.id),
   name: varchar("name", { length: 160 }).notNull(),
-  phoneE164: varchar("phone_e164", { length: 20 }).notNull(),
+  phoneE164: varchar("phone_e164", { length: 20 }),
+  email: varchar("email", { length: 320 }),
   note: varchar("note", { length: 300 }),
   status: recruitmentStatusEnum("status").notNull().default("invited"),
   tokenHash: varchar("token_hash", { length: 64 }).notNull(),

@@ -124,7 +124,7 @@ export const opsRouter = createRouter({
       leadRankings,
       audit,
       recruitments,
-      pendingReps: await getDb().select({ repId: reps.id, code: reps.code, name: users.name, phone: users.phoneE164, kycState: users.kycState, bankNameMatch: users.bankNameMatch, campusName: campuses.name })
+      pendingReps: await getDb().select({ repId: reps.id, code: reps.code, name: users.name, email: users.email, kycState: users.kycState, bankNameMatch: users.bankNameMatch, campusName: campuses.name })
         .from(reps).innerJoin(users, eq(users.id, reps.userId)).innerJoin(campuses, eq(campuses.id, reps.campusId)).where(eq(reps.status, "pending")).orderBy(desc(reps.createdAt)).limit(50),
       jobs,
       telemetry,

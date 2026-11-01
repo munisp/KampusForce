@@ -50,8 +50,9 @@ export async function acceptRecruitment(userId: number, token: string, contracto
       throw new TRPCError({ code: "BAD_REQUEST", message: "This invitation has expired, been revoked, or already been used" });
     }
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (!user || user.role !== "rep" || user.phoneE164 !== invitation.phoneE164) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Sign in with the exact phone number invited by the Campus Lead" });
+    const invited = invitation.email ? user?.email === invitation.email : user?.phoneE164 === invitation.phoneE164;
+    if (!user || user.role !== "rep" || !invited) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Sign in with the exact email address the Campus Lead invited" });
     }
     let [rep] = await tx.select().from(reps).where(eq(reps.userId, user.id)).limit(1);
     if (rep) {
