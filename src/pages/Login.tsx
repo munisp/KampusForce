@@ -70,6 +70,8 @@ export default function Login() {
         {token && user && <button className="continue-session" onClick={() => navigate(workspacePath(user.role))}>Continue as {user.name}<ArrowRight size={17} /></button>}
         {oidc && <div className="otp-block"><div><KeyRound size={22} /><span><strong>Sign in</strong><small>With your KampusForce account.</small></span></div>
           <button className="button primary" onClick={() => { setError(""); startSignIn(oidc).catch(() => setError("Sign-in could not start. Try again.")); }}>Sign in with Keycloak<ArrowRight size={16} /></button></div>}
+        {oidc && <div className="otp-block"><div><UsersRound size={22} /><span><strong>New here?</strong><small>Create an account as a student rep or a vendor.</small></span></div>
+          <a className="button secondary" href="/signup">Create an account<ArrowRight size={16} /></a></div>}
         {!sandbox && error && <p className="form-error" role="alert">{error}</p>}
         {sandbox && <>
         <div className="section-intro"><p className="eyebrow">Executable product slice</p><h2>Choose a workspace.</h2><p>Use seeded sandbox identities to exercise the same database-backed activation, escrow and settlement records. No real money or KYC checks occur.</p></div>

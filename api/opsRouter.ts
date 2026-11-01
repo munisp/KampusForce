@@ -32,7 +32,7 @@ import {
 } from "./services/ledger";
 import { campusLeadRankings, recalculateCampusLeadEligibility } from "./services/leadEligibility";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
-import { activateRecruitment, revokeRecruitment } from "./services/recruiting";
+import { activateRecruitment, activateSelfRegisteredRep, revokeRecruitment } from "./services/recruiting";
 import { recentJobRuns, runDueJobs } from "./services/jobs";
 import { campusTelemetry } from "./services/telemetry";
 import { acknowledgeOperationalIncident, listOperationalIncidents, monitorOperationalSignals, resolveOperationalIncident } from "./services/incidents";
@@ -124,6 +124,8 @@ export const opsRouter = createRouter({
       leadRankings,
       audit,
       recruitments,
+      pendingReps: await getDb().select({ repId: reps.id, code: reps.code, name: users.name, phone: users.phoneE164, kycState: users.kycState, bankNameMatch: users.bankNameMatch, campusName: campuses.name })
+        .from(reps).innerJoin(users, eq(users.id, reps.userId)).innerJoin(campuses, eq(campuses.id, reps.campusId)).where(eq(reps.status, "pending")).orderBy(desc(reps.createdAt)).limit(50),
       jobs,
       telemetry,
       payouts: payoutRows.slice(0, 50),
@@ -277,6 +279,15 @@ export const opsRouter = createRouter({
   runJobs: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return runDueJobs("manual");
+  }),
+  activateRep: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    try {
+      return await activateSelfRegisteredRep(input.repId, ctx.user.id);
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "This rep can't be activated yet" });
+    }
   }),
   activateRecruitment: authedQuery.input(z.object({ recruitmentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);

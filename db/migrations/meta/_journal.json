@@ -176,6 +176,13 @@
       "when": 1793402646246,
       "tag": "0024_provider_acceptance_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793574344179,
+      "tag": "0025_self_registration_escrow_topups",
+      "breakpoints": true
     }
   ]
 }
