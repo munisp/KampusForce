@@ -62,7 +62,8 @@ app.use("*", secureHeaders());
 // Sensitive public procedures use fixed-window PostgreSQL counters. Only hashed
 // policy/subject/window keys are stored; raw IP addresses and phone numbers are not.
 app.use("/api/trpc/auth.requestOtp", ipRateLimit("otp_request", 5, 10 * 60));
-app.use("/api/trpc/registration.complete", ipRateLimit("otp_request", 5, 10 * 60));
+app.use("/api/trpc/registration.complete", ipRateLimit("otp_request", 10, 10 * 60));
+app.use("/api/trpc/registration.registerInterest", ipRateLimit("otp_verify", 20, 10 * 60));
 app.use("/api/trpc/auth.verifyOtp", ipRateLimit("otp_verify", 20, 10 * 60));
 app.use("/api/trpc/auth.demoLogin", ipRateLimit("demo_login", 60, 10 * 60));
 app.use("/api/trpc/recruitment.inspect", ipRateLimit("recruitment_inspect", 30, 10 * 60));

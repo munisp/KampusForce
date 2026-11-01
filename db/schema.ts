@@ -869,6 +869,15 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// A student whose university isn't open yet. Tells Operations where to launch next.
+export const campusInterest = pgTable("campus_interest", {
+  id: serial("id").primaryKey(),
+  university: varchar("university", { length: 160 }).notNull(),
+  state: varchar("state", { length: 80 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("campus_interest_email_university_unique").on(t.email, t.university)]);
+
 export const escrowTopups = pgTable("escrow_topups", {
   id: serial("id").primaryKey(),
   vendorId: integer("vendor_id").notNull().references(() => vendors.id),

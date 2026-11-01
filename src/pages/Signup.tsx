@@ -20,7 +20,11 @@ export default function Signup() {
   const [cacNumber, setCacNumber] = useState("");
   const [terms, setTerms] = useState(false);
   const complete = trpc.registration.complete.useMutation();
-  const error = complete.error;
+  const interest = trpc.registration.registerInterest.useMutation();
+  const [notListed, setNotListed] = useState(false);
+  const [university, setUniversity] = useState("");
+  const [universityState, setUniversityState] = useState("");
+  const error = complete.error || interest.error;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -47,11 +51,23 @@ export default function Signup() {
           <p className="eyebrow">I am a</p>
           <button className="role-card" onClick={() => setKind("student")}><span className="role-icon"><GraduationCap size={22} /></span><span><strong>Student</strong><small>Introduce products on campus and earn commission.</small></span><ArrowRight size={18} /></button>
           <button className="role-card" onClick={() => setKind("vendor")}><span className="role-icon"><Store size={22} /></span><span><strong>Vendor</strong><small>List products and pay for verified activations.</small></span><ArrowRight size={18} /></button>
-        </div> : <form className="form-stack" onSubmit={submit}>
+        </div> : notListed ? (interest.isSuccess ? <div className="recruit-success" id="interest-done">
+          <h2>Thanks, we've noted your university.</h2>
+          <p>KampusForce isn't open at {university} yet. Your request helps Operations decide where to launch next.</p>
+          <Link className="button secondary" to="/">Back to home</Link>
+        </div> : <form className="form-stack" onSubmit={(event) => { event.preventDefault(); interest.mutate({ university, state: universityState, email }); }}>
+          <p className="eyebrow">Ask us to open your university</p>
+          <label>University<input id="interest-university" value={university} onChange={(event) => setUniversity(event.target.value)} minLength={3} required /></label>
+          <label>State<input id="interest-state" value={universityState} onChange={(event) => setUniversityState(event.target.value)} minLength={2} required /></label>
+          <label>Email<input id="interest-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+          <button className="button primary" disabled={interest.isPending}>Send<ArrowRight size={16} /></button>
+          <button className="text-link" type="button" onClick={() => setNotListed(false)}>Back</button>
+        </form>) : <form className="form-stack" onSubmit={submit}>
           <p className="eyebrow">Your details</p>
           {kind === "vendor" && <><label>Business name<input id="signup-company" value={companyName} onChange={(event) => setCompanyName(event.target.value)} required /></label>
             <label>CAC registration number<input id="signup-cac" value={cacNumber} onChange={(event) => setCacNumber(event.target.value)} placeholder="RC1234567" required /></label></>}
           {kind === "student" && <label>Campus<select id="signup-campus" value={campusId} onChange={(event) => setCampusId(Number(event.target.value))} required><option value="">Choose your campus</option>{options.data.campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}, {campus.state}</option>)}</select></label>}
+          {kind === "student" && <button className="text-link" id="signup-not-listed" type="button" onClick={() => setNotListed(true)}>My university isn't listed</button>}
           <label>First name<input id="signup-first" value={firstName} onChange={(event) => setFirstName(event.target.value)} required /></label>
           <label>Last name<input id="signup-last" value={lastName} onChange={(event) => setLastName(event.target.value)} required /></label>
           <label>Email<input id="signup-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
