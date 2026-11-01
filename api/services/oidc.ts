@@ -24,15 +24,15 @@ export async function verifyProviderToken(token: string) {
     if (payload.azp !== clientId) throw new Error("token was issued to another client");
     const realmRoles = ((payload.realm_access as { roles?: unknown } | undefined)?.roles ?? []) as unknown[];
     const role = ROLES.find((r) => realmRoles.includes(r));
-    const phone = typeof payload.phone_number === "string" ? payload.phone_number : "";
+    const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
     if (!role) throw new Error("no KampusForce role");
-    if (!phone) throw new Error("no phone number");
+    if (!email || payload.email_verified !== true) throw new Error("no verified email");
     const name = typeof payload.name === "string" && payload.name ? payload.name : String(payload.preferred_username || "KampusForce user");
-    return { role, phone, name };
+    return { role, email, name };
   } catch (err) {
     const why = err instanceof Error ? err.message : "invalid token";
-    throw new TRPCError({ code: "UNAUTHORIZED", message: why === "no KampusForce role" || why === "no phone number"
-      ? `Your account has ${why === "no KampusForce role" ? "no KampusForce role" : "no phone number"} yet. Ask an administrator to add it.`
+    throw new TRPCError({ code: "UNAUTHORIZED", message: why === "no KampusForce role" ? "Your account has no KampusForce role yet. Ask an administrator to add it."
+      : why === "no verified email" ? "Verify your email address, then sign in again."
       : "Single sign-on failed. Sign in again." });
   }
 }

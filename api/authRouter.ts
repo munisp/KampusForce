@@ -11,8 +11,8 @@ import { env } from "./lib/env";
 import { getDb } from "./queries/connection";
 
 const otpSecret = process.env.AUTH_SECRET || "kampusforce-sandbox-auth-secret-change-in-production";
-export const codeHash = (code: string) => createHmac("sha256", otpSecret).update(`kf-otp:${code}`).digest("hex");
-export const matchingCode = (receivedHash: string, expectedHash: string) => {
+const codeHash = (code: string) => createHmac("sha256", otpSecret).update(`kf-otp:${code}`).digest("hex");
+const matchingCode = (receivedHash: string, expectedHash: string) => {
   const received = Buffer.from(receivedHash, "hex");
   const expected = Buffer.from(expectedHash, "hex");
   return received.length === expected.length && timingSafeEqual(received, expected);
@@ -79,14 +79,15 @@ export const authRouter = createRouter({
   }),
   // How this deployment signs people in: the provider (if configured) and whether the sandbox sign-ins are open.
   methods: publicQuery.query(() => ({ oidc: oidcConfig(), sandbox: env.sandboxMode && !oidcConfig() })),
-  // An access token from the identity provider for an existing KampusForce user, matched by phone number. A new
-  // phone opens a user with the provider's role; a new rep starts pending, as with phone sign-in.
+  // An access token from the identity provider, matched to a KampusForce user by verified email. A new email opens a
+  // user with the provider's role, and a new rep starts pending. Vendors register at /signup, which creates their profile.
   oidcLogin: publicQuery.input(z.object({ accessToken: z.string().min(20).max(20000) })).mutation(async ({ input }) => {
     const claims = await verifyProviderToken(input.accessToken);
-    const phone = normalizePhone(claims.phone);
     const user = await getDb().transaction(async (tx) => {
-      await tx.insert(users).values({ phoneE164: phone, name: claims.name, role: claims.role }).onConflictDoNothing({ target: users.phoneE164 });
-      const [u] = await tx.select().from(users).where(eq(users.phoneE164, phone)).limit(1).for("update");
+      const [known] = await tx.select({ id: users.id }).from(users).where(eq(users.email, claims.email)).limit(1);
+      if (!known && claims.role === "vendor") throw new TRPCError({ code: "FORBIDDEN", message: "Register your business first, at /signup." });
+      await tx.insert(users).values({ email: claims.email, name: claims.name, role: claims.role }).onConflictDoNothing({ target: users.email });
+      const [u] = await tx.select().from(users).where(eq(users.email, claims.email)).limit(1).for("update");
       if (!u) throw new Error("Signed-in user could not be loaded");
       if (u.role === "rep") {
         const [rep] = await tx.select().from(reps).where(eq(reps.userId, u.id)).limit(1);

@@ -108,7 +108,7 @@ export const salesRouter = createRouter({
     setRecommendationState({ ...input, actor: await salesActorForUser(ctx.user) })),
   suggestStudent: authedQuery.input(z.object({ candidateName: z.string().trim().min(3).max(160), strengths: z.string().trim().min(5).max(300), note: z.string().trim().max(500).optional(), consentConfirmed: z.literal(true) })).mutation(async ({ ctx, input }) =>
     suggestStudent({ ...input, actor: await salesActorForUser(ctx.user) })),
-  inviteSuggestedStudent: authedQuery.input(z.object({ referralId: id, phone: z.string().min(7).max(20) })).mutation(async ({ ctx, input }) =>
+  inviteSuggestedStudent: authedQuery.input(z.object({ referralId: id, email: z.string().trim().toLowerCase().email().max(254) })).mutation(async ({ ctx, input }) =>
     inviteSuggestedStudent({ ...input, actor: await salesActorForUser(ctx.user) })),
   scheduleRecruitmentFollowUp: authedQuery.input(z.object({ recruitmentId: id, nextFollowUpAt: z.coerce.date(), note: z.string().trim().min(3).max(1000) })).mutation(async ({ ctx, input }) =>
     scheduleRecruitmentFollowUp({ ...input, actor: await salesActorForUser(ctx.user) })),
