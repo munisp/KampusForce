@@ -45,8 +45,8 @@ export async function startEscrowFunding(input: { vendorId: number; email: strin
     }),
   });
   if (!started.ok || typeof started.data.authorization_url !== "string") {
-    await getDb().update(escrowTopups).set({ state: "failed", failureReason: `initialize: ${started.status}`.slice(0, 200) }).where(eq(escrowTopups.reference, reference));
-    throw new TRPCError({ code: "BAD_GATEWAY", message: "Paystack could not start this payment. Try again." });
+    await getDb().update(escrowTopups).set({ state: "failed", failureReason: `initialize ${started.status}: ${started.message}`.slice(0, 200) }).where(eq(escrowTopups.reference, reference));
+    throw new TRPCError({ code: "BAD_GATEWAY", message: `Paystack could not start this payment: ${started.message || "try again"}` });
   }
   await getDb().insert(auditLogs).values({ actorUserId: input.actorUserId, action: "escrow.funding_started", entityType: "escrow_wallet", entityId: String(input.vendorId), metadataJson: { reference, amountKobo: input.amountKobo } });
   return { reference, checkoutUrl: started.data.authorization_url };
@@ -95,5 +95,5 @@ export async function sweepEscrowFunding() {
 
 export async function vendorFundingEmail(vendorId: number) {
   const [vendor] = await getDb().select({ email: vendors.contactEmail }).from(vendors).where(eq(vendors.id, vendorId)).limit(1);
-  return vendor?.email || `vendor-${vendorId}@kampusforce.test`;
+  return vendor?.email || `vendor-${vendorId}@kampusforce.newfire.app`;
 }
