@@ -37,31 +37,31 @@ export function PrivacyDesk() {
       setCustomerPhone("");
       setRequestId(result.requestId);
       setQueue("dsar");
-      setNotice(`${result.requestRef} registered with a 30-day response clock. The phone value was not persisted.`);
+      setNotice(`${result.requestRef} added. You have 30 days to answer.`);
       refresh();
     },
   });
   const verifyDsar = trpc.ops.verifyDsar.useMutation({
     onSuccess: (result) => {
       setVerificationNote("");
-      setNotice(`${result.requestRef} identity verification recorded. Evidence export is now available.`);
+      setNotice(`${result.requestRef} confirmed. You can now download their data.`);
       refresh();
     },
   });
   const reviewDsar = trpc.ops.reviewDsar.useMutation({
-    onSuccess: (result) => { setNotice(`${result.requestRef} moved into scoped record review.`); refresh(); },
+    onSuccess: (result) => { setNotice(`${result.requestRef} is under review.`); refresh(); },
   });
   const fulfilDsar = trpc.ops.fulfilDsar.useMutation({
     onSuccess: (result) => {
       setOutcomeNote("");
-      setNotice(`${result.requestRef} fulfilled with its operational outcome preserved.`);
+      setNotice(`${result.requestRef} marked done.`);
       refresh();
     },
   });
   const rejectDsar = trpc.ops.rejectDsar.useMutation({
     onSuccess: (result) => {
       setOutcomeNote("");
-      setNotice(`${result.requestRef} rejected with the rationale preserved.`);
+      setNotice(`${result.requestRef} refused.`);
       refresh();
     },
   });
@@ -76,7 +76,7 @@ export function PrivacyDesk() {
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      setNotice(`${result.fileName} downloaded. The export event and record counts were audited.`);
+      setNotice(`${result.fileName} downloaded.`);
       refresh();
     },
   });
@@ -86,24 +86,24 @@ export function PrivacyDesk() {
       setBreachSummary("");
       setAssessmentId(result.assessmentId);
       setQueue("breach");
-      setNotice(`${result.assessmentRef} opened with a 72-hour triage clock. No external notification was sent.`);
+      setNotice(`${result.assessmentRef} opened. You have 72 hours to assess it. Nobody has been notified.`);
       refresh();
     },
   });
   const startBreach = trpc.ops.startBreach.useMutation({
-    onSuccess: (result) => { setNotice(`Breach assessment #${result.assessmentId} is under Operations triage.`); refresh(); },
+    onSuccess: (result) => { setNotice(`Incident #${result.assessmentId} is being assessed.`); refresh(); },
   });
   const decideBreach = trpc.ops.decideBreach.useMutation({
     onSuccess: (result) => {
       setDecisionNote("");
-      setNotice(`Breach decision recorded for assessment #${result.assessmentId}. External notification remains a human-owned action.`);
+      setNotice(`Decision saved for incident #${result.assessmentId}. Any notification still has to be done by a person.`);
       refresh();
     },
   });
   const closeBreach = trpc.ops.closeBreach.useMutation({
     onSuccess: (result) => {
       setClosureNote("");
-      setNotice(`Breach assessment #${result.assessmentId} closed without any sandbox regulator notification.`);
+      setNotice(`Incident #${result.assessmentId} closed. This app didn't notify the regulator.`);
       refresh();
     },
   });
@@ -149,80 +149,80 @@ export function PrivacyDesk() {
     : [];
 
   return <>
-    <div className="trust-strip"><LockKeyhole size={18} /><span><strong>Privacy operations sandbox.</strong> DSAR and breach clocks are derived from durable records. Exports require identity verification. No NDPC notification, legal review or compliance certification is performed or implied.</span></div>
+    <div className="trust-strip"><LockKeyhole size={18} /><span><strong>Privacy requests and data incidents.</strong> Confirm who a person is before exporting their data. This doesn't notify the NDPC for you, and it isn't legal advice.</span></div>
     <div className="metrics-grid">
-      <Metric label="Open DSARs" value={data.metrics.openDsars} note="30-day response workflow" tone={data.metrics.openDsars ? "mustard" : "default"} />
-      <Metric label="Open breach assessments" value={data.metrics.openBreaches} note="72-hour triage workflow" tone={data.metrics.openBreaches ? "mustard" : "default"} />
-      <Metric label="Privacy deadlines overdue" value={data.metrics.overduePrivacy} note="Deduplicated incident signals" tone={data.metrics.overduePrivacy ? "danger" : "default"} />
-      <Metric label="Evidence exports" value={data.dsarRequestEvents.filter((event) => event.action === "evidence_exported").length} note="Hash-scoped and audited" tone="teal" />
+      <Metric label="Open customer requests" value={data.metrics.openDsars} note="Answer within 30 days" tone={data.metrics.openDsars ? "mustard" : "default"} />
+      <Metric label="Open data incidents" value={data.metrics.openBreaches} note="Assess within 72 hours" tone={data.metrics.openBreaches ? "mustard" : "default"} />
+      <Metric label="Overdue" value={data.metrics.overduePrivacy} note="Past their deadline" tone={data.metrics.overduePrivacy ? "danger" : "default"} />
+      <Metric label="Data downloads" value={data.dsarRequestEvents.filter((event) => event.action === "evidence_exported").length} note="Each one recorded" tone="teal" />
     </div>
 
     <div className="privacy-intake-grid">
-      <Panel title="Register a DSAR" action={<span className="result-count">30-day response clock</span>}>
+      <Panel title="Add a customer request" action={<span className="result-count">Answer within 30 days</span>}>
         <form className="privacy-form" onSubmit={submitDsar}>
-          <label>Customer phone<small>Used once to calculate the salted hash; never stored on the request.</small><input type="tel" autoComplete="off" required value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="0801 234 5678" /></label>
-          <label>Request type<select value={requestType} onChange={(event) => setRequestType(event.target.value as typeof requestType)}><option value="access">Access</option><option value="rectification">Rectification</option><option value="erasure">Erasure</option><option value="objection">Objection</option></select></label>
-          <button className="button primary" type="submit" disabled={createDsar.isPending || customerPhone.trim().length < 10}><Plus size={15} />Register hashed request</button>
+          <label>Customer phone<small>We scramble this and don't save the number.</small><input type="tel" autoComplete="off" required value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="0801 234 5678" /></label>
+          <label>Request type<select value={requestType} onChange={(event) => setRequestType(event.target.value as typeof requestType)}><option value="access">See my data</option><option value="rectification">Correct my data</option><option value="erasure">Delete my data</option><option value="objection">Stop using my data</option></select></label>
+          <button className="button primary" type="submit" disabled={createDsar.isPending || customerPhone.trim().length < 10}><Plus size={15} />Add request</button>
         </form>
       </Panel>
-      <Panel title="Open a breach assessment" action={<span className="result-count">72-hour triage clock</span>}>
+      <Panel title="Report a data incident" action={<span className="result-count">Assess within 72 hours</span>}>
         <form className="privacy-form" onSubmit={submitBreach}>
-          <label>Assessment title<input required minLength={5} maxLength={180} value={breachTitle} onChange={(event) => setBreachTitle(event.target.value)} placeholder="Short operational incident title" /></label>
-          <label>Assessment summary<small>Describe the operational event; do not paste customer payloads or credentials.</small><textarea required minLength={10} maxLength={2000} value={breachSummary} onChange={(event) => setBreachSummary(event.target.value)} placeholder="Scope, systems involved and immediate containment context" /></label>
-          <button className="button primary" type="submit" disabled={createBreach.isPending || breachTitle.trim().length < 5 || breachSummary.trim().length < 10}><ShieldAlert size={15} />Open assessment</button>
+          <label>Title<input required minLength={5} maxLength={180} value={breachTitle} onChange={(event) => setBreachTitle(event.target.value)} placeholder="Short title" /></label>
+          <label>Summary<small>Describe what happened. Don't include customer data or passwords.</small><textarea required minLength={10} maxLength={2000} value={breachSummary} onChange={(event) => setBreachSummary(event.target.value)} placeholder="What's affected, and what's been done so far" /></label>
+          <button className="button primary" type="submit" disabled={createBreach.isPending || breachTitle.trim().length < 5 || breachSummary.trim().length < 10}><ShieldAlert size={15} />Start</button>
         </form>
       </Panel>
     </div>
 
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {actionError && <p className="form-error" role="alert">{actionError.message}</p>}
-    <div className="workspace-tabs privacy-queue-tabs" role="tablist" aria-label="Privacy case queues">
-      <button className={queue === "dsar" ? "active" : ""} onClick={() => setQueue("dsar")}><FileJson size={16} />DSAR requests <span>{data.metrics.openDsars}</span></button>
-      <button className={queue === "breach" ? "active" : ""} onClick={() => setQueue("breach")}><ShieldAlert size={16} />Breach assessments <span>{data.metrics.openBreaches}</span></button>
+    <div className="workspace-tabs privacy-queue-tabs" role="tablist" aria-label="Privacy sections">
+      <button className={queue === "dsar" ? "active" : ""} onClick={() => setQueue("dsar")}><FileJson size={16} />Customer requests <span>{data.metrics.openDsars}</span></button>
+      <button className={queue === "breach" ? "active" : ""} onClick={() => setQueue("breach")}><ShieldAlert size={16} />Data incidents <span>{data.metrics.openBreaches}</span></button>
     </div>
 
     {queue === "dsar" && <>
-      <Panel title="DSAR request queue" action={<span className="result-count">Hashed customer references only</span>}>
+      <Panel title="Customer requests" action={<span className="result-count">No customer details shown</span>}>
         {data.dsarRequests.length ? <div className="table-wrap"><table><thead><tr><th>Request</th><th>Type</th><th>Received</th><th>Response due</th><th>State</th><th></th></tr></thead><tbody>{data.dsarRequests.map((request) => {
           const overdue = request.overdue;
           return <tr key={request.id}><td><strong>{request.requestRef}</strong><small className="table-sub mono">{request.customerPhoneHash.slice(0, 12)}…</small></td><td>{request.requestType}</td><td>{shortDate(request.receivedAt)}</td><td>{shortDate(request.dueAt)}{overdue && <small className="table-sub overdue-text"><AlertTriangle size={12} />Overdue</small>}</td><td><StateBadge state={request.state} /></td><td><button className="button secondary small" onClick={() => selectRequest(request.id)}>Review</button></td></tr>;
-        })}</tbody></table></div> : <EmptyState title="No DSAR requests" detail="Register a customer request above to start the 30-day Operations workflow." />}
+        })}</tbody></table></div> : <EmptyState title="No customer requests" detail="Add a request above when a customer asks about their data." />}
       </Panel>
       {selectedRequest && <div className="case-workspace">
         <Panel title={selectedRequest.requestRef} className="case-detail" action={<StateBadge state={selectedRequest.state} />}>
-          <div className="case-facts"><div><span>Request type</span><strong>{selectedRequest.requestType}</strong></div><div><span>Response due</span><strong>{shortDate(selectedRequest.dueAt)}</strong></div><div><span>Customer reference</span><strong className="mono">{selectedRequest.customerPhoneHash.slice(0, 16)}…</strong></div><div><span>Operations owner</span><strong>User #{selectedRequest.ownerUserId}</strong></div></div>
-          <p className="case-description">Only records matching this salted customer hash enter the evidence package. Support free text, raw identity values, access tokens and unrelated representative or financial data are excluded.</p>
-          {selectedRequest.state === "received" && <div className="resolution-form"><label>Identity verification note<textarea minLength={10} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} placeholder="Record the authorized evidence reviewed; do not paste NIN, BVN or identity documents" /></label><button className="button primary" disabled={verificationNote.trim().length < 10 || verifyDsar.isPending} onClick={() => verifyDsar.mutate({ token, requestId: selectedRequest.id, verificationNote: verificationNote.trim() })}><UserCheck size={15} />Verify requester identity</button></div>}
+          <div className="case-facts"><div><span>Request type</span><strong>{selectedRequest.requestType}</strong></div><div><span>Response due</span><strong>{shortDate(selectedRequest.dueAt)}</strong></div><div><span>Customer code</span><strong className="mono">{selectedRequest.customerPhoneHash.slice(0, 16)}…</strong></div><div><span>Handled by</span><strong>User #{selectedRequest.ownerUserId}</strong></div></div>
+          <p className="case-description">The export only contains this customer's records, and leaves out support notes, ID details and other people's data.</p>
+          {selectedRequest.state === "received" && <div className="resolution-form"><label>How you confirmed who they are<textarea minLength={10} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} placeholder="How did you confirm who they are? Don't include a NIN, BVN or ID document" /></label><button className="button primary" disabled={verificationNote.trim().length < 10 || verifyDsar.isPending} onClick={() => verifyDsar.mutate({ token, requestId: selectedRequest.id, verificationNote: verificationNote.trim() })}><UserCheck size={15} />Confirm who they are</button></div>}
           <div className="case-actions">
-            {selectedRequest.state === "identity_verified" && <button className="button secondary" disabled={reviewDsar.isPending} onClick={() => reviewDsar.mutate({ token, requestId: selectedRequest.id })}><Play size={15} />Start record review</button>}
-            {["identity_verified", "in_review", "fulfilled"].includes(selectedRequest.state) && <button className="button secondary" disabled={exportDsar.isPending} onClick={() => exportDsar.mutate({ token, requestId: selectedRequest.id })}><Download size={15} />Export privacy-safe JSON</button>}
+            {selectedRequest.state === "identity_verified" && <button className="button secondary" disabled={reviewDsar.isPending} onClick={() => reviewDsar.mutate({ token, requestId: selectedRequest.id })}><Play size={15} />Start review</button>}
+            {["identity_verified", "in_review", "fulfilled"].includes(selectedRequest.state) && <button className="button secondary" disabled={exportDsar.isPending} onClick={() => exportDsar.mutate({ token, requestId: selectedRequest.id })}><Download size={15} />Download their data</button>}
           </div>
-          {!["fulfilled", "rejected"].includes(selectedRequest.state) && <div className="resolution-form"><label>Outcome or rejection rationale<textarea minLength={10} value={outcomeNote} onChange={(event) => setOutcomeNote(event.target.value)} placeholder="Record the operational outcome and evidence reviewed" /></label><div className="case-actions"><button className="button secondary" disabled={outcomeNote.trim().length < 10 || rejectDsar.isPending} onClick={() => rejectDsar.mutate({ token, requestId: selectedRequest.id, outcomeNote: outcomeNote.trim() })}><X size={15} />Reject request</button>{selectedRequest.state === "in_review" && <button className="button primary" disabled={outcomeNote.trim().length < 10 || fulfilDsar.isPending} onClick={() => fulfilDsar.mutate({ token, requestId: selectedRequest.id, outcomeNote: outcomeNote.trim() })}><Check size={15} />Mark fulfilled</button>}</div></div>}
-          {selectedRequest.outcomeNote && <p className="panel-note"><strong>Recorded outcome:</strong> {selectedRequest.outcomeNote}</p>}
+          {!["fulfilled", "rejected"].includes(selectedRequest.state) && <div className="resolution-form"><label>Result, or why you're refusing<textarea minLength={10} value={outcomeNote} onChange={(event) => setOutcomeNote(event.target.value)} placeholder="What was the result?" /></label><div className="case-actions"><button className="button secondary" disabled={outcomeNote.trim().length < 10 || rejectDsar.isPending} onClick={() => rejectDsar.mutate({ token, requestId: selectedRequest.id, outcomeNote: outcomeNote.trim() })}><X size={15} />Refuse</button>{selectedRequest.state === "in_review" && <button className="button primary" disabled={outcomeNote.trim().length < 10 || fulfilDsar.isPending} onClick={() => fulfilDsar.mutate({ token, requestId: selectedRequest.id, outcomeNote: outcomeNote.trim() })}><Check size={15} />Mark done</button>}</div></div>}
+          {selectedRequest.outcomeNote && <p className="panel-note"><strong>Result:</strong> {selectedRequest.outcomeNote}</p>}
         </Panel>
-        <Panel title="Append-only DSAR history" className="case-inbox"><div className="timeline">{requestHistory.map((event) => <div className="timeline-event" key={event.id}><span><Clock3 size={14} /></span><div><strong>{event.action.replaceAll("_", " ")}</strong><small>{shortDate(event.createdAt)} · Actor {event.actorUserId || "system"}</small><p>{event.note}</p></div></div>)}</div><p className="panel-note">Export history stores counts and timestamps, not another copy of customer evidence.</p></Panel>
+        <Panel title="What's happened" className="case-inbox"><div className="timeline">{requestHistory.map((event) => <div className="timeline-event" key={event.id}><span><Clock3 size={14} /></span><div><strong>{event.action.replaceAll("_", " ")}</strong><small>{shortDate(event.createdAt)} · Actor {event.actorUserId || "system"}</small><p>{event.note}</p></div></div>)}</div><p className="panel-note">We record that an export happened, but don't keep a copy.</p></Panel>
       </div>}
     </>}
 
     {queue === "breach" && <>
-      <Panel title="Breach assessment queue" action={<span className="result-count">Decision and ownership required</span>}>
-        {data.breachAssessments.length ? <div className="table-wrap"><table><thead><tr><th>Assessment</th><th>Detected</th><th>Triage due</th><th>Risk</th><th>Notification</th><th>State</th><th></th></tr></thead><tbody>{data.breachAssessments.map((assessment) => {
+      <Panel title="Data incidents" action={<span className="result-count">Needs a decision and an owner</span>}>
+        {data.breachAssessments.length ? <div className="table-wrap"><table><thead><tr><th>Incident</th><th>Detected</th><th>Assess by</th><th>Risk</th><th>Tell the regulator?</th><th>State</th><th></th></tr></thead><tbody>{data.breachAssessments.map((assessment) => {
           const overdue = assessment.overdue;
           return <tr key={assessment.id}><td><strong>{assessment.assessmentRef}</strong><small className="table-sub">{assessment.title}</small></td><td>{shortDate(assessment.detectedAt)}</td><td>{shortDate(assessment.triageDueAt)}{overdue && <small className="table-sub overdue-text"><AlertTriangle size={12} />Overdue</small>}</td><td>{assessment.risk || "Unrated"}</td><td>{assessment.notificationDecision.replaceAll("_", " ")}</td><td><StateBadge state={assessment.state} /></td><td><button className="button secondary small" onClick={() => selectAssessment(assessment.id)}>Review</button></td></tr>;
-        })}</tbody></table></div> : <EmptyState title="No breach assessments" detail="Open an assessment above to start the 72-hour triage workflow." />}
+        })}</tbody></table></div> : <EmptyState title="No data incidents" detail="Report one above if customer data may have been exposed." />}
       </Panel>
       {selectedAssessment && <div className="case-workspace">
         <Panel title={selectedAssessment.title} className="case-detail" action={<StateBadge state={selectedAssessment.state} />}>
-          <div className="case-facts"><div><span>Assessment</span><strong>{selectedAssessment.assessmentRef}</strong></div><div><span>Triage due</span><strong>{shortDate(selectedAssessment.triageDueAt)}</strong></div><div><span>Risk</span><strong>{selectedAssessment.risk || "Unrated"}</strong></div><div><span>Notification</span><strong>{selectedAssessment.notificationDecision.replaceAll("_", " ")}</strong></div></div>
+          <div className="case-facts"><div><span>Incident</span><strong>{selectedAssessment.assessmentRef}</strong></div><div><span>Assess by</span><strong>{shortDate(selectedAssessment.triageDueAt)}</strong></div><div><span>Risk</span><strong>{selectedAssessment.risk || "Unrated"}</strong></div><div><span>Tell the regulator?</span><strong>{selectedAssessment.notificationDecision.replaceAll("_", " ")}</strong></div></div>
           <p className="case-description">{selectedAssessment.summary}</p>
-          {selectedAssessment.state === "reported" && <button className="button primary" disabled={startBreach.isPending} onClick={() => startBreach.mutate({ token, assessmentId: selectedAssessment.id })}><Play size={15} />Start 72-hour assessment</button>}
-          {selectedAssessment.state === "assessing" && <div className="resolution-form"><div className="privacy-decision-grid"><label>Risk rating<select value={risk} onChange={(event) => setRisk(event.target.value as typeof risk)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Notification decision<select value={notificationDecision} onChange={(event) => setNotificationDecision(event.target.value as typeof notificationDecision)}><option value="required">Required — owner must act externally</option><option value="not_required">Not required — rationale recorded</option></select></label><label>Accountable owner<select required value={ownerId} onChange={(event) => setOwnerId(Number(event.target.value))}><option value={0}>Select Operations or Admin owner</option>{data.privacyOwners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name} · {owner.role}</option>)}</select></label></div><label>Decision rationale<textarea minLength={10} value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} placeholder="Record risk reasoning, evidence reviewed and notification-handling instructions" /></label><button className="button primary" disabled={!ownerId || decisionNote.trim().length < 10 || decideBreach.isPending} onClick={() => decideBreach.mutate({ token, assessmentId: selectedAssessment.id, risk, notificationDecision, notificationOwnerUserId: ownerId, decisionNote: decisionNote.trim() })}><Check size={15} />Record decision and owner</button></div>}
-          {selectedAssessment.decisionNote && <p className="panel-note"><strong>Decision:</strong> {selectedAssessment.decisionNote}<br /><strong>Notification owner:</strong> {data.privacyOwners.find((owner) => owner.id === selectedAssessment.notificationOwnerUserId)?.name || `User #${selectedAssessment.notificationOwnerUserId}`}</p>}
-          {selectedAssessment.state === "decision_recorded" && <div className="resolution-form"><label>Closure note<textarea minLength={10} value={closureNote} onChange={(event) => setClosureNote(event.target.value)} placeholder="Record containment, handoff and remaining external actions" /></label><button className="button primary" disabled={closureNote.trim().length < 10 || closeBreach.isPending} onClick={() => closeBreach.mutate({ token, assessmentId: selectedAssessment.id, closureNote: closureNote.trim() })}><Check size={15} />Close assessment</button></div>}
-          {selectedAssessment.closureNote && <p className="panel-note"><strong>Closure:</strong> {selectedAssessment.closureNote}</p>}
-          <p className="panel-note"><strong>External notification sent:</strong> No. This sandbox records decisions and ownership only; it does not contact the NDPC or data subjects.</p>
+          {selectedAssessment.state === "reported" && <button className="button primary" disabled={startBreach.isPending} onClick={() => startBreach.mutate({ token, assessmentId: selectedAssessment.id })}><Play size={15} />Start assessing</button>}
+          {selectedAssessment.state === "assessing" && <div className="resolution-form"><div className="privacy-decision-grid"><label>Risk<select value={risk} onChange={(event) => setRisk(event.target.value as typeof risk)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label><label>Do you need to notify?<select value={notificationDecision} onChange={(event) => setNotificationDecision(event.target.value as typeof notificationDecision)}><option value="required">Yes. The owner must do this outside this app</option><option value="not_required">No. Reason recorded</option></select></label><label>Owner<select required value={ownerId} onChange={(event) => setOwnerId(Number(event.target.value))}><option value={0}>Choose an owner</option>{data.privacyOwners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name} · {owner.role}</option>)}</select></label></div><label>Reason<textarea minLength={10} value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} placeholder="Why this risk level, and who needs to be told?" /></label><button className="button primary" disabled={!ownerId || decisionNote.trim().length < 10 || decideBreach.isPending} onClick={() => decideBreach.mutate({ token, assessmentId: selectedAssessment.id, risk, notificationDecision, notificationOwnerUserId: ownerId, decisionNote: decisionNote.trim() })}><Check size={15} />Save decision</button></div>}
+          {selectedAssessment.decisionNote && <p className="panel-note"><strong>Decision:</strong> {selectedAssessment.decisionNote}<br /><strong>Owner:</strong> {data.privacyOwners.find((owner) => owner.id === selectedAssessment.notificationOwnerUserId)?.name || `User #${selectedAssessment.notificationOwnerUserId}`}</p>}
+          {selectedAssessment.state === "decision_recorded" && <div className="resolution-form"><label>How it ended<textarea minLength={10} value={closureNote} onChange={(event) => setClosureNote(event.target.value)} placeholder="What was done, and what's left to do?" /></label><button className="button primary" disabled={closureNote.trim().length < 10 || closeBreach.isPending} onClick={() => closeBreach.mutate({ token, assessmentId: selectedAssessment.id, closureNote: closureNote.trim() })}><Check size={15} />Close incident</button></div>}
+          {selectedAssessment.closureNote && <p className="panel-note"><strong>Closed:</strong> {selectedAssessment.closureNote}</p>}
+          <p className="panel-note"><strong>Regulator notified:</strong> Not by this app. It only records your decision, so someone must notify the NDPC or the people affected.</p>
         </Panel>
-        <Panel title="Append-only breach history" className="case-inbox"><div className="timeline">{breachHistory.map((event) => <div className="timeline-event" key={event.id}><span><Clock3 size={14} /></span><div><strong>{event.action.replaceAll("_", " ")}</strong><small>{shortDate(event.createdAt)} · Actor {event.actorUserId || "system"}</small><p>{event.note}</p></div></div>)}</div><p className="panel-note">Decision events retain risk and ownership metadata. They are not evidence of legal review or external delivery.</p></Panel>
+        <Panel title="What's happened" className="case-inbox"><div className="timeline">{breachHistory.map((event) => <div className="timeline-event" key={event.id}><span><Clock3 size={14} /></span><div><strong>{event.action.replaceAll("_", " ")}</strong><small>{shortDate(event.createdAt)} · Actor {event.actorUserId || "system"}</small><p>{event.note}</p></div></div>)}</div><p className="panel-note">This records decisions only. It doesn't prove anyone was notified.</p></Panel>
       </div>}
     </>}
   </>;

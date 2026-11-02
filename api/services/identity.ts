@@ -90,7 +90,7 @@ async function ensureIdentityCaseWithClient(input: {
   providerMode?: IdentityCase["providerMode"];
   forceNew?: boolean;
 }, client: IdentityClient) {
-  if (input.caseType === "customer_handoff") throw new TRPCError({ code: "BAD_REQUEST", message: "Customer KYC remains in the vendor-regulated flow" });
+  if (input.caseType === "customer_handoff") throw new TRPCError({ code: "BAD_REQUEST", message: "Customers verify their identity with the vendor" });
   if (input.subjectType === "user") {
     const [subject] = await client.select({ id: users.id }).from(users).where(eq(users.id, input.subjectId)).limit(1).for("update");
     if (!subject) throw new TRPCError({ code: "NOT_FOUND", message: "Identity subject not found" });

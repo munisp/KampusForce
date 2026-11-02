@@ -135,7 +135,7 @@ export const repRouter = createRouter({
   share: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string().optional(), source: z.enum(["link", "qr"]).default("link") })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
-    if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations must activate your rep profile before you can share attribution links" });
+    if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations needs to activate your account before you can share products" });
     const [product] = await getDb().select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
     if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Active product not found" });
     let attributed = false;

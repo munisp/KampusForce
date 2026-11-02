@@ -30,7 +30,7 @@ export async function processSyntheticIdentityCase(caseId: number, actorUserId: 
   const [identityCase] = await getDb().select().from(identityCases).where(eq(identityCases.id, caseId)).limit(1);
   if (!identityCase) throw new TRPCError({ code: "NOT_FOUND", message: "Identity case not found" });
   if (identityCase.providerMode !== "sandbox") throw new TRPCError({ code: "FORBIDDEN", message: "Synthetic evidence is prohibited for live identity cases" });
-  if (!["submitted", "processing", "needs_more_info"].includes(identityCase.state)) throw new TRPCError({ code: "CONFLICT", message: "Submit the case before running synthetic processing" });
+  if (!["submitted", "processing", "needs_more_info"].includes(identityCase.state)) throw new TRPCError({ code: "CONFLICT", message: "Submit the check before running test checks" });
   for (const kind of requiredEvidence(identityCase.caseType)) {
     await recordIdentityEvidence({
       caseId,
@@ -83,7 +83,7 @@ export async function completeSyntheticIdentityWorkflow(input: {
     caseId: identityCase.id,
     actorUserId: input.reviewerUserId,
     decision: "approve",
-    reason: "Synthetic sandbox control fixture approved for workflow acceptance; no external identity assurance is implied.",
+    reason: "Test check approved. No real ID was verified.",
   });
   if (["representative_kyc", "campus_lead_kyc"].includes(input.caseType)) await completeSyntheticEnrollment({ userId: input.subjectId, reviewerUserId: input.reviewerUserId });
   return { identityCase: reviewed.identityCase, synthetic: true, alreadyApproved: false };

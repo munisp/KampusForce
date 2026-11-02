@@ -38,8 +38,8 @@ export default function Signup() {
     <main className="recruit-main">
       <section className="recruit-intro">
         <p className="eyebrow">Create your account</p>
-        <h1>{kind === "vendor" ? <>Reach campuses.<br /><em>Pay on verified results.</em></> : kind === "student" ? <>Earn on your campus.<br /><em>Keep 80%.</em></> : <>Join KampusForce.<br /><em>Every naira on record.</em></>}</h1>
-        <p>{kind === "vendor" ? "Register your business. Operations reviews it before you can list products or fund escrow." : kind === "student" ? "Register as a student rep. Operations activates you once your identity and enrollment are approved." : "Student reps introduce products on campus. Vendors pay commission only on verified activations."}</p>
+        <h1>{kind === "vendor" ? <>Reach students.<br /><em>Pay only for real sales.</em></> : kind === "student" ? <>Earn on your campus.<br /><em>Keep 80%.</em></> : <>Join KampusForce.<br /><em>Every naira on record.</em></>}</h1>
+        <p>{kind === "vendor" ? "Register your business. Operations checks it before you can list products or add funds." : kind === "student" ? "Register as a student rep. Operations activates you once your identity and student status are approved." : "Student reps introduce products on campus. Vendors pay commission only on real sales."}</p>
       </section>
       <section className="recruit-card">
         {options.isLoading ? <Loading /> : options.error ? <ErrorState message={options.error.message} retry={options.refetch} /> : !options.data?.open ? <ErrorState message="Registration is not open yet." /> : complete.isSuccess ? <div className="recruit-success" id="signup-done">
@@ -49,8 +49,8 @@ export default function Signup() {
           <Link className="button secondary" to="/">Back to sign in</Link>
         </div> : !kind ? <div className="form-stack">
           <p className="eyebrow">I am a</p>
-          <button className="role-card" onClick={() => setKind("student")}><span className="role-icon"><GraduationCap size={22} /></span><span><strong>Student</strong><small>Introduce products on campus and earn commission.</small></span><ArrowRight size={18} /></button>
-          <button className="role-card" onClick={() => setKind("vendor")}><span className="role-icon"><Store size={22} /></span><span><strong>Vendor</strong><small>List products and pay for verified activations.</small></span><ArrowRight size={18} /></button>
+          <button className="role-card" onClick={() => setKind("student")}><span className="role-icon"><GraduationCap size={22} /></span><span><strong>Student</strong><small>Share products on campus and earn commission.</small></span><ArrowRight size={18} /></button>
+          <button className="role-card" onClick={() => setKind("vendor")}><span className="role-icon"><Store size={22} /></span><span><strong>Vendor</strong><small>List your products and pay commission only on real sales.</small></span><ArrowRight size={18} /></button>
         </div> : notListed ? (interest.isSuccess ? <div className="recruit-success" id="interest-done">
           <h2>Thanks, we've noted your university.</h2>
           <p>KampusForce isn't open at {university} yet. Your request helps Operations decide where to launch next.</p>
@@ -65,13 +65,13 @@ export default function Signup() {
         </form>) : <form className="form-stack" onSubmit={submit}>
           <p className="eyebrow">Your details</p>
           {kind === "vendor" && <><label>Business name<input id="signup-company" value={companyName} onChange={(event) => setCompanyName(event.target.value)} required /></label>
-            <label>CAC registration number<input id="signup-cac" value={cacNumber} onChange={(event) => setCacNumber(event.target.value)} placeholder="RC1234567" required /></label></>}
+            <label>CAC number<input id="signup-cac" value={cacNumber} onChange={(event) => setCacNumber(event.target.value)} placeholder="RC1234567" required /></label></>}
           {kind === "student" && <label>Campus<select id="signup-campus" value={campusId} onChange={(event) => setCampusId(Number(event.target.value))} required><option value="">Choose your campus</option>{options.data.campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}, {campus.state}</option>)}</select></label>}
           {kind === "student" && <button className="text-link" id="signup-not-listed" type="button" onClick={() => setNotListed(true)}>My university isn't listed</button>}
           <label>First name<input id="signup-first" value={firstName} onChange={(event) => setFirstName(event.target.value)} required /></label>
           <label>Last name<input id="signup-last" value={lastName} onChange={(event) => setLastName(event.target.value)} required /></label>
           <label>Email<input id="signup-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          <label className="contract-check"><input id="signup-terms" type="checkbox" checked={terms} onChange={(event) => setTerms(event.target.checked)} required /><span>{kind === "vendor" ? "I am authorized to register this business, and I accept that commissions are paid from escrow on verified activations." : "I accept the independent-contractor terms: I am not an employee, and commission is earned only on verified activations."}</span></label>
+          <label className="contract-check"><input id="signup-terms" type="checkbox" checked={terms} onChange={(event) => setTerms(event.target.checked)} required /><span>{kind === "vendor" ? "I am authorized to register this business, and I accept that commission is paid from my wallet when a sale is confirmed." : "I accept the independent-contractor terms: I am not an employee, and I earn commission only on sales the vendor confirms."}</span></label>
           <button className="button primary" disabled={complete.isPending || !terms}>Create account<ArrowRight size={16} /></button>
           <button className="text-link" type="button" onClick={() => setKind(null)}>Back</button>
         </form>}

@@ -16,33 +16,33 @@ import { ConnectorWorkspace } from "@/components/sales/ConnectorWorkspace";
 import { RecurrenceWorkspace } from "@/components/sales/RecurrenceWorkspace";
 
 const views = [
-  { key: "cases", label: "Case command", icon: Workflow, roles: ["rep", "vendor", "ops", "finance", "admin"] },
-  { key: "pipeline", label: "Relationship CRM", icon: BriefcaseBusiness, roles: ["rep", "vendor", "ops", "finance", "admin"] },
-  { key: "intelligence", label: "Decision intelligence", icon: ShieldCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
-  { key: "training", label: "Sales academy", icon: BookOpenCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
-  { key: "promotions", label: "Vendor promotions", icon: Megaphone, roles: ["rep", "vendor", "ops", "finance", "admin"] },
-  { key: "campaigns", label: "Campaign engine", icon: Megaphone, roles: ["rep", "vendor", "ops", "admin"] },
-  { key: "opportunities", label: "Opportunity ATS", icon: UserRoundSearch, roles: ["rep", "vendor", "ops", "finance", "admin"] },
-  { key: "connectors", label: "Onboarding connectors", icon: Link2, roles: ["rep", "vendor", "ops", "admin"] },
-  { key: "recurrence", label: "Renewal evidence", icon: CalendarClock, roles: ["vendor", "ops", "finance", "admin"] },
-  { key: "growth", label: "Growth & recruiting", icon: Target, roles: ["rep", "ops", "finance", "admin"] },
-  { key: "integrations", label: "Vendor services", icon: PlugZap, roles: ["vendor", "ops", "admin"] },
+  { key: "cases", label: "Customer requests", icon: Workflow, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "pipeline", label: "My contacts", icon: BriefcaseBusiness, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "intelligence", label: "Insights", icon: ShieldCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "training", label: "Training", icon: BookOpenCheck, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "promotions", label: "Promotions", icon: Megaphone, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "campaigns", label: "Campaigns", icon: Megaphone, roles: ["rep", "vendor", "ops", "admin"] },
+  { key: "opportunities", label: "Opportunities", icon: UserRoundSearch, roles: ["rep", "vendor", "ops", "finance", "admin"] },
+  { key: "connectors", label: "Customer sign-up links", icon: Link2, roles: ["rep", "vendor", "ops", "admin"] },
+  { key: "recurrence", label: "Renewals", icon: CalendarClock, roles: ["vendor", "ops", "finance", "admin"] },
+  { key: "growth", label: "Growth", icon: Target, roles: ["rep", "ops", "finance", "admin"] },
+  { key: "integrations", label: "Connected services", icon: PlugZap, roles: ["vendor", "ops", "admin"] },
 ] as const;
 
 type ViewKey = typeof views[number]["key"];
 
 const copy: Record<ViewKey, { title: string; subtitle: string }> = {
-  intelligence: { title: "Evidence before decisions.", subtitle: "Ten platform controls connect outcome lineage, privacy, coaching and resilience—without manufacturing financial truth." },
-  cases: { title: "Every case has a next move.", subtitle: "Ownership, response clocks, collaboration and evidence—without touching the financial ledger." },
-  pipeline: { title: "Relationships, not pipeline theatre.", subtitle: "A complete activity record, explainable priorities and human-approved follow-up." },
-  training: { title: "Skill before scale.", subtitle: "Short internal modules turn ethical sales, privacy and service boundaries into assessed readiness." },
-  promotions: { title: "External demand. Internal readiness.", subtitle: "Vendor customer promotions orchestrate campus recruitment, signed acquisition and verified-outcome reporting." },
-  campaigns: { title: "Campaigns with a control tower.", subtitle: "Audience rules, independent approval, in-app delivery and record-derived conversion." },
-  opportunities: { title: "Campus opportunity, end to end.", subtitle: "Seventeen external campaign journeys with institutional governance, consented document evidence and independently verified outcomes." },
-  connectors: { title: "From handoff to verified progress.", subtitle: "CompanyA-style signed links, pseudonymous customer mappings and funnel evidence that never confuses registration with activation." },
-  recurrence: { title: "Renewals wait for evidence.", subtitle: "Adjustable versioned cycles and intervals, original attribution and zero commission from elapsed time alone." },
-  growth: { title: "Grow the right relationships.", subtitle: "Verified-outcome leaderboards, explainable product targets and consent-led student recruiting." },
-  integrations: { title: "Vendor services, visibly bounded.", subtitle: "Local configuration, tests and synchronization evidence with no hidden external execution." },
+  intelligence: { title: "Insights", subtitle: "Reports on how sales and support are going." },
+  cases: { title: "Customer requests", subtitle: "See who owns each request and when a reply is due." },
+  pipeline: { title: "My contacts", subtitle: "Keep track of the people you're talking to and when to follow up." },
+  training: { title: "Training", subtitle: "Short lessons on selling honestly, privacy and helping customers." },
+  promotions: { title: "Promotions", subtitle: "Vendor offers you can promote on campus, and how they're doing." },
+  campaigns: { title: "Campaigns", subtitle: "Choose who to reach, get approval, and see the results." },
+  opportunities: { title: "Opportunities", subtitle: "Campus jobs, grants and programmes, from application to result." },
+  connectors: { title: "Customer sign-up links", subtitle: "Send customers to a vendor\'s sign-up, and follow their progress." },
+  recurrence: { title: "Renewals", subtitle: "Commission on a renewal is paid only once the vendor confirms it." },
+  growth: { title: "Growth", subtitle: "Leaderboards, product targets and inviting students to join." },
+  integrations: { title: "Connected services", subtitle: "Set up and test the services linked to your business." },
 };
 
 export default function Sales() {
