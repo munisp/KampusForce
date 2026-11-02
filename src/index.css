@@ -80,6 +80,7 @@ legend { margin-bottom: 8px; font-size: 12px; font-weight: 700; }
 .entry-page { min-height: 100vh; background: var(--paper); }
 .entry-nav, .score-nav { max-width: 1240px; margin: auto; padding: 24px 40px; display: flex; align-items: center; justify-content: space-between; }
 .entry-nav > a { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; }
+.entry-nav > button { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; background: none; border: 0; padding: 0; color: inherit; font-family: inherit; cursor: pointer; }
 .entry-hero { max-width: 1240px; min-height: 570px; margin: auto; padding: 58px 40px 72px; display: grid; grid-template-columns: 1.08fr .92fr; gap: 90px; align-items: center; }
 .entry-copy .eyebrow { display: flex; align-items: center; gap: 10px; }
 .entry-copy h1 { margin-bottom: 24px; font-size: clamp(46px, 5.4vw, 76px); font-weight: 700; letter-spacing: -.065em; }
