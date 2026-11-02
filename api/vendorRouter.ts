@@ -101,7 +101,7 @@ export const vendorRouter = createRouter({
   startEscrowFunding: authedQuery.input(z.object({ amountKobo: z.number().int().min(10000).max(1000000000) })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["vendor"]);
     const vendor = await currentVendor(ctx.user.id);
-    if (vendor.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Your business must be approved before you can fund escrow." });
+    if (vendor.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Your business must be approved before you can add funds." });
     return startEscrowFunding({ vendorId: vendor.id, email: await vendorFundingEmail(vendor.id), amountKobo: input.amountKobo, actorUserId: ctx.user.id });
   }),
   confirmEscrowFunding: authedQuery.input(z.object({ reference: z.string().min(10).max(64) })).mutation(async ({ ctx, input }) => {

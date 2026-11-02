@@ -8,7 +8,8 @@ export function shortDate(value: Date | string | null | undefined) {
 }
 
 export const stateLabel: Record<string, string> = {
-  pending: "Pending", confirmed: "Confirmed", payable: "Payable", paid: "Paid", disputed: "Disputed", void: "Void", clawed_back: "Clawed back", failed: "Failed",
+  pending: "Waiting", confirmed: "Confirmed", payable: "Ready to pay", paid: "Paid", disputed: "Disputed", void: "Cancelled", clawed_back: "Taken back", failed: "Failed",
+  draft: "Not submitted", processing: "Being checked", manual_review: "Being reviewed", needs_more_info: "More info needed", verified: "Done", revoked: "Cancelled", blocked: "Not ready", quarantined: "Held", dead_letter: "Couldn't process",
 };
 
 export function StateBadge({ state }: { state: string }) {
