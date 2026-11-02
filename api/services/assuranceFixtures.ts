@@ -10,10 +10,10 @@ export async function completeSyntheticEnrollment(input: { userId: number; revie
     .where(and(eq(enrollmentAttestations.userId, input.userId), eq(enrollmentAttestations.state, "submitted"))).limit(1);
   const attestation = submitted || await submitEnrollmentAttestation({
     userId: input.userId,
-    providerName: "institution-synthetic",
+    providerName: "School records office",
     providerMode: "sandbox",
     attestationReference: `synthetic-enrollment-${crypto.randomUUID()}`,
-    academicTerm: "sandbox-current-term",
+    academicTerm: "Current term",
     verificationMethod: "institution_provider",
     requestedValidUntil: new Date(Date.now() + 120 * 86_400_000),
   });

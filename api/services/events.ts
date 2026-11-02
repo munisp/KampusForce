@@ -128,7 +128,7 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
       }
     }
     if (!attribution) {
-      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "No active first-touch attribution; eligible for 24h claim review" });
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "No rep linked to this customer yet; a rep can claim it within 24 hours" });
       return { status: "quarantined" as const, kf_event_id: eventId, reason: "No active attribution" };
     }
     const trigger = (payload.type === "account_created" ? "signup" : payload.type) as typeof commissionRules.$inferInsert.triggerEvent;

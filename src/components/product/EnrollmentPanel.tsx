@@ -17,9 +17,9 @@ export function EnrollmentPanel() {
   const { token } = useWorkspace();
   const utils = trpc.useUtils();
   const overview = trpc.assurance.overview.useQuery({ token });
-  const [providerName, setProviderName] = useState("institution-synthetic");
+  const [providerName, setProviderName] = useState("School records office");
   const [reference, setReference] = useState("");
-  const [term, setTerm] = useState("sandbox-current-term");
+  const [term, setTerm] = useState("Current term");
   const [method, setMethod] = useState<"institution_provider" | "institution_document" | "student_record_provider">("institution_provider");
   const [validUntil, setValidUntil] = useState(futureDate(120));
   const [notice, setNotice] = useState("");

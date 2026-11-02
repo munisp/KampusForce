@@ -189,7 +189,7 @@ export async function getLaunchReadiness() {
       allRequiredEvidenceApproved,
       canRequestExternalCutover: allRequiredEvidenceApproved,
       productionReady: false,
-      boundary: "Readiness records are not live credentials, legal/security certification, provider activation or a production launch.",
+      boundary: "This page only records what's been checked. It doesn't switch on real money or prove legal or security compliance.",
     },
     gates,
     events: events.map(({ event, actorName }) => ({ ...event, actorName })),
