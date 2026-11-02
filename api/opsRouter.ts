@@ -1,3 +1,4 @@
+import { notifyUser } from "./services/notifications";
 import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";

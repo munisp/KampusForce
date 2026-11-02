@@ -1,34 +1,34 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { auditLogs, launchGateEvents, launchGates, users } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { integrationConfiguration, requireProviderModeLive } from "./integrationConfig";
 
 const catalog = [
-  ["legal.vendor_commission_agreement", "legal", "Vendor commission agreement", "Executed template covers trigger rules, windows, caps, escrow and wind-down.", "Executed agreement and legal review reference."],
+  ["legal.vendor_commission_agreement", "legal", "Vendor commission agreement", "The signed template covers when commission is earned, time limits, wallets and ending the deal.", "Executed agreement and legal review reference."],
   ["legal.rep_contractor_agreement", "legal", "Rep contractor agreement", "Commission-only, non-exclusive contractor terms and dispute rights are approved.", "Approved template and in-app version reference."],
-  ["legal.campus_endorsements_five", "legal", "Five campus endorsements", "Five non-exclusive, revocable Student Affairs endorsements are executed.", "Five signed letter references; no document contents in this console."],
+  ["legal.campus_endorsements_five", "legal", "Five campus endorsements", "Five campuses' Student Affairs offices have signed their support.", "Five signed letter references; no document contents in this console."],
   ["legal.ndpc_registration", "legal", "NDPC registration filed", "Registration has been filed by the responsible legal owner.", "External filing receipt and owner attestation."],
-  ["legal.processor_dpas", "legal", "Processor DPAs executed", "Payment, KYC, cloud and messaging processor DPAs are executed.", "Executed DPA references for every processor."],
-  ["finance.escrow_accounts_live", "finance", "Live escrow accounts funded", "Vendor escrow accounts are live and funded; the platform fronts no vendor money.", "Provider/account evidence reviewed by Finance."],
-  ["finance.payout_runbook", "finance", "Payout runbook approved", "Daily payout operations, holds, retries and Finance recovery are assigned.", "Approved runbook and on-call ownership reference."],
-  ["finance.reconciliation_evidence", "finance", "Reconciliation evidence ready", "Ledger, provider and bank-statement reconciliation is operating with real evidence.", "Real reconciliation report reference, not a supplied sandbox total."],
-  ["finance.clawback_reserve", "finance", "Clawback reserve funded", "Four weeks of expected clawbacks are reserved from platform funds.", "Finance reserve calculation and funding evidence."],
-  ["finance.withholding_process", "finance", "Withholding process approved", "Applicable withholding and reporting have professional ownership.", "Tax adviser-approved process and reporting calendar."],
+  ["legal.processor_dpas", "legal", "Supplier data agreements signed", "Data processing agreements are signed with our payment, cloud and messaging suppliers.", "A reference for each signed agreement."],
+  ["finance.escrow_accounts_live", "finance", "Vendor wallets funded with real money", "Vendor wallets hold real money, and KampusForce doesn't cover for any vendor.", "Provider/account evidence reviewed by Finance."],
+  ["finance.payout_runbook", "finance", "Payout runbook approved", "Someone is assigned to run daily payouts, holds, retries and recovery.", "Approved runbook and on-call ownership reference."],
+  ["finance.reconciliation_evidence", "finance", "Bank checks working", "Our records, Paystack and bank statements are being compared using real data.", "A real bank-check report, not test figures."],
+  ["finance.clawback_reserve", "finance", "Refund reserve funded", "Four weeks of expected refunds are set aside from KampusForce's own money.", "Finance reserve calculation and funding evidence."],
+  ["finance.withholding_process", "finance", "Tax process approved", "A tax professional owns withholding and reporting.", "Tax adviser-approved process and reporting calendar."],
   ["ops.campus_leads_five", "ops", "Five Campus Leads contracted", "Five launch campuses have contracted Campus Leads and assigned teams.", "Five contractor and assignment references."],
-  ["ops.vendor_support_macros", "ops", "Vendor support macros approved", "Every pilot SKU has approved support macros and escalation ownership.", "Vendor approvals and macro version references."],
-  ["ops.fraud_thresholds_staging", "ops", "Fraud thresholds tuned in staging", "Velocity and conduct thresholds were reviewed with staging evidence.", "Staging review record; local heuristics alone do not qualify."],
-  ["ops.dispute_sla_rota", "ops", "Dispute SLA rota staffed", "Operations coverage and escalation ownership meet the dispute SLA.", "Approved rota and escalation contact reference."],
-  ["engineering.slo_dashboards_seven_days", "engineering", "SLOs green for seven days", "Production-like SLO dashboards have been green for seven consecutive days.", "Seven-day external dashboard evidence and review."],
-  ["engineering.pentest_fixes", "engineering", "Security review and pen-test fixes", "Independent security findings are remediated and accepted.", "External test report and closure approval reference."],
-  ["engineering.backup_restore_drill", "engineering", "Production recovery evidence", "PITR, snapshots, immutable audit retention and RTO/RPO meet production policy.", "Production-environment restore drill evidence."],
-  ["engineering.load_test_staging", "engineering", "Staging load gate passed", "Signed ingestion and representative journeys meet targets in staging.", "Staging load report; local sandbox results do not qualify."],
-  ["engineering.parallel_run_zero_variance", "engineering", "Parallel run reconciles to zero", "One full manual-to-automated week reconciles to the ledger with ₦0 variance.", "Daily and weekly zero-variance reconciliation evidence."],
-  ["product.three_vendors_live_cutover", "product", "Three pilot vendors cut over", "Three pilot vendors completed sandbox-to-production cutover.", "Three production integration acceptance references."],
-  ["product.catalog_pricing_verified", "product", "Catalog pricing verified", "Catalog pricing and commission economics match approved vendor records.", "Deal Economics and vendor verification references."],
-  ["product.kpi_instrumentation", "product", "Launch KPIs instrumented", "Required launch metrics are measured with traceable production data.", "Dashboard definitions and production data-quality review."],
-  ["product.pilot_campus_dry_run", "product", "Pilot-campus dry run accepted", "The pilot campus completed an observed operational dry run.", "Campus Operations and Product acceptance reference."],
-  ["product.production_cutover_authorization", "product", "Production cutover authorized", "Named accountable owners approved the production cutover after all other gates.", "External signed authorization; this console only records the attestation."],
-  ["engineering.local_load_evidence", "engineering", "Optional local load evidence", "Local signed-load evidence is retained for engineering review, not launch credit.", "Local report identifier and measurement boundary."],
+  ["ops.vendor_support_macros", "ops", "Vendor saved replies approved", "Every pilot product has approved saved replies and someone to escalate to.", "Vendor approvals and saved-reply references."],
+  ["ops.fraud_thresholds_staging", "ops", "Fraud limits tested", "Sales limits and conduct rules were reviewed in a test environment.", "A record of that review."],
+  ["ops.dispute_sla_rota", "ops", "Dispute rota staffed", "Enough Operations staff to answer disputes on time.", "Approved rota and escalation contact reference."],
+  ["engineering.slo_dashboards_seven_days", "engineering", "Reliable for seven days", "The site has met its reliability targets for seven days in a row.", "Seven days of dashboard results, reviewed."],
+  ["engineering.pentest_fixes", "engineering", "Security test passed", "An outside security test was done and its findings fixed.", "External test report and closure approval reference."],
+  ["engineering.backup_restore_drill", "engineering", "Backups tested", "We've restored from backup and it meets our recovery targets.", "Results of a restore drill."],
+  ["engineering.load_test_staging", "engineering", "Load test passed", "The site handled the expected traffic in a test environment.", "A load test report."],
+  ["engineering.parallel_run_zero_variance", "engineering", "Trial week matches exactly", "One full week run by hand and by the system matched with ₦0 difference.", "Daily and weekly comparison reports."],
+  ["product.three_vendors_live_cutover", "product", "Three vendors live", "Three pilot vendors have moved from test to live.", "Three sign-offs, one per vendor."],
+  ["product.catalog_pricing_verified", "product", "Catalog pricing verified", "Prices and commission match what vendors approved.", "Vendor sign-off references."],
+  ["product.kpi_instrumentation", "product", "Launch numbers tracked", "We can measure the launch numbers with real data.", "Dashboard details and a data-quality review."],
+  ["product.pilot_campus_dry_run", "product", "Pilot campus trial accepted", "A pilot campus finished a supervised trial.", "Campus Operations and Product acceptance reference."],
+  ["product.production_cutover_authorization", "product", "Go-live approved", "Named owners approved going live, after everything else was done.", "External signed authorization; this console only records the attestation."],
+  ["engineering.local_load_evidence", "engineering", "Optional load test", "Extra load test results for engineers. This doesn't count towards launch.", "Local report identifier and measurement boundary."],
 ] as const;
 
 let catalogReady: Promise<void> | undefined;
@@ -44,7 +44,7 @@ export async function ensureLaunchGateCatalog() {
         evidenceHint,
         required: gateKey !== "engineering.local_load_evidence",
         sortOrder: (index + 1) * 10,
-      }))).onConflictDoNothing();
+      }))).onConflictDoUpdate({ target: launchGates.gateKey, set: { title: sql`excluded.title`, requirement: sql`excluded.requirement`, evidenceHint: sql`excluded.evidence_hint` } });
     })().catch((error) => {
       catalogReady = undefined;
       throw error;

@@ -6,7 +6,8 @@ import { shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 import { EnrollmentPanel } from "@/components/product/EnrollmentPanel";
-import { documentLabels, DocumentPreview, DocumentUploads } from "@/components/product/IdentityDocuments";
+import { DocumentPreview, DocumentUploads } from "@/components/product/IdentityDocuments";
+import { documentLabels } from "@/lib/files";
 
 const caseLabels: Record<string, string> = { representative_kyc: "Student rep ID check", campus_lead_kyc: "Campus lead ID check", vendor_kyb: "Business check", operations_kyc: "Staff ID check", customer_handoff: "Customer handoff" };
 const evidenceLabels: Record<string, string> = { document_ocr: "Reading your ID document", document_structure: "Checking the document's layout", vlm_extraction: "Cross-checking the document's details", capture_integrity: "Checking the photo is genuine", liveness: "Confirming you're a live person", deepfake: "Checking for fake images", face_match: "Matching your face to your ID", bank_name_match: "Matching your bank account name", registry_kyb: "Checking the business registry", reviewer_attestation: "Staff declaration", manual_document_check: "The document is genuine, in date, and has the right name", manual_face_check: "The selfie shows the same person as the ID", manual_business_check: "The CAC certificate matches the business name and number" };
@@ -22,14 +23,14 @@ export default function Identity() {
   const [confirmed, setConfirmed] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
   const refresh = (message: string) => { setNotice(message); setReason(""); setConfirmed([]); utils.identity.overview.invalidate(); };
-  const openCase = trpc.identity.openCase.useMutation({ onSuccess: (result) => refresh(`Your check is ready. Agree to both notices, then submit.`) });
+  const openCase = trpc.identity.openCase.useMutation({ onSuccess: () => refresh(`Your check is ready. Agree to both notices, then submit.`) });
   const consent = trpc.identity.consent.useMutation({ onSuccess: () => refresh("Thanks, that's recorded.") });
-  const submit = trpc.identity.submit.useMutation({ onSuccess: (result) => refresh(`Submitted. Operations will review it and you'll get a notification.`) });
+  const submit = trpc.identity.submit.useMutation({ onSuccess: () => refresh(`Submitted. Operations will review it and you'll get a notification.`) });
   const processSandbox = trpc.identity.processSandbox.useMutation({ onSuccess: (result) => refresh(`${result.caseRef} is ready for your review.`) });
   const review = trpc.identity.review.useMutation({ onSuccess: (result) => refresh(`${result.identityCase.caseRef} updated.`) });
-  const reverify = trpc.identity.reverify.useMutation({ onSuccess: (result) => refresh(`Your renewal check is open.`) });
+  const reverify = trpc.identity.reverify.useMutation({ onSuccess: () => refresh(`Your renewal check is open.`) });
   const handoff = trpc.identity.customerHandoff.useMutation({ onSuccess: () => refresh("Recorded. Customers verify their identity on your own service.") });
-  const withdraw = trpc.identity.withdrawConsent.useMutation({ onSuccess: (result) => refresh(`You've withdrawn your consent, and this check has stopped.`) });
+  const withdraw = trpc.identity.withdrawConsent.useMutation({ onSuccess: () => refresh(`You've withdrawn your consent, and this check has stopped.`) });
   if (overview.isLoading) return <WorkspaceLayout title="Verification" subtitle={subtitle}><Loading /></WorkspaceLayout>;
   if (overview.error) return <WorkspaceLayout title="Verification" subtitle={subtitle}><ErrorState message={overview.error.message} retry={overview.refetch} /></WorkspaceLayout>;
   const data = overview.data!;

@@ -5,8 +5,7 @@ import { ErrorState, Loading } from "./Loading";
 import { shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
-import { fileToBase64, MAX_DOCUMENT_BYTES } from "@/lib/files";
-import { documentLabels } from "./IdentityDocuments";
+import { documentLabels, fileToBase64, MAX_DOCUMENT_BYTES } from "@/lib/files";
 
 function futureDate(days: number) {
   const value = new Date(Date.now() + days * 86_400_000);
@@ -22,13 +21,11 @@ export function EnrollmentPanel() {
   const [proofError, setProofError] = useState("");
   const uploadProof = trpc.assurance.uploadStudentProof.useMutation();
   const [term, setTerm] = useState("");
-  const [method, setMethod] = useState<"institution_provider" | "institution_document" | "student_record_provider">("institution_provider");
   const [validUntil, setValidUntil] = useState(futureDate(120));
   const [notice, setNotice] = useState("");
   const submit = trpc.assurance.submitEnrollment.useMutation({
     onSuccess: (result) => {
       setNotice(`${result.caseRef} sent for review. Operations will check it.`);
-      setReference("");
       utils.assurance.overview.invalidate();
     },
   });
@@ -48,7 +45,7 @@ export function EnrollmentPanel() {
           {proofError && <p className="form-error" role="alert">{proofError}</p>}
           <label>Academic term<input value={term} onChange={(event) => setTerm(event.target.value)} minLength={2} maxLength={40} placeholder="2026/2027, first semester" required /></label>
           <label>Valid until<input type="date" value={validUntil} min={futureDate(1)} max={futureDate(239)} onChange={(event) => setValidUntil(event.target.value)} required /></label>
-          <button className="button primary" disabled={reference.trim().length < 8 || submit.isPending}><ShieldCheck size={15} />Send for review</button>
+          <button className="button primary" disabled={!proof || uploadProof.isPending || submit.isPending}><ShieldCheck size={15} />Send for review</button>
         </form>
       </Panel>
       <Panel title="Good to know"><div className="fraud-boundaries"><p><strong>How it's checked</strong><span>Operations looks at your proof. They don't contact your school. Your file is encrypted and deleted 30 days after a decision.</span></p><p><strong>Matching another account</strong><span>If your details match another account, a person reviews it. We won't show you who matched, and your earnings aren't taken away automatically.</span></p><p><strong>After a sale</strong><span>Refunds and unusual activity can trigger a review or delay your payout.</span></p></div></Panel>

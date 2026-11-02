@@ -77,8 +77,9 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
       result = await expireIdentityApprovals();
       processedCount = Number(result.expired || 0);
     } else if (jobKey === "identity_document_purge") {
-      result = await purgeExpiredIdentityDocuments();
-      processedCount = result.purged;
+      const purge = await purgeExpiredIdentityDocuments();
+      result = purge;
+      processedCount = purge.purged;
     } else if (jobKey === "promotion_orchestration") {
       result = await runPromotionScheduleSweep();
       processedCount = Number(result.processed || 0);

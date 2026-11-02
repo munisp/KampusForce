@@ -34,7 +34,7 @@ async function request(method: "PUT" | "GET" | "DELETE", path: string, body?: Ui
   const { url, accessKey, secretKey } = config();
   const encoded = path.split("/").map(encodeURIComponent).join("/");
   const headers = signedHeaders({ method, host: url.host, path: encoded, bodyHash: sha256(body || ""), accessKey, secretKey });
-  return fetch(new URL(encoded, url), { method, headers, body, signal: AbortSignal.timeout(60_000) });
+  return fetch(new URL(encoded, url), { method, headers, body: body as NonNullable<Parameters<typeof fetch>[1]>["body"], signal: AbortSignal.timeout(60_000) });
 }
 
 export async function putObject(bucket: string, key: string, data: Uint8Array) {

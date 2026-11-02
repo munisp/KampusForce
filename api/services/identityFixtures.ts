@@ -31,7 +31,7 @@ export async function processSyntheticIdentityCase(caseId: number, actorUserId: 
   if (!identityCase) throw new TRPCError({ code: "NOT_FOUND", message: "Identity case not found" });
   if (identityCase.providerMode !== "sandbox" || identityCase.reviewMethod !== "synthetic") throw new TRPCError({ code: "FORBIDDEN", message: "Test results can't be used on a real check" });
   if (!["submitted", "processing", "needs_more_info"].includes(identityCase.state)) throw new TRPCError({ code: "CONFLICT", message: "Submit the check before running test checks" });
-  for (const kind of requiredEvidence(identityCase.caseType)) {
+  for (const kind of requiredEvidence(identityCase.caseType) as (keyof typeof providers)[]) {
     await recordIdentityEvidence({
       caseId,
       actorUserId,
