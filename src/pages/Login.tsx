@@ -44,7 +44,9 @@ export default function Login() {
   });
 
   return <div className="entry-page">
-    <header className="entry-nav"><Brand /><a href="#sandbox">{sandbox ? "Open sandbox" : "Sign in"} <ArrowRight size={16} /></a></header>
+    <header className="entry-nav"><Brand />{token && user ? <button type="button" onClick={() => navigate(workspacePath(user.role))}>Continue as {user.name} <ArrowRight size={16} /></button>
+      : oidc ? <button type="button" onClick={() => { setError(""); startSignIn(oidc).catch(() => setError("Sign-in could not start. Try again.")); }}>Sign in <ArrowRight size={16} /></button>
+      : <a href="#sandbox">{sandbox ? "Open sandbox" : "Sign in"} <ArrowRight size={16} /></a>}</header>
     <main>
       <section className="entry-hero">
         <div className="entry-copy">
