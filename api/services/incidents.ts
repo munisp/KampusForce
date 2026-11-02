@@ -75,8 +75,8 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
     ...variances.map((run): IncidentSignal => ({
       dedupeKey: `reconciliation_variance:${run.id}`,
       source: "reconciliation",
-      title: `Reconciliation variance: ${run.batchId}`,
-      detail: `${run.evidence.startsWith("live_") ? "Live" : "Sandbox"} reconciliation run #${run.id} exceeded tolerance by ₦${(run.varianceKobo / 100).toLocaleString("en-NG")}. Confirm evidence before resolution.`,
+      title: `Bank total doesn't match: ${run.batchId}`,
+      detail: `${run.evidence.startsWith("live_") ? "Live" : "Test"} bank check #${run.id} is off by ₦${(run.varianceKobo / 100).toLocaleString("en-NG")}. Check it before marking this fixed.`,
       entityType: "reconciliation_run",
       entityId: String(run.id),
       evidence: { batchId: run.batchId, varianceKobo: run.varianceKobo, evidence: run.evidence },
@@ -84,8 +84,8 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
     ...quarantined.map((event): IncidentSignal => ({
       dedupeKey: `event_quarantine:${event.id}`,
       source: "event_quarantine",
-      title: `Vendor event quarantined: ${event.type.replaceAll("_", " ")}`,
-      detail: `Event ${event.id.slice(0, 12)}… requires review. No customer payload is copied into this incident.`,
+      title: `Sale held: ${event.type.replaceAll("_", " ")}`,
+      detail: `Sale ${event.id.slice(0, 12)}… needs checking.`,
       entityType: "vendor_event",
       entityId: event.id,
       evidence: { vendorId: event.vendorId, type: event.type, hmacOk: event.hmacOk },
@@ -93,8 +93,8 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
     ...breachedSupport.map((ticket): IncidentSignal => ({
       dedupeKey: `support_sla:${ticket.id}`,
       source: "support_sla",
-      title: `Support SLA breached: ${ticket.ticketRef}`,
-      detail: `${ticket.subject} remains in ${ticket.state.replaceAll("_", " ")} after its SLA deadline.`,
+      title: `Support request overdue: ${ticket.ticketRef}`,
+      detail: `${ticket.subject} remains in ${ticket.state.replaceAll("_", " ")} past its reply date.`,
       entityType: "support_ticket",
       entityId: String(ticket.id),
       evidence: { ticketRef: ticket.ticketRef, priority: ticket.priority, slaDueAt: ticket.slaDueAt.toISOString() },
@@ -102,8 +102,8 @@ export async function collectOperationalSignals(): Promise<IncidentSignal[]> {
     ...overdueDsars.map((request): IncidentSignal => ({
       dedupeKey: `dsar_sla:${request.id}`,
       source: "dsar_sla",
-      title: `DSAR response overdue: ${request.requestRef}`,
-      detail: `${request.requestType} request remains in ${request.state.replaceAll("_", " ")} after its 30-day response deadline. No customer identifier is copied into this incident.`,
+      title: `Customer data request overdue: ${request.requestRef}`,
+      detail: `${request.requestType} request remains in ${request.state.replaceAll("_", " ")} past its 30-day deadline.`,
       entityType: "dsar_request",
       entityId: String(request.id),
       evidence: { requestRef: request.requestRef, requestType: request.requestType, dueAt: request.dueAt.toISOString() },

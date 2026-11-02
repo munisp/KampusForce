@@ -50,7 +50,7 @@ export function LaunchDesk() {
     <div className="sandbox-banner"><ShieldX size={18} /><p><strong>Not ready for real money yet.</strong> {data.summary.boundary}</p></div>
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {error && <p className="form-error" role="alert">{error.message}</p>}
-    <Panel title="Connected services" action={<span className="result-count">Effective mode: {data.configuration.effectiveMode}</span>}>
+    <Panel title="Connected services" action={<span className="result-count">Mode: {data.configuration.effectiveMode === "live" ? "live" : "test"}</span>}>
       <div className="table-wrap"><table><thead><tr><th>Service</th><th>Used for</th><th>Key added</th><th>Callbacks checked</th><th>Safety setting</th></tr></thead><tbody>{data.configuration.providers.map((provider) => <tr key={provider.key}><td><strong>{provider.name}</strong><small className="table-sub mono">{provider.adapter}</small></td><td>{provider.role}</td><td>{provider.credentialConfigured ? "Configured" : "Not configured"}</td><td>{provider.webhookVerificationConfigured ? "Configured" : "Not configured"}</td><td><StateBadge state={provider.liveExecutionEnabled ? "configuration_present" : "fail_closed"} /></td></tr>)}</tbody></table></div>
       <p className="panel-note">HTTPS application URL: {data.configuration.appUrlHttps ? "configured" : "not configured"} · explicit cutover flag: {data.configuration.cutoverAuthorized ? "present" : "absent"}. Boolean configuration metadata only; credential values are never returned.</p>
       <ul className="compact-list">{data.configuration.boundaries.map((boundary) => <li key={boundary}>{boundary}</li>)}</ul>

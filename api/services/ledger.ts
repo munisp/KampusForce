@@ -106,8 +106,8 @@ export async function confirmDueDeals(actorUserId?: number) {
       });
       const clawbackUntil = rule ? new Date(Date.now() + rule.clawbackDays * 86_400_000) : null;
       await tx.update(deals).set({ clawbackUntil, updatedAt: new Date() }).where(eq(deals.id, current.id));
-      await stateChange(tx, current.id, "pending", "confirmed", actorUserId ? `staff:${actorUserId}` : "system:confirmation", "Refund-free window elapsed; escrow reserved");
-      await stateChange(tx, current.id, "confirmed", "payable", actorUserId ? `staff:${actorUserId}` : "system:confirmation", override ? `Eligible for payout; ₦${override.overrideKobo / 100} lead override funded from platform margin` : "Eligible for the next payout batch");
+      await stateChange(tx, current.id, "pending", "confirmed", actorUserId ? `staff:${actorUserId}` : "system:confirmation", "Waiting period over; commission set aside");
+      await stateChange(tx, current.id, "confirmed", "payable", actorUserId ? `staff:${actorUserId}` : "system:confirmation", override ? `Ready for payout; ₦${override.overrideKobo / 100} campus lead bonus paid by KampusForce` : "Ready for the next payout");
       await signalPromotionActivationConfirmed(current.id, actorUserId, tx);
       await signalActivationEvidence(current.id, "ledger.confirmation", `deal:${current.id};state:payable;commission-rule:${current.commissionRuleId || "unversioned"}`, new Date(), tx);
       return true;
@@ -174,7 +174,7 @@ async function reverseDealLocked(tx: Transaction, dealId: number, actor: string)
       decidedAt: new Date(),
     }).where(eq(disputes.id, activeDispute.id));
   }
-  await stateChange(tx, deal.id, deal.state, target, actor, activeDispute ? "Vendor refund during dispute; prior entitlement reversed" : effectiveState === "paid" ? "Refund inside clawback window; negative balances net future payouts, including paid lead overrides" : "Refund before payout; commission and any lead override reversed");
+  await stateChange(tx, deal.id, deal.state, target, actor, activeDispute ? "Vendor refunded during the dispute; commission cancelled" : effectiveState === "paid" ? "Refunded during the refund period; this comes off future payouts, including campus lead bonuses" : "Refunded before payout; commission and any campus lead bonus cancelled");
   return { state: target, reversed: true };
 }
 
@@ -217,7 +217,7 @@ export async function resolveDealDispute(input: { disputeId: number; actorUserId
     if (input.upholdRep) {
       await tx.update(disputes).set({ state: "resolved", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
       await stateChange(tx, deal.id, "disputed", previousState, `user:${input.actorUserId}`, "Dispute upheld; prior deal state restored");
-      if (previousState === "confirmed") await stateChange(tx, deal.id, "confirmed", "payable", `user:${input.actorUserId}`, "Restored confirmed entitlement returned to payout eligibility");
+      if (previousState === "confirmed") await stateChange(tx, deal.id, "confirmed", "payable", `user:${input.actorUserId}`, "Commission restored and ready for the next payout");
       await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.resolved", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, restoredState: previousState, payoutEligibleState: previousState === "confirmed" ? "payable" : previousState } });
       return { disputeId: dispute.id, state: "resolved" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false };
     }
@@ -600,7 +600,7 @@ async function recordPayoutOutcome(input: {
     for (const deal of entitledDeals) {
       await stateChange(tx, deal.id, "payable", "paid", input.actorUserId ? `staff:${input.actorUserId}` : "system:provider_webhook", input.mode === "live"
         ? `Verified provider success ${attempt.providerRef}; event ${input.providerEventId || "recorded"}`
-        : `Sandbox provider success ${attempt.providerRef}; no live bank transfer implied`);
+        : "Test payout marked as paid; no real money was sent");
     }
     for (const override of entitledOverrides) {
       await tx.update(campusLeadOverrides).set({ state: "paid" }).where(eq(campusLeadOverrides.id, override.id));
