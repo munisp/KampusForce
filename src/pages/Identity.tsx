@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowRight, Check, FileScan, Fingerprint, KeyRound, RefreshCw, ShieldCheck, Store, UserCheck, Workflow } from "lucide-react";
 import { EmptyState, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
-import { shortDate, StateBadge } from "@/lib/format";
+import { fullDate, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 import { EnrollmentPanel } from "@/components/product/EnrollmentPanel";
@@ -67,7 +67,7 @@ export default function Identity() {
     <div className="workspace-tabs" role="tablist" aria-label="Check queues">
       {([["review", "To review"], ["waiting", "Waiting on applicant"], ["decided", "Decided"]] as const).map(([key, label]) => <button key={key} className={queue === key ? "active" : ""} onClick={() => { setQueue(key); setSelectedId(null); setReason(""); setConfirmed([]); }}>{label} <span>{queueCases[key].length}</span></button>)}
     </div>
-    <div className="identity-layout">
+    <div className={`identity-layout${queueCases[queue].length ? "" : " identity-layout-empty"}`}>
       <div className="identity-queue">
         {queueCases[queue].length ? <div className="identity-case-list">{queueCases[queue].map((item) => <button key={item.id} className={selected?.id === item.id ? "active" : ""} onClick={() => { setSelectedId(item.id); setReason(""); setConfirmed([]); }}><span><strong>{person(item)}</strong><small>{typeLabel(item.caseType)}</small><small className={overdue(item) ? "identity-overdue" : ""}>{queueOf(item.state) === "review" && item.reviewDueAt ? `${overdue(item) ? "Overdue" : "Due"} ${shortDate(item.reviewDueAt)}` : item.caseRef}</small></span>{queue !== "review" && <StateBadge state={item.state} />}</button>)}</div> : <EmptyState title={queue === "review" ? "Nothing to review" : queue === "waiting" ? "Nobody to wait for" : "Nothing decided yet"} detail={queue === "review" ? "New checks appear here when someone submits their documents." : "Checks will appear here."} />}
       </div>
@@ -81,7 +81,7 @@ export default function Identity() {
               {selected.subject?.email && <div><span>Email</span><strong>{selected.subject.email}</strong></div>}
               <div><span>Reference</span><strong>{selected.caseRef}</strong></div>
               {queueOf(selected.state) === "review" && <div><span>Review by</span><strong className={overdue(selected) ? "identity-overdue" : ""}>{selected.reviewDueAt ? shortDate(selected.reviewDueAt) : "—"}</strong></div>}
-              {selected.validUntil && <div><span>Valid until</span><strong>{shortDate(selected.validUntil)}</strong></div>}
+              {selected.validUntil && <div><span>Valid until</span><strong>{fullDate(selected.validUntil)}</strong></div>}
             </div>
             {selected.decisionReason && <p className="panel-note"><strong>Latest decision:</strong> {selected.decisionReason}</p>}
             {queueOf(selected.state) === "waiting" && <p className="panel-note">{selected.state === "draft" ? "They haven't submitted their documents yet." : "You asked for more. It comes back to To review when they resubmit."}</p>}
@@ -97,7 +97,7 @@ export default function Identity() {
             {reviewerControls && !manualCase && ["submitted", "processing", "needs_more_info"].includes(selected.state) && <button className="button secondary small" disabled={processSandbox.isPending} onClick={() => processSandbox.mutate({ token, caseId: selected.id })}><Workflow size={14} />Run test checks</button>}
             {reviewerControls && !manualCase && selected.state === "manual_review" && <div className="identity-review"><label htmlFor="identity-review-reason">Reason for your decision</label><textarea id="identity-review-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} /><div className="identity-actions"><button className="button small" disabled={review.isPending} onClick={() => review.mutate({ token, caseId: selected.id, decision: "approve", reason })}>Approve</button><button className="button secondary small" disabled={review.isPending} onClick={() => review.mutate({ token, caseId: selected.id, decision: "request_info", reason })}>Ask for more information</button><button className="button danger small" disabled={review.isPending} onClick={() => review.mutate({ token, caseId: selected.id, decision: "reject", reason })}>Reject</button></div></div>}
           </div>
-        </Panel> : <Panel title="Choose a check"><EmptyState title="Nothing selected" detail="Choose a check from the list to see its documents." /></Panel>}
+        </Panel> : null}
       </div>
     </div>
     <details className="developer-details"><summary>Technical details</summary>
@@ -124,7 +124,7 @@ export default function Identity() {
       <div className="identity-detail">
         {nextStep[selected.state] && <p className={`identity-next identity-next-${selected.state}`}>{nextStep[selected.state]}</p>}
         {selected.decisionReason && <p className="panel-note"><strong>From Operations:</strong> {selected.decisionReason}</p>}
-        {selected.validUntil && <p className="panel-note"><strong>Valid until:</strong> {shortDate(selected.validUntil)}</p>}
+        {selected.validUntil && <p className="panel-note"><strong>Valid until:</strong> {fullDate(selected.validUntil)}</p>}
         {openHere && manualCase && <ol className="identity-stepper">
           <li className={consented ? "done" : "current"}><h3>Agree to the check</h3><p>Operations staff will look at your documents to confirm who you are. Your files are encrypted, every view is recorded, and they're deleted 30 days after a decision.</p>{consented ? <span className="identity-upload-state"><Check size={14} />Agreed</span> : <button className="button secondary small" disabled={consent.isPending} onClick={async () => { await consent.mutateAsync({ token, caseId: selected.id, purpose: "identity_verification", noticeAcknowledged: true }); await consent.mutateAsync({ token, caseId: selected.id, purpose: "biometric_liveness", noticeAcknowledged: true }); }}><Check size={14} />I agree</button>}</li>
           <li className={!consented ? "" : allUploaded ? "done" : "current"}><h3>Upload your documents</h3><DocumentUploads caseId={selected.id} kinds={selected.requiredDocuments} documents={selectedDocuments} disabled={!consented} onChange={() => refresh("Uploaded.")} /></li>
