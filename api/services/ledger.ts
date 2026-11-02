@@ -221,16 +221,13 @@ export async function resolveDealDispute(input: { disputeId: number; actorUserId
       await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.resolved", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, restoredState: previousState, payoutEligibleState: previousState === "confirmed" ? "payable" : previousState } });
       return { disputeId: dispute.id, state: "resolved" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false };
     }
-    if (previousState === "pending") {
-      await tx.update(disputes).set({ state: "rejected", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
-      await stateChange(tx, deal.id, "disputed", "void", `user:${input.actorUserId}`, "Dispute rejected before commission confirmation");
-      await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousState, dealState: "void" } });
-      return { disputeId: dispute.id, state: "rejected" as const, dealState: "void" as const, reversed: false };
-    }
-    const result = await reverseDealLocked(tx, deal.id, `user:${input.actorUserId}:dispute`);
-    await tx.update(disputes).set({ decision: input.decision, decidedByUserId: input.actorUserId }).where(eq(disputes.id, dispute.id));
-    await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousState, dealState: result.state } });
-    return { disputeId: dispute.id, state: "rejected" as const, dealState: result.state, reversed: result.reversed };
+    // A rejected claim changes nothing: the rep loses the argument, not the commission. Refunds and fraud cases are
+    // how money is taken back, each with its own evidence.
+    await tx.update(disputes).set({ state: "rejected", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
+    await stateChange(tx, deal.id, "disputed", previousState, `user:${input.actorUserId}`, "Dispute rejected; prior deal state restored");
+    if (previousState === "confirmed") await stateChange(tx, deal.id, "confirmed", "payable", `user:${input.actorUserId}`, "Restored confirmed entitlement returned to payable");
+    await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, restoredState: previousState } });
+    return { disputeId: dispute.id, state: "rejected" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false };
   });
 }
 
