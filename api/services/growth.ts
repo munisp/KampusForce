@@ -147,7 +147,7 @@ export async function listGrowthWorkspace(actor: SalesActor, days = 30) {
       followUpsDue: recruitments.filter((row) => row.nextFollowUpAt && row.nextFollowUpAt <= new Date() && ["invited", "accepted"].includes(row.status)).length,
     },
     windowDays: days,
-    boundary: "Ranks use verified deals, quality and completed learning. Recommendations are deterministic guidance, not guaranteed outcomes or financial entitlement.",
+    boundary: "Ranks come from verified sales, ratings and finished lessons. Suggestions aren't guarantees.",
   };
 }
 

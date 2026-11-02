@@ -739,6 +739,6 @@ export async function listPromotionWorkspace(actor: SalesActor) {
       activatedRecruits: reportRows.reduce((sum, row) => sum + row.report.recruitment.activated, 0),
       committedKobo: financialVisible ? reportRows.reduce((sum, row) => sum + (row.report.budget?.committedKobo || 0), 0) : null,
     },
-    boundary: "Vendor promotions trigger linked campus recruitment and signed first-touch acquisition. Confirmed reporting uses vendor-verified deals only. Recruitment alone earns no commission; budget caps do not reserve escrow or alter earned payouts. External delivery is consent- and suppression-checked, sandbox-simulated only unless a separately approved live provider exists.",
+    boundary: "Commission only comes from sales the vendor confirms. Inviting reps earns nothing, and a budget limit doesn't take money from the wallet.",
   };
 }

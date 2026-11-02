@@ -90,7 +90,7 @@ export async function listPipeline(actor: SalesActor) {
       won: won.length,
       conversionRate: pipeline.length ? Math.round(won.length / pipeline.length * 100) : 0,
     },
-    boundary: "CRM forecasts are planning estimates, not earned commission. Only vendor-verified activation events create financial deals.",
+    boundary: "Forecasts are estimates, not earned commission. You only earn when a vendor confirms a sale.",
   };
 }
 

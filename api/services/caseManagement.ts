@@ -132,7 +132,7 @@ export async function listCaseWorkspace(actor: SalesActor) {
       snoozed: cases.filter((row) => row.ticket.snoozedUntil && row.ticket.snoozedUntil > now).length,
       reopened: cases.reduce((sum, row) => sum + row.ticket.reopenedCount, 0),
     },
-    boundary: "Case collaboration changes support workflow only; it never changes deals, commissions, escrow or payouts.",
+    boundary: "Requests and notes don't change sales or money.",
   };
 }
 

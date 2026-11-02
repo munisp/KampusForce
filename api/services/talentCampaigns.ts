@@ -147,7 +147,7 @@ export async function listTalentWorkspace(actor: SalesActor) {
     catalog: talentCampaignCatalog,
     metrics,
     capabilities: { manage: ["vendor", "ops", "admin"].includes(actor.role), review: ["ops", "admin"].includes(actor.role), apply: actor.role !== "finance", documents: actor.role !== "finance", readOnly: actor.role === "finance" },
-    boundary: "Campus opportunity and participation outcomes are not customer activations. No application, interview, offer, attendance, award, hire or export creates a deal, attribution, ledger entry, payout or commission entitlement. ATS/HR exports are local sandbox files; no external delivery occurs.",
+    boundary: "Applications, interviews, offers and hires don't count as sales and don't earn commission. HR exports are files you download. Nothing is sent anywhere.",
   };
 }
 

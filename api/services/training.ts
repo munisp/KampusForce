@@ -117,7 +117,7 @@ export async function getTrainingWorkspace(actor: SalesActor) {
       readinessPercent: requiredCount ? Math.round(completedRequired / requiredCount * 100) : 100,
       averageBestScore: progress.length ? Math.round(progress.reduce((sum, row) => sum + row.bestScore, 0) / progress.length) : 0,
     },
-    boundary: "Completion is an internal learning record and readiness signal, not an accredited external certification or permission to perform regulated KYC.",
+    boundary: "Finishing a lesson is a record for KampusForce. It isn't a certificate, and it doesn't let you do ID checks.",
   };
 }
 

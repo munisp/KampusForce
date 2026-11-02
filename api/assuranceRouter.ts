@@ -37,8 +37,14 @@ const providerName = z.string().trim().min(2).max(80);
 
 async function withStudentProofs<T extends { attestation: { id: number } }>(rows: T[]) {
   const ids = rows.map((row) => row.attestation.id);
-  const proofs = ids.length ? await getDb().select({ id: identityDocuments.id, attestationId: identityDocuments.attestationId }).from(identityDocuments).where(and(inArray(identityDocuments.attestationId, ids), isNull(identityDocuments.purgedAt))) : [];
-  return rows.map((row) => ({ ...row, proofDocumentId: proofs.find((proof) => proof.attestationId === row.attestation.id)?.id || null }));
+  const proofs = ids.length ? await getDb().select({ id: identityDocuments.id, attestationId: identityDocuments.attestationId, sha256: identityDocuments.sha256, ownerUserId: identityDocuments.ownerUserId }).from(identityDocuments).where(and(inArray(identityDocuments.attestationId, ids), isNull(identityDocuments.purgedAt))) : [];
+  // The same file on another account is worth a second look, so the reviewer is told.
+  const hashes = [...new Set(proofs.map((proof) => proof.sha256))];
+  const sameFile = hashes.length ? await getDb().select({ sha256: identityDocuments.sha256, ownerUserId: identityDocuments.ownerUserId }).from(identityDocuments).where(inArray(identityDocuments.sha256, hashes)) : [];
+  return rows.map((row) => {
+    const proof = proofs.find((item) => item.attestationId === row.attestation.id);
+    return { ...row, proofDocumentId: proof?.id || null, proofUsedByAnotherAccount: !!proof && sameFile.some((item) => item.sha256 === proof.sha256 && item.ownerUserId !== proof.ownerUserId) };
+  });
 }
 
 export const assuranceRouter = createRouter({
@@ -94,10 +100,9 @@ export const assuranceRouter = createRouter({
       if (!attestationReference) throw new TRPCError({ code: "BAD_REQUEST", message: "Please upload proof that you're a student." });
       return submitEnrollmentAttestation({ ...rest, attestationReference, userId: ctx.user.id });
     }
-    // The file's own hash is the reference, so the same proof on two accounts opens a duplicate review.
     const [document] = await getDb().select().from(identityDocuments).where(and(eq(identityDocuments.id, documentId), eq(identityDocuments.ownerUserId, ctx.user.id), eq(identityDocuments.kind, "student_proof"), isNull(identityDocuments.attestationId), isNull(identityDocuments.purgedAt))).limit(1);
     if (!document) throw new TRPCError({ code: "NOT_FOUND", message: "Please upload your proof again." });
-    const submitted = await submitEnrollmentAttestation({ ...rest, attestationReference: `document:${document.sha256}`, userId: ctx.user.id });
+    const submitted = await submitEnrollmentAttestation({ ...rest, attestationReference: `document:${document.id}:${document.sha256}`, userId: ctx.user.id });
     await getDb().update(identityDocuments).set({ attestationId: submitted.id }).where(eq(identityDocuments.id, document.id));
     return submitted;
   }),

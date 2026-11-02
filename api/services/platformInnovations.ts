@@ -462,6 +462,6 @@ export async function listPlatformInnovationWorkspace(actor: SalesActor) {
       "Activation Evidence Graph", "Promotion Digital Twin", "Versioned Metrics", "Universal Consent", "Composable Controls",
       "Independent Outcomes", "Capability Coaching", "Private Benchmarks", "Risk-Adaptive Timing", "Resilience & Portability",
     ],
-    boundary: "Evidence, simulations and recommendations are reproducible decision support. They never create verified activations, change first-touch attribution, move escrow or post commission entries. External-provider behavior remains sandbox/simulation only.",
+    boundary: "These are suggestions and practice runs. They don't create sales, change who gets credit, or move any money.",
   };
 }

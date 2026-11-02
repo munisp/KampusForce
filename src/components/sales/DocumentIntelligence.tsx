@@ -34,7 +34,7 @@ export function DocumentIntelligence({ applicationId, documents, analyses, appli
   const defaultRetention = localDateInput(new Date(Math.min(applicantRetention.getTime(), initialNow.getTime() + 30 * 86_400_000)));
   const errors = [analyze.error, review.error, withdraw.error].filter(Boolean);
   return <div className="document-intelligence">
-    <div className="sandbox-banner"><BrainCircuit size={18} /><p><strong>Document reading helps a person review. It never picks anyone automatically.</strong> External mode uses PaddleOCR, Docling and a bounded VLM. Source text is transient; only limited educational evidence is retained for independent human review. Fixture mode is metadata-only and never claims OCR.</p></div>
+    <div className="sandbox-banner"><BrainCircuit size={18} /><p><strong>Document reading helps a person review. It never picks anyone automatically.</strong> The original text isn't kept, only a short summary for a person to review.</p></div>
     {canEdit && activeDocuments.map((document) => {
       const existing = own.find((analysis) => analysis.documentId === document.id && !["failed", "withdrawn", "purged"].includes(analysis.state));
       return <form key={`${document.id}-${existing?.id || "new"}`} className="innovation-form compact" onSubmit={(event) => { event.preventDefault(); analyze.mutate({ token, documentId: document.id, consentVersion: formValue(event, "consentVersion"), consentedAt: formDate(event, "consentedAt"), retentionUntil: formDate(event, "retentionUntil") }); }}>

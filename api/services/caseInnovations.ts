@@ -422,6 +422,6 @@ export async function listCaseInnovationWorkspace(actor: SalesActor) {
       majorIncidents: incidents.filter((row) => row.state !== "resolved").length,
     },
     features: ["Sandbox Omnichannel Intake", "Skill & Capacity Routing", "Business-Hours SLA", "Reviewed Attachments", "Knowledge Center", "Problem Management", "Major Incident Command", "Quality Coaching", "CSAT & Effort Analytics", "Redacting Case Copilot"],
-    boundary: "Case automation normalizes sandbox intake, proposes routing and summarizes redacted evidence. Humans approve replies and external communications. Cases, attachments, copilots and support analytics never alter deals, escrow, attribution, commissions or payouts.",
+    boundary: "These tools suggest what to do, and a person approves every reply. They don't change sales or money.",
   };
 }

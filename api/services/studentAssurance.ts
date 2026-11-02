@@ -59,8 +59,8 @@ export async function submitEnrollmentAttestation(input: {
     if (!user || user.role !== "rep" || !rep?.campusId) throw new Error("A representative campus profile is required");
     const [pending] = await tx.select({ id: enrollmentAttestations.id }).from(enrollmentAttestations)
       .where(and(eq(enrollmentAttestations.userId, input.userId), eq(enrollmentAttestations.state, "submitted"))).limit(1);
-    if (pending) throw new Error("An enrollment attestation is already awaiting independent review");
-    if (!enrollmentValidityWindowValid(new Date(), input.requestedValidUntil)) throw new Error("Enrollment validity must be future-dated and no more than 240 days");
+    if (pending) throw new Error("Your proof is already waiting for review.");
+    if (!enrollmentValidityWindowValid(new Date(), input.requestedValidUntil)) throw new Error("Please choose a date within the next 240 days.");
     const attestationHash = assuranceReferenceHash("enrollment", input.providerName, input.attestationReference);
     const [attestation] = await tx.insert(enrollmentAttestations).values({
       caseRef: randomReference("enr"),

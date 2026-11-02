@@ -124,6 +124,6 @@ export async function listRecurrenceWorkspace(actor: SalesActor) {
       cyclesVerified: receipts.filter((row) => row.receipt.receiptType === "verified_renewal").length,
     },
     controls: { maximumCyclesAdjustable: true, intervalMonthsAdjustable: true, vendorEvidenceRequired: true, standardRepShareBps: 8000, platformShareBps: 2000, campusLeadOverrideBps: 500, historicalRulesPreserved: true },
-    boundary: "A due date only moves a schedule to awaiting evidence. A qualifying signed renewal event must still pass attribution, product, capacity, velocity and ledger controls before a new deal exists.",
+    boundary: "A due date doesn't earn anything. The vendor still has to confirm the renewal.",
   };
 }
