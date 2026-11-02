@@ -6,7 +6,7 @@ import { dataPlatformRuns, financialPostingOutbox, ledgerEntries } from "@db/sch
 import { getDb } from "../queries/connection";
 
 export const TIGERBEETLE_LEDGER = 1;
-export const TRANSFER_CODES = { activation_confirmation: 101, activation_reversal: 102, payout_settlement: 201, payout_reservation: 202 } as const;
+export const TRANSFER_CODES = { activation_confirmation: 101, activation_reversal: 102, payout_settlement: 201, payout_reservation: 202, commission_correction: 103 } as const;
 const UINT128_MAX = (1n << 128n) - 1n;
 const UINT64_MAX = (1n << 64n) - 1n;
 const CREATE_ACCOUNT_EXISTS = 21;

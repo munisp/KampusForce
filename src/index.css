@@ -1249,3 +1249,17 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
   .connector-funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .connector-funnel strong { font-size: 16px; }
 }
+
+.identity-uploads { display: grid; gap: 10px; }
+.identity-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border: 1px solid var(--line); padding: 12px; }
+.identity-upload p { flex: 1 1 220px; margin: 0; display: grid; gap: 3px; }
+.identity-upload small, .identity-upload-note { color: var(--muted, #5f6b76); font-size: 12px; }
+.identity-upload-state { display: inline-flex; align-items: center; gap: 4px; color: var(--teal, #0f766e); font-size: 12px; font-weight: 700; }
+.identity-upload label.disabled { opacity: .55; pointer-events: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.identity-document-preview { display: grid; gap: 8px; justify-items: start; }
+.identity-document-preview img { max-width: 100%; max-height: 420px; border: 1px solid var(--line); }
+.identity-checklist { display: grid; gap: 8px; }
+.identity-checklist label { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+.identity-steps { display: grid; gap: 14px; }
+.identity-steps h3 { margin: 0 0 6px; font-size: 13px; }

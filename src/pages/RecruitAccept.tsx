@@ -29,7 +29,7 @@ export default function RecruitAccept() {
   return <div className="recruit-page">
     <header className="entry-nav"><Brand /><Link to="/">KampusForce home <ArrowRight size={16} /></Link></header>
     <main className="recruit-main">
-      <section className="recruit-intro"><p className="eyebrow">Campus Lead invitation</p><h1>Join the team.<br /><em>Keep the terms clear.</em></h1><p>Sign in, accept the terms, and Operations will activate your account.</p><div className="recruit-boundary"><ShieldCheck size={21} /><span><strong>This isn't a job.</strong> There's no joining fee, and KampusForce won't keep your NIN or BVN.</span></div></section>
+      <section className="recruit-intro"><p className="eyebrow">Campus Lead invitation</p><h1>Join the team.<br /><em>Keep the terms clear.</em></h1><p>Sign in, accept the terms, and Operations will activate your account.</p><div className="recruit-boundary"><ShieldCheck size={21} /><span><strong>This isn't a job.</strong> There's no joining fee.</span></div></section>
       <section className="recruit-card">
         {!invitationToken ? <ErrorState message="The invitation link is missing its token." /> : invitation.isLoading ? <Loading /> : invitation.error ? <ErrorState message={invitation.error.message} retry={invitation.refetch} /> : invitation.data && <>
           <div className="recruit-card-head"><span className="role-icon"><UserPlus size={22} /></span><div><p className="eyebrow">Invitation for {invitation.data.recruitName}</p><h2>{invitation.data.campus.name}</h2><p>{invitation.data.campus.state} · invited by {invitation.data.leadName}</p></div><StateBadge state={accepted ? "accepted" : invitation.data.status} /></div>

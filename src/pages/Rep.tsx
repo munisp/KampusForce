@@ -159,6 +159,7 @@ export function RepEarnings() {
   const destination = trpc.rep.configurePayoutDestination.useMutation({ onSuccess: () => { setDestinationAccount(""); utils.rep.earnings.invalidate(); } });
   const deals = data?.deals || [];
   const totals = deals.reduce((acc, { deal }) => { acc[deal.state] = (acc[deal.state] || 0) + deal.repCommissionKobo; return acc; }, {} as Record<string, number>);
+  for (const correction of query.data?.corrections || []) if (correction.state !== "reversed") totals[correction.state === "paid" ? "paid" : "payable"] = (totals[correction.state === "paid" ? "paid" : "payable"] || 0) + correction.amountKobo;
   return <RepFrame title="Your earnings" subtitle="Every sale, payment and refund, with its status.">
     {offline && cached && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You're offline, so this may be out of date.</strong> Read-only records saved {new Date(cached.savedAt).toLocaleString()} on this device. Disputes and all financial actions require a connection.</p></div>}
     <div className="metrics-grid three"><Metric label="Ready to pay" value={money(totals.payable || 0)} note="Goes out in the next payout" tone="teal" /><Metric label="Paid" value={money(totals.paid || 0)} note="Before tax" /><Metric label="Disputed" value={money(totals.disputed || 0)} note="On hold while Operations looks into it" tone="mustard" /></div>

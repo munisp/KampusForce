@@ -792,6 +792,21 @@ export const disputes = pgTable("disputes", {
   decidedAt: timestamp("decided_at", { withTimezone: true }),
 }, (t) => [index("disputes_deal_state_idx").on(t.dealId, t.state)]);
 
+export const commissionCorrections = pgTable("commission_corrections", {
+  id: serial("id").primaryKey(),
+  disputeId: integer("dispute_id").notNull().unique().references(() => disputes.id),
+  dealId: integer("deal_id").notNull().references(() => deals.id),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  amountKobo: bigint("amount_kobo", { mode: "number" }).notNull(),
+  state: varchar("state", { length: 20 }).notNull().default("accrued"),
+  payoutId: integer("payout_id"),
+  entryGroup: varchar("entry_group", { length: 64 }).notNull(),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  reversedAt: timestamp("reversed_at", { withTimezone: true }),
+}, (t) => [index("commission_correction_rep_idx").on(t.repId, t.state), index("commission_correction_deal_idx").on(t.dealId), index("commission_correction_payout_idx").on(t.payoutId)]);
+
 export const supportTickets = pgTable(
   "support_tickets",
   {
@@ -1329,7 +1344,7 @@ export const mojaloopRailIntents = pgTable("mojaloop_rail_intents", {
 export const identityCaseTypeEnum = pgEnum("identity_case_type", ["representative_kyc", "campus_lead_kyc", "vendor_kyb", "operations_kyc", "customer_handoff"]);
 export const identityCaseStateEnum = pgEnum("identity_case_state", ["draft", "submitted", "processing", "needs_more_info", "manual_review", "approved", "rejected", "expired", "revoked"]);
 export const identitySubjectTypeEnum = pgEnum("identity_subject_type", ["user", "vendor", "customer_handoff"]);
-export const identityEvidenceKindEnum = pgEnum("identity_evidence_kind", ["document_ocr", "document_structure", "vlm_extraction", "registry_kyb", "bank_name_match", "liveness", "deepfake", "face_match", "capture_integrity", "reviewer_attestation"]);
+export const identityEvidenceKindEnum = pgEnum("identity_evidence_kind", ["document_ocr", "document_structure", "vlm_extraction", "registry_kyb", "bank_name_match", "liveness", "deepfake", "face_match", "capture_integrity", "reviewer_attestation", "manual_document_check", "manual_face_check", "manual_business_check"]);
 export const identityEvidenceStateEnum = pgEnum("identity_evidence_state", ["recorded", "passed", "failed", "review_required", "invalidated"]);
 export const identityReviewDecisionEnum = pgEnum("identity_review_decision", ["approve", "request_info", "reject", "revoke"]);
 export const identityEventExportStateEnum = pgEnum("identity_event_export_state", ["pending", "exported", "quarantined"]);
@@ -1345,6 +1360,7 @@ export const identityCases = pgTable("identity_cases", {
   campusId: integer("campus_id").references(() => campuses.id),
   state: identityCaseStateEnum("state").notNull().default("draft"),
   providerMode: integrationModeEnum("provider_mode").notNull().default("sandbox"),
+  reviewMethod: varchar("review_method", { length: 20 }).notNull().default("manual"),
   policyVersion: varchar("policy_version", { length: 40 }).notNull().default("identity-v1"),
   riskLevel: varchar("risk_level", { length: 20 }).notNull().default("standard"),
   triggerEvent: varchar("trigger_event", { length: 100 }).notNull(),
@@ -1378,6 +1394,20 @@ export const identityEvidenceMetadata = pgTable("identity_evidence_metadata", {
   capturedAt: timestamp("captured_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("identity_evidence_case_idx").on(t.caseId, t.kind, t.createdAt), index("identity_evidence_provider_idx").on(t.provider, t.state)]);
+
+export const identityDocuments = pgTable("identity_documents", {
+  id: serial("id").primaryKey(),
+  ownerUserId: integer("owner_user_id").notNull().references(() => users.id),
+  caseId: integer("case_id").references(() => identityCases.id),
+  attestationId: integer("attestation_id"),
+  kind: varchar("kind", { length: 40 }).notNull(),
+  contentType: varchar("content_type", { length: 60 }).notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  objectKey: varchar("object_key", { length: 200 }).notNull().unique(),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  purgedAt: timestamp("purged_at", { withTimezone: true }),
+}, (t) => [index("identity_document_case_idx").on(t.caseId, t.kind), index("identity_document_attestation_idx").on(t.attestationId), index("identity_document_purge_idx").on(t.purgedAt, t.uploadedAt)]);
 
 export const identityReviews = pgTable("identity_reviews", {
   id: serial("id").primaryKey(),

@@ -29,7 +29,7 @@ const providers = {
 export async function processSyntheticIdentityCase(caseId: number, actorUserId: number) {
   const [identityCase] = await getDb().select().from(identityCases).where(eq(identityCases.id, caseId)).limit(1);
   if (!identityCase) throw new TRPCError({ code: "NOT_FOUND", message: "Identity case not found" });
-  if (identityCase.providerMode !== "sandbox") throw new TRPCError({ code: "FORBIDDEN", message: "Synthetic evidence is prohibited for live identity cases" });
+  if (identityCase.providerMode !== "sandbox" || identityCase.reviewMethod !== "synthetic") throw new TRPCError({ code: "FORBIDDEN", message: "Test results can't be used on a real check" });
   if (!["submitted", "processing", "needs_more_info"].includes(identityCase.state)) throw new TRPCError({ code: "CONFLICT", message: "Submit the check before running test checks" });
   for (const kind of requiredEvidence(identityCase.caseType)) {
     await recordIdentityEvidence({
@@ -68,6 +68,7 @@ export async function completeSyntheticIdentityWorkflow(input: {
     campusId: input.campusId,
     vendorId: input.vendorId,
     triggerEvent: input.triggerEvent || "sandbox.identity_fixture_requested",
+    reviewMethod: "synthetic",
   });
   let identityCase = opened.identityCase;
   if (identityApprovalValid(identityCase)) {

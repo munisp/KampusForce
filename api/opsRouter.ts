@@ -435,8 +435,16 @@ export const opsRouter = createRouter({
       ? captureCampusCohortSnapshot(input.subjectId, ctx.user.id)
       : captureRolloutQuarterSnapshot(input.subjectId, ctx.user.id);
   }),
-  resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean() })).mutation(async ({ ctx, input }) => {
+  resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean(), correctionKobo: z.number().int().positive().max(100_000_000).optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
-    return resolveDealDispute({ ...input, actorUserId: ctx.user.id });
+    const result = await resolveDealDispute({ ...input, actorUserId: ctx.user.id });
+    if (result.state === "resolved" && result.correctionKobo) {
+      const amount = `₦${(result.correctionKobo / 100).toLocaleString("en-NG")}`;
+      const [rep] = await getDb().select({ userId: reps.userId }).from(reps).where(eq(reps.id, result.dealRepId)).limit(1);
+      const [vendor] = await getDb().select({ userId: vendors.userId }).from(vendors).where(eq(vendors.id, result.dealVendorId)).limit(1);
+      if (rep) await notifyUser({ userId: rep.userId, type: "commission_corrected", title: "Your commission was corrected", body: `${amount} extra goes out with your next payout.`, href: "/rep/earnings", entityType: "deal", entityId: result.disputeId });
+      if (vendor?.userId) await notifyUser({ userId: vendor.userId, type: "commission_corrected", title: "A commission was corrected", body: `Operations took ${amount} from your wallet to correct a rep's commission.`, href: "/vendor", entityType: "deal", entityId: result.disputeId });
+    }
+    return result;
   }),
 });

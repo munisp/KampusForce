@@ -6,6 +6,7 @@ import {
   assistedSessions,
   campusLeadAssignments,
   campusLeadOverrides,
+  commissionCorrections,
   campusRecruitments,
   campuses,
   commissionRules,
@@ -67,11 +68,12 @@ export const repRouter = createRouter({
     const rows = await repDeals(rep.id);
     const paid = await getDb().select().from(payouts).where(eq(payouts.repId, rep.id)).orderBy(desc(payouts.createdAt));
     const overrides = rep.tier === "campus_lead" ? await getDb().select().from(campusLeadOverrides).where(eq(campusLeadOverrides.leadRepId, rep.id)) : [];
+    const corrections = await getDb().select().from(commissionCorrections).where(and(eq(commissionCorrections.repId, rep.id), eq(commissionCorrections.state, "accrued")));
     return {
       metrics: {
         activations: rows.length,
         pendingKobo: rows.filter((r) => ["pending", "confirmed"].includes(r.deal.state)).reduce((s, r) => s + r.deal.repCommissionKobo, 0),
-        payableKobo: rows.filter((r) => r.deal.state === "payable").reduce((s, r) => s + r.deal.repCommissionKobo, 0),
+        payableKobo: rows.filter((r) => r.deal.state === "payable").reduce((s, r) => s + r.deal.repCommissionKobo, 0) + corrections.reduce((s, c) => s + c.amountKobo, 0),
         paidKobo: paid.filter((payout) => payout.state === "paid").reduce((s, p) => s + p.amountNetKobo, 0),
         overridePayableKobo: overrides.filter((override) => override.state === "accrued").reduce((sum, override) => sum + override.overrideKobo, 0),
         overridePaidKobo: overrides.filter((override) => override.state === "paid").reduce((sum, override) => sum + override.overrideKobo, 0),
@@ -186,7 +188,8 @@ export const repRouter = createRouter({
     const repPayouts = await getDb().select().from(payouts).where(eq(payouts.repId, rep.id)).orderBy(desc(payouts.createdAt));
     const overrides = rep.tier === "campus_lead" ? await getDb().select({ override: campusLeadOverrides, sourceRepCode: reps.code }).from(campusLeadOverrides).innerJoin(reps, eq(campusLeadOverrides.sourceRepId, reps.id)).where(eq(campusLeadOverrides.leadRepId, rep.id)).orderBy(desc(campusLeadOverrides.createdAt)) : [];
     const destination = await payoutDestinationStatus(ctx.user.id);
-    return { deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides, destination };
+    const corrections = await getDb().select().from(commissionCorrections).where(eq(commissionCorrections.repId, rep.id)).orderBy(desc(commissionCorrections.createdAt));
+    return { deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides, corrections, destination };
   }),
   configurePayoutDestination: authedQuery.input(z.object({
     accountNumber: z.string().trim().regex(/^\d{10}$/),
