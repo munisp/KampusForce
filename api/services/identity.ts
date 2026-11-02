@@ -459,7 +459,8 @@ export async function withdrawIdentityConsent(caseId: number, actorUserId: numbe
     const withdrawn = await tx.update(identityConsents).set({ withdrawnAt: now }).where(and(eq(identityConsents.caseId, caseId), isNull(identityConsents.withdrawnAt))).returning({ id: identityConsents.id });
     if (!withdrawn.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No active consent is recorded for this case" });
     const [updated] = await tx.update(identityCases).set({ state: "revoked", decidedAt: now, decidedByUserId: null, decisionReason: "Consent withdrawn; consent-dependent processing and eligibility stopped", validUntil: null, updatedAt: now }).where(eq(identityCases.id, caseId)).returning();
-    if (identityCase.subjectType === "user") await tx.update(users).set({ kycState: "unverified", bankNameMatch: false }).where(eq(users.id, identityCase.subjectId));
+    // Recomputed, so withdrawing from one check leaves another approved check standing.
+    if (identityCase.subjectType === "user") await syncUserIdentityEligibility(tx, identityCase.subjectId);
     if (identityCase.subjectType === "vendor") await tx.update(vendors).set({ status: "paused" }).where(eq(vendors.id, identityCase.subjectId));
     await appendIdentityEvent(tx, updated, "consent.withdrawn", { provider_outcome: "processing_stopped", review_code: "consent_withdrawn" });
     await tx.insert(auditLogs).values({ actorUserId, action: "identity.consent_withdrawn", entityType: "identity_case", entityId: String(caseId), metadataJson: { previousState: identityCase.state, withdrawnConsents: withdrawn.length, lakehouseTombstoneRequired: true } });

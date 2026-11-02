@@ -11,7 +11,7 @@ export function DocumentPreview({ documentId, label }: { documentId: number; lab
   const [preview, setPreview] = useState<{ url: string; contentType: string } | null>(null);
   const view = trpc.identity.viewDocument.useMutation({ onSuccess: (file) => setPreview({ url: base64ToObjectUrl(file.contentBase64, file.contentType), contentType: file.contentType }) });
   return <div className="identity-document-preview">
-    <button type="button" className="button secondary small" disabled={view.isPending} onClick={() => view.mutate({ token, documentId })}><Eye size={14} />{view.isPending ? "Opening…" : `View ${label}`}</button>
+    <button type="button" aria-label={`View ${label}`} className="button secondary small" disabled={view.isPending} onClick={() => view.mutate({ token, documentId })}><Eye size={14} />{view.isPending ? "Opening…" : "View"}</button>
     {view.error && <p className="form-error" role="alert">{view.error.message}</p>}
     {preview && (preview.contentType === "application/pdf"
       ? <a className="text-link" href={preview.url} target="_blank" rel="noreferrer">Open the PDF</a>
