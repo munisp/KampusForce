@@ -4,6 +4,7 @@ import { useWorkspace } from "@/providers/workspace";
 
 const Login = lazy(() => import("@/pages/Login"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
+const Signup = lazy(() => import("@/pages/Signup"));
 const Vendor = lazy(() => import("@/pages/Vendor"));
 const Ops = lazy(() => import("@/pages/Ops"));
 const Implementation = lazy(() => import("@/pages/Implementation"));
@@ -28,6 +29,7 @@ export default function App() {
   return <Suspense fallback={<div className="route-loading" role="status">Loading workspace…</div>}><Routes>
     <Route path="/" element={<Login />} />
     <Route path="/auth/callback" element={<AuthCallback />} />
+    <Route path="/signup" element={<Signup />} />
     <Route path="/recruit/accept" element={<RecruitAccept />} />
     <Route path="/rep" element={<Protected><RepOverview /></Protected>} />
     <Route path="/rep/catalog" element={<Protected><RepCatalog /></Protected>} />

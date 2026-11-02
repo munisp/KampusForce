@@ -16,7 +16,7 @@ export async function startSignIn(config: OidcConfig, returnTo?: string) {
   const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
   sessionStorage.setItem(KEY, JSON.stringify({ verifier, state, returnTo, ...config }));
   const url = new URL(`${config.issuer}/protocol/openid-connect/auth`);
-  url.search = new URLSearchParams({ client_id: config.clientId, response_type: "code", scope: "openid profile",
+  url.search = new URLSearchParams({ client_id: config.clientId, response_type: "code", scope: "openid profile email",
     redirect_uri: redirectUri(), code_challenge: challenge, code_challenge_method: "S256", state }).toString();
   window.location.assign(url.toString());
 }

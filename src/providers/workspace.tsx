@@ -2,7 +2,8 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import { clearPrivateOfflineSnapshots } from "@/lib/offlineSnapshot";
 type SessionUser = {
   id: number;
-  phoneE164: string;
+  phoneE164: string | null;
+  email: string | null;
   name: string;
   role: "rep" | "vendor" | "ops" | "finance" | "admin";
   kycState: "unverified" | "pending" | "verified" | "rejected";

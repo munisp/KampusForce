@@ -100,7 +100,9 @@ export const campuses = pgTable("campuses", {
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  phoneE164: varchar("phone_e164", { length: 20 }).notNull().unique(),
+  phoneE164: varchar("phone_e164", { length: 20 }).unique(),
+  // The verified email from the identity provider: what a sign-in is matched on.
+  email: varchar("email", { length: 320 }).unique(),
   name: varchar("name", { length: 160 }).notNull(),
   role: userRoleEnum("role").notNull().default("rep"),
   kycState: kycStateEnum("kyc_state").notNull().default("unverified"),
@@ -136,6 +138,7 @@ export const vendors = pgTable("vendors", {
   userId: integer("user_id").references(() => users.id),
   companyName: varchar("company_name", { length: 180 }).notNull(),
   cacNumber: varchar("cac_number", { length: 40 }),
+  contactEmail: varchar("contact_email", { length: 320 }),
   webhookKey: varchar("webhook_key", { length: 80 }).notNull().unique(),
   webhookSecret: varchar("webhook_secret", { length: 128 }).notNull(),
   status: vendorStatusEnum("status").notNull().default("pending"),
@@ -391,7 +394,8 @@ export const campusRecruitments = pgTable("campus_recruitments", {
   leadRepId: integer("lead_rep_id").notNull().references(() => reps.id),
   campusId: integer("campus_id").notNull().references(() => campuses.id),
   name: varchar("name", { length: 160 }).notNull(),
-  phoneE164: varchar("phone_e164", { length: 20 }).notNull(),
+  phoneE164: varchar("phone_e164", { length: 20 }),
+  email: varchar("email", { length: 320 }),
   note: varchar("note", { length: 300 }),
   status: recruitmentStatusEnum("status").notNull().default("invited"),
   tokenHash: varchar("token_hash", { length: 64 }).notNull(),
@@ -864,6 +868,26 @@ export const auditLogs = pgTable("audit_logs", {
   metadataJson: json("metadata_json"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// A student whose university isn't open yet. Tells Operations where to launch next.
+export const campusInterest = pgTable("campus_interest", {
+  id: serial("id").primaryKey(),
+  university: varchar("university", { length: 160 }).notNull(),
+  state: varchar("state", { length: 80 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("campus_interest_email_university_unique").on(t.email, t.university)]);
+
+export const escrowTopups = pgTable("escrow_topups", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  reference: varchar("reference", { length: 64 }).notNull().unique(),
+  amountKobo: bigint("amount_kobo", { mode: "number" }).notNull(),
+  state: varchar("state", { length: 16 }).notNull().default("pending"),
+  failureReason: varchar("failure_reason", { length: 200 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+}, (t) => [index("escrow_topups_state_idx").on(t.state, t.createdAt)]);
 
 export const otpChallenges = pgTable("otp_challenges", {
   id: serial("id").primaryKey(),

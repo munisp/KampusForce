@@ -30,7 +30,7 @@ import {
 import { getDb } from "../queries/connection";
 import { assertSalesRole, type SalesActor } from "./salesAccess";
 import { validateCampaignWindow } from "./salesPolicy";
-import { hashCustomerRef, normalizePhone, randomReference, signedToken } from "./security";
+import { hashCustomerRef, randomReference, signedToken } from "./security";
 import { createInvitationToken, hashInvitationToken } from "./recruiting";
 import { notifyOperations, notifyUser } from "./notifications";
 import { assertCurrentIdentityApproval } from "./identity";
@@ -528,7 +528,7 @@ export async function createPromotionLink(input: { actor: SalesActor; promotionI
   return result;
 }
 
-export async function createPromotionRecruitmentInvite(input: { actor: SalesActor; promotionId: number; name: string; phone: string; note?: string; consentConfirmed: boolean }) {
+export async function createPromotionRecruitmentInvite(input: { actor: SalesActor; promotionId: number; name: string; email: string; note?: string; consentConfirmed: boolean }) {
   assertSalesRole(input.actor, ["rep"]);
   if (input.actor.tier !== "campus_lead" || !input.actor.repId) throw new TRPCError({ code: "FORBIDDEN", message: "Only an accountable Campus Lead can recruit for this promotion" });
   if (!input.consentConfirmed) throw new TRPCError({ code: "BAD_REQUEST", message: "Confirm the candidate consented to this invitation" });
@@ -539,7 +539,7 @@ export async function createPromotionRecruitmentInvite(input: { actor: SalesActo
   if (!campaign || campaign.state !== "active" || campaign.startsAt > now || campaign.endsAt <= now) throw new TRPCError({ code: "CONFLICT", message: "The linked recruitment campaign is paused, closed, or outside its schedule" });
   const [enrollment] = await getDb().select().from(campaignEnrollments).where(and(eq(campaignEnrollments.campaignId, campaign.id), eq(campaignEnrollments.repId, input.actor.repId))).limit(1);
   if (!enrollment) throw new TRPCError({ code: "FORBIDDEN", message: "You are not assigned to this recruitment campaign" });
-  const phoneE164 = normalizePhone(input.phone);
+  const email = input.email.trim().toLowerCase();
   const invitationToken = createInvitationToken();
   return getDb().transaction(async (tx) => {
     const [locked] = await tx.select().from(vendorPromotions).where(eq(vendorPromotions.id, promotion.id)).limit(1).for("update");
@@ -555,14 +555,14 @@ export async function createPromotionRecruitmentInvite(input: { actor: SalesActo
     const activated = await tx.select({ id: campusRecruitments.id }).from(campusRecruitments).where(and(eq(campusRecruitments.campaignId, lockedCampaign.id), eq(campusRecruitments.status, "activated")));
     if (activated.length >= locked.recruitmentTarget) throw new TRPCError({ code: "CONFLICT", message: "Recruitment target now blocks new invitations" });
     const [existing] = await tx.select({ id: campusRecruitments.id }).from(campusRecruitments)
-      .where(and(eq(campusRecruitments.leadRepId, input.actor.repId!), eq(campusRecruitments.phoneE164, phoneE164), eq(campusRecruitments.status, "invited"))).limit(1);
+      .where(and(eq(campusRecruitments.leadRepId, input.actor.repId!), eq(campusRecruitments.email, email), eq(campusRecruitments.status, "invited"))).limit(1);
     if (existing) throw new TRPCError({ code: "CONFLICT", message: "This student already has an open invitation" });
     const now = new Date();
     const [{ id }] = await tx.insert(campusRecruitments).values({
       leadRepId: input.actor.repId!,
       campusId: lead.campusId,
       name: input.name,
-      phoneE164,
+      email,
       note: input.note || null,
       source: "vendor_promotion",
       campaignId: campaign.id,

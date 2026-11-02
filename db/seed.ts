@@ -30,11 +30,11 @@ async function main() {
   const [campus] = await db.select().from(campuses).where(eq(campuses.name, "University of Lagos")).limit(1);
   if (!campus) throw new Error("University of Lagos fixture could not be seeded");
   const userSeeds = [
-    { phoneE164: "+2348000000001", name: "Ada Okafor", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_ada", ninLast4: "0001", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0001", bankAccountName: "Ada Okafor", bankNameMatch: true },
-    { phoneE164: "+2348000000002", name: "CampusSave Partnerships", role: "vendor" as const, kycState: "verified" as const },
-    { phoneE164: "+2348000000003", name: "KampusForce Operations", role: "ops" as const, kycState: "verified" as const },
-    { phoneE164: "+2348000000004", name: "Tobi Bello", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_tobi", ninLast4: "0004", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0004", bankAccountName: "Tobi Bello", bankNameMatch: true },
-    { phoneE164: "+2348000000005", name: "KampusForce Finance", role: "finance" as const },
+    { phoneE164: "+2348000000001", email: "ada.okafor@kampusforce.test", name: "Ada Okafor", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_ada", ninLast4: "0001", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0001", bankAccountName: "Ada Okafor", bankNameMatch: true },
+    { phoneE164: "+2348000000002", email: "campussave.vendor@kampusforce.test", name: "CampusSave Partnerships", role: "vendor" as const, kycState: "verified" as const },
+    { phoneE164: "+2348000000003", email: "kf.operations@kampusforce.test", name: "KampusForce Operations", role: "ops" as const, kycState: "verified" as const },
+    { phoneE164: "+2348000000004", email: "tobi.bello@kampusforce.test", name: "Tobi Bello", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_tobi", ninLast4: "0004", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0004", bankAccountName: "Tobi Bello", bankNameMatch: true },
+    { phoneE164: "+2348000000005", email: "kf.finance@kampusforce.test", name: "KampusForce Finance", role: "finance" as const },
   ];
   const createdUsers = [];
   for (const seed of userSeeds) {

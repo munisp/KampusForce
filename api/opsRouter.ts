@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
@@ -6,6 +6,7 @@ import {
   campusLeadOverrides,
   campusRecruitments,
   campuses,
+  campusInterest,
   deals,
   disputes,
   payoutAttempts,
@@ -32,7 +33,7 @@ import {
 } from "./services/ledger";
 import { campusLeadRankings, recalculateCampusLeadEligibility } from "./services/leadEligibility";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
-import { activateRecruitment, revokeRecruitment } from "./services/recruiting";
+import { activateRecruitment, activateSelfRegisteredRep, revokeRecruitment } from "./services/recruiting";
 import { recentJobRuns, runDueJobs } from "./services/jobs";
 import { campusTelemetry } from "./services/telemetry";
 import { acknowledgeOperationalIncident, listOperationalIncidents, monitorOperationalSignals, resolveOperationalIncident } from "./services/incidents";
@@ -124,6 +125,10 @@ export const opsRouter = createRouter({
       leadRankings,
       audit,
       recruitments,
+      campusInterest: await getDb().select({ university: campusInterest.university, state: campusInterest.state, requests: sql<number>`count(*)::int` }).from(campusInterest)
+        .groupBy(campusInterest.university, campusInterest.state).orderBy(desc(sql`count(*)`)).limit(50),
+      pendingReps: await getDb().select({ repId: reps.id, code: reps.code, name: users.name, email: users.email, kycState: users.kycState, bankNameMatch: users.bankNameMatch, campusName: campuses.name })
+        .from(reps).innerJoin(users, eq(users.id, reps.userId)).innerJoin(campuses, eq(campuses.id, reps.campusId)).where(eq(reps.status, "pending")).orderBy(desc(reps.createdAt)).limit(50),
       jobs,
       telemetry,
       payouts: payoutRows.slice(0, 50),
@@ -277,6 +282,32 @@ export const opsRouter = createRouter({
   runJobs: authedQuery.mutation(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return runDueJobs("manual");
+  }),
+  createCampus: authedQuery.input(z.object({ name: z.string().trim().min(3).max(160), state: z.string().trim().min(2).max(80), status: z.enum(["planned", "launching", "live", "paused"]) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    const [campus] = await getDb().insert(campuses).values({ ...input, launchDate: input.status === "live" ? new Date() : null }).onConflictDoNothing({ target: campuses.name }).returning();
+    if (!campus) throw new TRPCError({ code: "CONFLICT", message: "A campus with this name already exists" });
+    await getDb().insert(auditLogs).values({ actorUserId: ctx.user.id, action: "campus.created", entityType: "campus", entityId: String(campus.id), metadataJson: { name: campus.name, status: campus.status } });
+    return campus;
+  }),
+  setCampusStatus: authedQuery.input(z.object({ campusId: z.number().int().positive(), status: z.enum(["planned", "launching", "live", "paused"]) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return getDb().transaction(async (tx) => {
+      const [current] = await tx.select().from(campuses).where(eq(campuses.id, input.campusId)).limit(1).for("update");
+      if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Campus not found" });
+      const [campus] = await tx.update(campuses).set({ status: input.status, launchDate: input.status === "live" ? current.launchDate ?? new Date() : current.launchDate }).where(eq(campuses.id, current.id)).returning();
+      await tx.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "campus.status_changed", entityType: "campus", entityId: String(current.id), metadataJson: { from: current.status, to: input.status } });
+      return campus;
+    });
+  }),
+  activateRep: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    try {
+      return await activateSelfRegisteredRep(input.repId, ctx.user.id);
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "This rep can't be activated yet" });
+    }
   }),
   activateRecruitment: authedQuery.input(z.object({ recruitmentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
