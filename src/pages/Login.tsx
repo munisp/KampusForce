@@ -94,6 +94,6 @@ export default function Login() {
         </>}
       </section>
     </main>
-    <footer className="entry-footer"><span>Phase 19 institutional & connector controls · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
+    <footer className="entry-footer"><span>Nigeria</span><span>Vendors, student reps and customers</span></footer>
   </div>;
 }

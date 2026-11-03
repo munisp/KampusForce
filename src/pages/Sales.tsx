@@ -67,6 +67,6 @@ export default function Sales() {
     {active === "recurrence" && <RecurrenceWorkspace />}
     {active === "growth" && <GrowthWorkspace />}
     {active === "integrations" && <IntegrationWorkspace />}
-    <footer className="sales-footer"><BarChart3 size={15} /><span>Phase 19 institutional programmes · 17 campaign journeys · verified outcomes never create commission</span></footer>
+    <footer className="sales-footer"><BarChart3 size={15} /><span>Sales tools help you plan and follow up. You only earn when a vendor confirms a sale.</span></footer>
   </WorkspaceLayout>;
 }
