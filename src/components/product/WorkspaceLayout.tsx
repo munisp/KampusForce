@@ -63,7 +63,7 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
   const staff = ["ops", "finance", "admin"].includes(user.role);
   const system = useSystemStatus();
   const modeLabel = system.live ? "Live" : system.testMode ? "Test mode" : "";
-  const roleLabel = ({ rep: "Student rep", vendor: "Vendor", ops: "Operations", finance: "Finance", admin: "Admin" } as Record<string, string>)[user.role] || user.role;
+  const roleLabel = ({ rep: "Campus rep", vendor: "Vendor", ops: "Operations", finance: "Finance", admin: "Admin" } as Record<string, string>)[user.role] || user.role;
   return <div className="workspace-shell">
     <aside className="sidebar">
       <Brand inverse />

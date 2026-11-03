@@ -40,7 +40,7 @@ export async function studentAssurancePreflight(userId: number, executor: Assura
 
 export async function assertCurrentStudentAssurance(userId: number, executor: AssuranceExecutor = db()) {
   const result = await studentAssurancePreflight(userId, executor);
-  if (!result.eligible) throw new Error(result.reason || "Student assurance preflight failed");
+  if (!result.eligible) throw new Error(result.reason || "Enrolment check failed");
   return result.enrollment!;
 }
 

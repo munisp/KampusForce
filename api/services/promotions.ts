@@ -339,7 +339,7 @@ async function processOnePromotionEvent(eventId: number) {
         productId: promotion.productId,
         campusId: promotion.campusId,
         audienceRules: { campusLeadsOnly: true, includeCampusLeads: true },
-        messageDraft: `Recruit and onboard suitable student representatives for the independently approved vendor promotion ${promotion.promotionKey}. Recruitment alone earns no commission; only vendor-verified activations follow the published commercial terms.`,
+        messageDraft: `Recruit and onboard suitable campus representatives for the independently approved vendor promotion ${promotion.promotionKey}. Recruitment alone earns no commission; only vendor-verified activations follow the published commercial terms.`,
         createdByUserId: promotion.createdByUserId,
         reviewedByUserId: promotion.reviewedByUserId,
         reviewedAt: promotion.reviewedAt,
@@ -556,7 +556,7 @@ export async function createPromotionRecruitmentInvite(input: { actor: SalesActo
     if (activated.length >= locked.recruitmentTarget) throw new TRPCError({ code: "CONFLICT", message: "Recruitment target now blocks new invitations" });
     const [existing] = await tx.select({ id: campusRecruitments.id }).from(campusRecruitments)
       .where(and(eq(campusRecruitments.leadRepId, input.actor.repId!), eq(campusRecruitments.email, email), eq(campusRecruitments.status, "invited"))).limit(1);
-    if (existing) throw new TRPCError({ code: "CONFLICT", message: "This student already has an open invitation" });
+    if (existing) throw new TRPCError({ code: "CONFLICT", message: "This recruit already has an open invitation" });
     const now = new Date();
     const [{ id }] = await tx.insert(campusRecruitments).values({
       leadRepId: input.actor.repId!,

@@ -41,7 +41,7 @@ const copy: Record<ViewKey, { title: string; subtitle: string }> = {
   opportunities: { title: "Opportunities", subtitle: "Campus jobs, grants and programmes, from application to result." },
   connectors: { title: "Customer sign-up links", subtitle: "Send customers to a vendor\'s sign-up, and follow their progress." },
   recurrence: { title: "Renewals", subtitle: "Commission on a renewal is paid only once the vendor confirms it." },
-  growth: { title: "Growth", subtitle: "Leaderboards, product targets and inviting students to join." },
+  growth: { title: "Growth", subtitle: "Leaderboards, product targets and inviting new reps to join." },
   integrations: { title: "Connected services", subtitle: "Set up and test the services linked to your business." },
 };
 

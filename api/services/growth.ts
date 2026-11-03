@@ -170,7 +170,7 @@ export async function setRecommendationState(input: { actor: SalesActor; recomme
 
 export async function suggestStudent(input: { actor: SalesActor; candidateName: string; strengths: string; note?: string; consentConfirmed: boolean }) {
   assertSalesRole(input.actor, ["rep"]);
-  if (input.actor.tier !== "campus_lead" || !input.actor.repId || !input.actor.campusId) throw new TRPCError({ code: "FORBIDDEN", message: "Only a Campus Lead can recommend a student recruit" });
+  if (input.actor.tier !== "campus_lead" || !input.actor.repId || !input.actor.campusId) throw new TRPCError({ code: "FORBIDDEN", message: "Only a Campus Lead can recommend a recruit" });
   if (!input.consentConfirmed) throw new TRPCError({ code: "BAD_REQUEST", message: "Confirm the candidate consented to this recruiting recommendation" });
   const [{ id }] = await getDb().insert(studentReferrals).values({
     leadRepId: input.actor.repId,
@@ -187,17 +187,17 @@ export async function suggestStudent(input: { actor: SalesActor; candidateName: 
 
 export async function inviteSuggestedStudent(input: { actor: SalesActor; referralId: number; email: string }) {
   assertSalesRole(input.actor, ["rep"]);
-  if (input.actor.tier !== "campus_lead" || !input.actor.repId) throw new TRPCError({ code: "FORBIDDEN", message: "Only a Campus Lead can invite a recommended student" });
+  if (input.actor.tier !== "campus_lead" || !input.actor.repId) throw new TRPCError({ code: "FORBIDDEN", message: "Only a Campus Lead can invite a recommended recruit" });
   const db = getDb();
   const email = input.email.trim().toLowerCase();
   const invitationToken = createInvitationToken();
   return db.transaction(async (tx) => {
     const [referral] = await tx.select().from(studentReferrals).where(eq(studentReferrals.id, input.referralId)).limit(1).for("update");
-    if (!referral || referral.leadRepId !== input.actor.repId) throw new TRPCError({ code: "NOT_FOUND", message: "Student recommendation not found" });
+    if (!referral || referral.leadRepId !== input.actor.repId) throw new TRPCError({ code: "NOT_FOUND", message: "Recommendation not found" });
     if (!referral.consentConfirmed || referral.state !== "suggested") throw new TRPCError({ code: "CONFLICT", message: "A consent-confirmed, uninvited recommendation is required" });
     const [existing] = await tx.select({ id: campusRecruitments.id }).from(campusRecruitments)
       .where(and(eq(campusRecruitments.leadRepId, input.actor.repId!), eq(campusRecruitments.email, email), eq(campusRecruitments.status, "invited"))).limit(1);
-    if (existing) throw new TRPCError({ code: "CONFLICT", message: "This student already has an open invitation" });
+    if (existing) throw new TRPCError({ code: "CONFLICT", message: "This recruit already has an open invitation" });
     const now = new Date();
     const [{ id: recruitmentId }] = await tx.insert(campusRecruitments).values({
       leadRepId: referral.leadRepId,

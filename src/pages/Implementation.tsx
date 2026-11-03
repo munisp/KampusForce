@@ -31,7 +31,7 @@ export default function Implementation() {
     <main>
       <section className="score-hero"><div><p className="eyebrow">Phase 19 · post-audit implementation record</p><h1>Implementation,<br /><em>without the fog.</em></h1><p>This register describes executable workflows and their boundaries. It does not convert sandbox adapters, synthetic attestations or local acceptance into production evidence.</p></div><div className="overall-score"><span>PRODUCTION READINESS</span><strong>False</strong><p>External evidence gates remain open</p></div></section>
       <section className="thesis-grid">
-        <article><Target size={23} /><p className="eyebrow">THE GOAL</p><h2>Make campus distribution accountable.</h2><p>Become the vendor-neutral attribution, commission, escrow and settlement layer between vendors, NIN-verified student reps and customers.</p></article>
+        <article><Target size={23} /><p className="eyebrow">THE GOAL</p><h2>Make campus distribution accountable.</h2><p>Become the vendor-neutral attribution, commission, escrow and settlement layer between vendors, NIN-verified campus reps and customers.</p></article>
         <article><UsersRound size={23} /><p className="eyebrow">THE PROBLEM</p><h2>Introductions disappear before payment.</h2><p>Reps lack credible attribution and predictable earnings; vendors need a trusted campus channel; customers need assisted access without added fees.</p></article>
         <article><TrendingUp size={23} /><p className="eyebrow">THE OPPORTUNITY</p><h2>One rail across repeat verticals.</h2><p>The same verified-event infrastructure can serve fintech, data, devices, edtech and micro-insurance without inventory or customer float.</p></article>
       </section>

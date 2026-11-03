@@ -97,7 +97,7 @@ export const assuranceRouter = createRouter({
     requireRole(ctx.user, ["rep"]);
     const { documentId, attestationReference, ...rest } = input;
     if (!documentId) {
-      if (!attestationReference) throw new TRPCError({ code: "BAD_REQUEST", message: "Please upload proof that you're a student." });
+      if (!attestationReference) throw new TRPCError({ code: "BAD_REQUEST", message: "Please upload proof of your enrolment." });
       return submitEnrollmentAttestation({ ...rest, attestationReference, userId: ctx.user.id });
     }
     const [document] = await getDb().select().from(identityDocuments).where(and(eq(identityDocuments.id, documentId), eq(identityDocuments.ownerUserId, ctx.user.id), eq(identityDocuments.kind, "student_proof"), isNull(identityDocuments.attestationId), isNull(identityDocuments.purgedAt))).limit(1);

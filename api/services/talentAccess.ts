@@ -25,7 +25,7 @@ export const talentCampaignCatalog: { type: TalentCampaignType; label: string; o
   { type: "fellowship", label: "Fellowship", outcome: "fellowship", journey: "Application → assessment → selection offer → verified fellowship" },
   { type: "campus_event", label: "Campus event or workshop", outcome: "attendance", journey: "Consented registration → selection → independently verified attendance" },
   { type: "research", label: "Research participation", outcome: "research_completion", journey: "Consented response → screening → verified research completion" },
-  { type: "training", label: "External student training cohort", outcome: "learning_completion", journey: "Registration → cohort selection → verified learning completion" },
+  { type: "training", label: "External training cohort", outcome: "learning_completion", journey: "Registration → cohort selection → verified learning completion" },
   { type: "waitlist", label: "Product waitlist or early access", outcome: "early_access", journey: "Consented interest → invitation → independently verified access" },
   { type: "grant", label: "Institutional grant", outcome: "grant_awarded", journey: "Eligibility → institutional review → independently verified grant award" },
   { type: "bursary", label: "Bursary or financial aid", outcome: "bursary_awarded", journey: "Eligibility → funding review → independently verified bursary award" },

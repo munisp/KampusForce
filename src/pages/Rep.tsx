@@ -20,7 +20,7 @@ export function RepOverview() {
   const profile = trpc.rep.me.useQuery({ token });
   const dashboard = trpc.rep.dashboard.useQuery({ token });
   if (profile.isLoading || dashboard.isLoading) return <RepFrame title="Your overview" subtitle="Your sales and earnings in one place."><Loading /></RepFrame>;
-  if (profile.error || dashboard.error) return <RepFrame title="Your overview" subtitle="Student rep"><ErrorState message={profile.error?.message || dashboard.error?.message || "Load failed"} retry={() => { profile.refetch(); dashboard.refetch(); }} /></RepFrame>;
+  if (profile.error || dashboard.error) return <RepFrame title="Your overview" subtitle="Campus rep"><ErrorState message={profile.error?.message || dashboard.error?.message || "Load failed"} retry={() => { profile.refetch(); dashboard.refetch(); }} /></RepFrame>;
   const me = profile.data!;
   const data = dashboard.data!;
   return <RepFrame title={`Good to see you, ${me.user.name.split(" ")[0]}.`} subtitle={`${me.campus?.name || "Campus"} · ${me.rep.code}`}>

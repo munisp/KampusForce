@@ -38,8 +38,8 @@ export default function Signup() {
     <main className="recruit-main">
       <section className="recruit-intro">
         <p className="eyebrow">Create your account</p>
-        <h1>{kind === "vendor" ? <>Reach students.<br /><em>Pay only for real sales.</em></> : kind === "student" ? <>Earn on your campus.<br /><em>Keep 80%.</em></> : <>Join KampusForce.<br /><em>Every naira on record.</em></>}</h1>
-        <p>{kind === "vendor" ? "Register your business. Operations checks it before you can list products or add funds." : kind === "student" ? "Register as a student rep. Operations activates you once your identity and student status are approved." : "Student reps introduce products on campus. Vendors pay commission only on real sales."}</p>
+        <h1>{kind === "vendor" ? <>Reach every campus.<br /><em>Pay only for real sales.</em></> : kind === "student" ? <>Earn on your campus.<br /><em>Keep 80%.</em></> : <>Join KampusForce.<br /><em>Every naira on record.</em></>}</h1>
+        <p>{kind === "vendor" ? "Register your business. Operations checks it before you can list products or add funds." : kind === "student" ? "Register as a campus rep. Operations activates you once your identity and enrolment are approved." : "Campus reps introduce products on campus. Vendors pay commission only on real sales."}</p>
       </section>
       <section className="recruit-card">
         {options.isLoading ? <Loading /> : options.error ? <ErrorState message={options.error.message} retry={options.refetch} /> : !options.data?.open ? <ErrorState message="Registration is not open yet." /> : complete.isSuccess ? <div className="recruit-success" id="signup-done">
@@ -49,7 +49,7 @@ export default function Signup() {
           <Link className="button secondary" to="/">Back to sign in</Link>
         </div> : !kind ? <div className="form-stack">
           <p className="eyebrow">I am a</p>
-          <button className="role-card" onClick={() => setKind("student")}><span className="role-icon"><GraduationCap size={22} /></span><span><strong>Student</strong><small>Share products on campus and earn commission.</small></span><ArrowRight size={18} /></button>
+          <button className="role-card" onClick={() => setKind("student")}><span className="role-icon"><GraduationCap size={22} /></span><span><strong>Campus rep</strong><small>Share products on campus and earn commission.</small></span><ArrowRight size={18} /></button>
           <button className="role-card" onClick={() => setKind("vendor")}><span className="role-icon"><Store size={22} /></span><span><strong>Vendor</strong><small>List your products and pay commission only on real sales.</small></span><ArrowRight size={18} /></button>
         </div> : notListed ? (interest.isSuccess ? <div className="recruit-success" id="interest-done">
           <h2>Thanks, we've noted your university.</h2>

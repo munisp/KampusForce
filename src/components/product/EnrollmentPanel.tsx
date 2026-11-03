@@ -30,23 +30,23 @@ export function EnrollmentPanel() {
       utils.assurance.overview.invalidate();
     },
   });
-  if (overview.isLoading) return <Panel title="Student status"><Loading /></Panel>;
-  if (overview.error) return <Panel title="Student status"><ErrorState message={overview.error.message} retry={overview.refetch} /></Panel>;
+  if (overview.isLoading) return <Panel title="Enrolment status"><Loading /></Panel>;
+  if (overview.error) return <Panel title="Enrolment status"><ErrorState message={overview.error.message} retry={overview.refetch} /></Panel>;
   const data = overview.data!;
   if (data.scope !== "rep") return null;
   const current = data.preflight.enrollment;
   const pending = data.enrollments.some(({ attestation }) => attestation.state === "submitted");
   const showForm = !pending && (!current || renewing);
   return <>
-    <Panel title="Student status" action={<StateBadge state={current ? "verified" : pending ? "manual_review" : "pending"} />}>
+    <Panel title="Enrolment status" action={<StateBadge state={current ? "verified" : pending ? "manual_review" : "pending"} />}>
       <div className="identity-detail">
-        <p className={`identity-next${current ? "" : pending ? "" : " identity-next-needs_more_info"}`}>{current ? `You're confirmed as a current student until ${fullDate(current.validUntil)}.` : pending ? "Operations is checking your proof. You'll get a notification when they decide." : "You also need to show you're a current student. You can't be activated or paid until this is done."}</p>
+        <p className={`identity-next${current ? "" : pending ? "" : " identity-next-needs_more_info"}`}>{current ? `Your enrolment is confirmed until ${fullDate(current.validUntil)}.` : pending ? "Operations is checking your proof. You'll get a notification when they decide." : "You also need to show you're currently enrolled. You can't be activated or paid until this is done."}</p>
         {data.duplicateReviewOpen && <p className="form-error">Your details match another account, so a person is reviewing it. We won't show you who matched.</p>}
         {current && !renewing && <button className="button secondary small" onClick={() => setRenewing(true)}>Renew now</button>}
       </div>
     </Panel>
     {showForm && <div className="fraud-intake-grid">
-      <Panel title="Show you're a current student" action={<GraduationCap size={18} />}>
+      <Panel title="Show you're currently enrolled" action={<GraduationCap size={18} />}>
         <form className="privacy-form" onSubmit={async (event) => { event.preventDefault(); setProofError(""); if (!proof) return; if (proof.size > MAX_DOCUMENT_BYTES) { setProofError("That file is too big. The limit is 10 MB."); return; } try { const { documentId } = await uploadProof.mutateAsync({ token, contentBase64: await fileToBase64(proof) }); submit.mutate({ token, providerName, providerMode: "sandbox", documentId, academicTerm: term, verificationMethod: "institution_document", requestedValidUntil: new Date(`${validUntil}T23:59:59.000Z`) }); setProof(null); (event.target as HTMLFormElement).reset(); } catch (failure) { setProofError(failure instanceof Error ? failure.message : "That upload failed. Please try again."); } }}>
           <label>Your school<input value={providerName} onChange={(event) => setProviderName(event.target.value)} minLength={2} maxLength={80} required /></label>
           <label>{documentLabels.student_proof.title}<input id="student-proof" type="file" accept="image/jpeg,image/png,application/pdf" required onChange={(event) => setProof(event.target.files?.[0] || null)} /><small>{documentLabels.student_proof.hint} JPG, PNG or PDF, up to 10 MB.</small></label>
@@ -60,7 +60,7 @@ export function EnrollmentPanel() {
     </div>}
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {submit.error && <p className="form-error" role="alert">{submit.error.message}</p>}
-    <Panel title="Your student status history">
+    <Panel title="Your enrolment history">
       {data.enrollments.length ? <div className="table-wrap"><table><thead><tr><th>School / term</th><th>Submitted</th><th>Valid until</th><th>State</th></tr></thead><tbody>{data.enrollments.map(({ attestation }) => <tr key={attestation.id}><td>{attestation.providerName}<small className="table-sub">{attestation.academicTerm}</small></td><td>{shortDate(attestation.submittedAt)}</td><td>{attestation.validUntil ? shortDate(attestation.validUntil) : "Pending review"}</td><td><StateBadge state={attestation.state} /></td></tr>)}</tbody></table></div> : <EmptyState title="Not submitted yet" detail="Upload your proof above." />}
     </Panel>
     {data.risks.length > 0 && <Panel title="Reviews of your sales" action={<Clock3 size={18} />}><div className="audit-list">{data.risks.map((item) => <div key={item.id}><AlertTriangle size={16} /><span className="mono">{shortDate(item.createdAt)}</span><strong>{item.kind.replaceAll("_", " ")}</strong><span>{item.severity} · deal #{item.dealId}</span><StateBadge state={item.state} /></div>)}</div><p className="panel-note">A review isn't an accusation. Your money only changes through the normal refund process.</p></Panel>}
