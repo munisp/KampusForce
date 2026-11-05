@@ -1295,3 +1295,41 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .identity-layout-empty { grid-template-columns: 1fr; }
 .button.danger { border: 1px solid var(--danger, #b42318); background: transparent; color: var(--danger, #b42318); }
 .button.danger:hover:not(:disabled) { background: var(--danger, #b42318); color: #fff; }
+
+/* Searchable bank picker on Earnings */
+.bank-picker { position: relative; display: grid; gap: 6px; }
+.bank-options { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--paper, #fff); border: 1px solid var(--line, #d6dde6); border-radius: 8px; box-shadow: 0 10px 24px rgba(15, 31, 52, .14); max-height: 300px; overflow-y: auto; }
+.bank-options li[role="option"] { padding: 9px 10px; border-radius: 6px; cursor: pointer; }
+.bank-options li.active, .bank-options li[role="option"]:hover { background: var(--mist, #eef3f7); }
+.bank-options-hint { padding: 6px 10px; font-size: 12px; color: var(--muted, #5b6b7d); }
+.bank-picked { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line, #d6dde6); border-radius: 8px; }
+
+/* Getting started checklist (vendor dashboard, rep overview) */
+.getting-started { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 22px 24px; margin-bottom: 22px; display: grid; gap: 18px; }
+.getting-started-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.getting-started-head h2 { margin: 4px 0 4px; font-size: 22px; color: var(--navy); text-wrap: balance; }
+.getting-started-head p { margin: 0; color: var(--muted); max-width: 62ch; }
+.getting-started-meter { flex: 0 0 180px; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.getting-started-meter span { display: block; height: 100%; background: var(--teal); }
+.getting-started-steps { list-style: none; margin: 0; padding: 0; display: grid; }
+.gs-step { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 4px 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.gs-step:first-child { border-top: 0; }
+.gs-mark { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; color: var(--paper); }
+.gs-body strong { display: block; color: var(--navy); }
+.gs-body p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.gs-done .gs-mark { background: var(--teal); border-color: var(--teal); }
+.gs-done .gs-body strong { color: var(--muted); font-weight: 600; }
+.gs-current .gs-mark { border-color: var(--mustard); box-shadow: inset 0 0 0 4px var(--mustard-soft); }
+.gs-current { background: linear-gradient(90deg, var(--mustard-soft), transparent 70%); margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-radius: 8px; }
+.gs-waiting .gs-mark { border-color: var(--mustard); color: var(--ink); background: var(--mustard-soft); }
+.gs-todo { opacity: .62; }
+@media (max-width: 640px) {
+  .getting-started { padding: 18px 16px; }
+  .gs-step { grid-template-columns: 26px minmax(0, 1fr); }
+  .gs-step > .button { grid-column: 2; justify-self: start; }
+}
+
+/* ID type choice on Verification uploads */
+.identity-id-type { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.identity-id-type select { min-height: 38px; }
+.identity-id-type-note { margin: 2px 0 8px; font-size: 13px; color: var(--muted); }

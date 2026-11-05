@@ -24,6 +24,7 @@ import { ingestWithDurableRetry } from "./services/ingestionRetries";
 import { activeWebhookCredential, rotateVendorWebhookCredential } from "./services/webhookCredentials";
 import { calculateRuleDryRun, publishRuleDraft } from "./services/rules";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
+import { vendorOnboarding } from "./services/onboarding";
 
 async function currentVendor(userId: number) {
   const [vendor] = await getDb().select().from(vendors).where(eq(vendors.userId, userId)).limit(1);
@@ -46,6 +47,10 @@ const ruleInput = z.object({
 });
 
 export const vendorRouter = createRouter({
+  onboarding: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["vendor"]);
+    return vendorOnboarding(ctx.user.id);
+  }),
   overview: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["vendor"]);
     const vendor = await currentVendor(ctx.user.id);

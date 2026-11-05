@@ -112,7 +112,7 @@ export async function activateRecruitment(recruitmentId: number, actorUserId: nu
     if (!rep.contractorAgreementSignedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "The recruit must accept the contractor terms first" });
     const activatedAt = new Date();
     const identityApproval = await assertCurrentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc"] }, tx);
-    if (user.kycState !== "verified" || !user.bankNameMatch) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "The recruit needs an approved ID check and a matching bank name before you can activate them" });
+    if (user.kycState !== "verified") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "The recruit needs an approved ID check before you can activate them" });
     await assertNoFraudHold(tx, rep.id);
     const enrollment = await assertCurrentStudentAssurance(user.id, tx);
     await tx.update(reps).set({ status: "active" }).where(eq(reps.id, rep.id));
@@ -139,7 +139,7 @@ export async function activateSelfRegisteredRep(repId: number, actorUserId: numb
     if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Rep account not found" });
     if (!rep.contractorAgreementSignedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "The recruit must accept the contractor terms first" });
     const identityApproval = await assertCurrentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc"] }, tx);
-    if (user.kycState !== "verified" || !user.bankNameMatch) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Identity approval and bank-name match must be current" });
+    if (user.kycState !== "verified") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "The rep needs an approved ID check before activation" });
     await assertNoFraudHold(tx, rep.id);
     await assertCurrentStudentAssurance(user.id, tx);
     await tx.update(reps).set({ status: "active" }).where(eq(reps.id, rep.id));

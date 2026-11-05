@@ -39,7 +39,10 @@ export function openDocument(sealed: Buffer, objectKey: string, key: Buffer) {
 
 export const ownsIdentityCase = (identityCase: IdentityCase, userId: number) => identityCase.subjectType === "user" ? identityCase.subjectId === userId : identityCase.requestedByUserId === userId;
 
-async function storeDocument(input: { ownerUserId: number; caseId: number | null; kind: IdentityDocumentKind; contentBase64: string }) {
+export const GOVERNMENT_ID_TYPES = ["nin_slip", "national_id_card", "passport", "drivers_licence", "voters_card"] as const;
+export type GovernmentIdType = typeof GOVERNMENT_ID_TYPES[number];
+
+async function storeDocument(input: { ownerUserId: number; caseId: number | null; kind: IdentityDocumentKind; idType?: GovernmentIdType; contentBase64: string }) {
   const data = Buffer.from(input.contentBase64, "base64");
   if (!data.length) throw new TRPCError({ code: "BAD_REQUEST", message: "That file is empty." });
   if (data.length > MAX_BYTES) throw new TRPCError({ code: "BAD_REQUEST", message: "That file is too big. The limit is 10 MB." });
@@ -49,7 +52,7 @@ async function storeDocument(input: { ownerUserId: number; caseId: number | null
   const objectKey = `identity/${input.ownerUserId}/${randomUUID()}`;
   await putObject(bucket(), objectKey, sealDocument(data, objectKey, encryptionKey()));
   const sha256 = createHash("sha256").update(data).digest("hex");
-  const [document] = await getDb().insert(identityDocuments).values({ ownerUserId: input.ownerUserId, caseId: input.caseId, kind: input.kind, contentType, sizeBytes: data.length, sha256, objectKey }).returning();
+  const [document] = await getDb().insert(identityDocuments).values({ ownerUserId: input.ownerUserId, caseId: input.caseId, kind: input.kind, idType: input.idType ?? null, contentType, sizeBytes: data.length, sha256, objectKey }).returning();
   await getDb().insert(auditLogs).values({ actorUserId: input.ownerUserId, action: "identity.document_uploaded", entityType: "identity_document", entityId: String(document.id), metadataJson: { kind: input.kind, caseId: input.caseId, sizeBytes: data.length } });
   return document;
 }
@@ -64,7 +67,7 @@ async function purgeDocuments(documents: (typeof identityDocuments.$inferSelect)
   return purged;
 }
 
-export async function uploadCaseDocument(input: { caseId: number; actorUserId: number; kind: IdentityDocumentKind; contentBase64: string }) {
+export async function uploadCaseDocument(input: { caseId: number; actorUserId: number; kind: IdentityDocumentKind; idType?: GovernmentIdType; contentBase64: string }) {
   const [identityCase] = await getDb().select().from(identityCases).where(eq(identityCases.id, input.caseId)).limit(1);
   if (!identityCase || !ownsIdentityCase(identityCase, input.actorUserId)) throw new TRPCError({ code: "NOT_FOUND", message: "Check not found" });
   if (!["draft", "needs_more_info"].includes(identityCase.state)) throw new TRPCError({ code: "CONFLICT", message: "You can't change documents once they've been submitted." });
@@ -72,7 +75,7 @@ export async function uploadCaseDocument(input: { caseId: number; actorUserId: n
   const consents = await getDb().select({ purpose: identityConsents.purpose }).from(identityConsents).where(and(eq(identityConsents.caseId, identityCase.id), isNull(identityConsents.withdrawnAt)));
   if (consents.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "Please agree to the check before uploading." });
   const previous = await getDb().select().from(identityDocuments).where(and(eq(identityDocuments.caseId, identityCase.id), eq(identityDocuments.kind, input.kind), isNull(identityDocuments.purgedAt)));
-  const document = await storeDocument({ ownerUserId: input.actorUserId, caseId: identityCase.id, kind: input.kind, contentBase64: input.contentBase64 });
+  const document = await storeDocument({ ownerUserId: input.actorUserId, caseId: identityCase.id, kind: input.kind, idType: input.idType, contentBase64: input.contentBase64 });
   await purgeDocuments(previous);
   return { documentId: document.id, kind: document.kind };
 }

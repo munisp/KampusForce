@@ -27,7 +27,9 @@ import { createSupportTicket, escalateSupportTicket, isSlaBreached, rateSupportT
 import { createInvitationToken, hashInvitationToken, revokeRecruitment } from "./services/recruiting";
 import { listRepFraudCases, requestFraudAppeal } from "./services/fraud";
 import { openDealDispute } from "./services/ledger";
-import { configurePayoutDestination, payoutDestinationStatus } from "./services/payoutDestinations";
+import { configurePayoutDestination, lookUpBankAccount, payoutDestinationStatus } from "./services/payoutDestinations";
+import { listBanks } from "./services/bankAccounts";
+import { repOnboarding } from "./services/onboarding";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -50,6 +52,10 @@ async function canAccessTicket(rep: typeof reps.$inferSelect, ticket: typeof sup
 }
 
 export const repRouter = createRouter({
+  onboarding: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["rep"]);
+    return repOnboarding(ctx.user.id);
+  }),
   me: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
@@ -191,10 +197,21 @@ export const repRouter = createRouter({
     const corrections = await getDb().select().from(commissionCorrections).where(eq(commissionCorrections.repId, rep.id)).orderBy(desc(commissionCorrections.createdAt));
     return { deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides, corrections, destination };
   }),
+  banks: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["rep"]);
+    return listBanks();
+  }),
+  // A mutation, not a query: each lookup spends some of the rep's hourly allowance and must never be retried silently.
+  lookUpBankAccount: authedQuery.input(z.object({
+    accountNumber: z.string().trim().regex(/^\d{10}$/),
+    bankCode: z.string().trim().regex(/^\d{3,9}$/),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    return lookUpBankAccount(ctx.user.id, input);
+  }),
   configurePayoutDestination: authedQuery.input(z.object({
     accountNumber: z.string().trim().regex(/^\d{10}$/),
-    bankCode: z.string().trim().regex(/^[A-Za-z0-9-]{2,12}$/),
-    accountName: z.string().trim().min(3).max(160),
+    bankCode: z.string().trim().regex(/^\d{3,9}$/),
   })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     return configurePayoutDestination(ctx.user.id, input);

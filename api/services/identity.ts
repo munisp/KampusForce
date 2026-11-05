@@ -80,7 +80,9 @@ async function syncUserIdentityEligibility(tx: IdentityClient, userId: number) {
   const payoutApproval = currentApprovals.some((identityCase) => ["representative_kyc", "campus_lead_kyc"].includes(identityCase.caseType));
   const hasOpenCase = history.some((identityCase) => openStates.includes(identityCase.state as typeof openStates[number]));
   const kycState = currentApprovals.length ? "verified" : hasOpenCase ? "pending" : history.some((identityCase) => identityCase.state === "rejected") ? "rejected" : "unverified";
-  await tx.update(users).set({ kycState, bankNameMatch: payoutApproval }).where(eq(users.id, userId));
+  // bankNameMatch means "payout account confirmed with the bank" and is set only by the bank check
+  // (services/payoutDestinations.ts). Losing the ID approval still clears it.
+  await tx.update(users).set(payoutApproval ? { kycState } : { kycState, bankNameMatch: false }).where(eq(users.id, userId));
 }
 
 async function ensureIdentityCaseWithClient(input: {
@@ -378,7 +380,7 @@ export async function getIdentityWorkspace(actor: typeof users.$inferSelect) {
   const evidence = caseIds.length ? await db.select().from(identityEvidenceMetadata).where(inArray(identityEvidenceMetadata.caseId, caseIds)).orderBy(identityEvidenceMetadata.id) : [];
   const reviews = privileged && caseIds.length ? await db.select().from(identityReviews).where(inArray(identityReviews.caseId, caseIds)).orderBy(desc(identityReviews.createdAt)).limit(200) : [];
   const consents = caseIds.length ? await db.select({ id: identityConsents.id, caseId: identityConsents.caseId, purpose: identityConsents.purpose, noticeVersion: identityConsents.noticeVersion, capturedAt: identityConsents.capturedAt, withdrawnAt: identityConsents.withdrawnAt }).from(identityConsents).where(inArray(identityConsents.caseId, caseIds)) : [];
-  const documents = caseIds.length ? await db.select({ id: identityDocuments.id, caseId: identityDocuments.caseId, kind: identityDocuments.kind, contentType: identityDocuments.contentType, sizeBytes: identityDocuments.sizeBytes, uploadedAt: identityDocuments.uploadedAt }).from(identityDocuments).where(and(inArray(identityDocuments.caseId, caseIds), isNull(identityDocuments.purgedAt))).orderBy(identityDocuments.id) : [];
+  const documents = caseIds.length ? await db.select({ id: identityDocuments.id, caseId: identityDocuments.caseId, kind: identityDocuments.kind, idType: identityDocuments.idType, contentType: identityDocuments.contentType, sizeBytes: identityDocuments.sizeBytes, uploadedAt: identityDocuments.uploadedAt }).from(identityDocuments).where(and(inArray(identityDocuments.caseId, caseIds), isNull(identityDocuments.purgedAt))).orderBy(identityDocuments.id) : [];
   // A reviewer compares the documents with these details, so only reviewers receive them.
   const subjects = new Map<number, { name: string; email: string | null; companyName?: string; cacNumber?: string | null }>();
   if (privileged) {

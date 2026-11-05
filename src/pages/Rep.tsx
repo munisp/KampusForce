@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Check, CheckCircle2, Clipboard, Copy, ExternalLink, FileQuestion, Filter, Link2, QrCode, Search, Send, ShieldCheck, WalletCards } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { EmptyState, Metric, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
+import { GettingStarted } from "@/components/product/GettingStarted";
 import { RepFraudCases } from "@/components/product/RepFraudCases";
 import { useSystemStatus } from "@/components/product/WorkspaceLayout";
 import { money, productCategories, shortDate, StateBadge } from "@/lib/format";
@@ -19,11 +20,14 @@ export function RepOverview() {
   const { token } = useWorkspace();
   const profile = trpc.rep.me.useQuery({ token });
   const dashboard = trpc.rep.dashboard.useQuery({ token });
+  const onboarding = trpc.rep.onboarding.useQuery({ token });
+  useEffect(() => { if (dashboard.dataUpdatedAt) onboarding.refetch(); }, [dashboard.dataUpdatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   if (profile.isLoading || dashboard.isLoading) return <RepFrame title="Your overview" subtitle="Your sales and earnings in one place."><Loading /></RepFrame>;
   if (profile.error || dashboard.error) return <RepFrame title="Your overview" subtitle="Campus rep"><ErrorState message={profile.error?.message || dashboard.error?.message || "Load failed"} retry={() => { profile.refetch(); dashboard.refetch(); }} /></RepFrame>;
   const me = profile.data!;
   const data = dashboard.data!;
   return <RepFrame title={`Good to see you, ${me.user.name.split(" ")[0]}.`} subtitle={`${me.campus?.name || "Campus"} · ${me.rep.code}`}>
+    {onboarding.data && <GettingStarted steps={onboarding.data.steps} intro="Finish these and you can earn on your campus. Operations checks each document by eye." />}
     <div className="trust-strip"><ShieldCheck size={18} /><span><strong>{me.user.kycState === "verified" ? "Identity verified" : "Verification pending"}</strong> · {me.rep.status === "active" ? "You can earn and get paid" : "Finish verification to get paid"}</span><span className="quality-score">Quality score {me.rep.qualityScore}/100</span>{me.rep.tier === "campus_lead" && <Link className="text-link" to="/rep/team">Team & bonuses <ArrowRight size={14} /></Link>}</div>
     <div className="metrics-grid">
       <Metric label="Verified sales" value={data.metrics.activations} note="Sales vendors have confirmed for you" />
@@ -154,9 +158,18 @@ export function RepEarnings() {
   const [evidence, setEvidence] = useState("");
   const [destinationAccount, setDestinationAccount] = useState("");
   const [destinationBank, setDestinationBank] = useState("");
-  const [destinationName, setDestinationName] = useState("");
+  const banks = trpc.rep.banks.useQuery({ token }, { staleTime: 3_600_000, enabled: !offline });
+  const lookup = trpc.rep.lookUpBankAccount.useMutation();
+  const lookedUp = useRef("");
+  useEffect(() => {
+    const key = `${destinationBank}:${destinationAccount}`;
+    if (!destinationBank || !/^\d{10}$/.test(destinationAccount) || lookedUp.current === key) return;
+    lookedUp.current = key;
+    lookup.mutate({ token, bankCode: destinationBank, accountNumber: destinationAccount });
+  }, [destinationBank, destinationAccount]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lookupCurrent = lookup.variables && lookup.variables.bankCode === destinationBank && lookup.variables.accountNumber === destinationAccount;
   const dispute = trpc.rep.openDispute.useMutation({ onSuccess: () => { setDisputeDeal(null); setEvidence(""); utils.rep.earnings.invalidate(); utils.rep.dashboard.invalidate(); } });
-  const destination = trpc.rep.configurePayoutDestination.useMutation({ onSuccess: () => { setDestinationAccount(""); utils.rep.earnings.invalidate(); } });
+  const destination = trpc.rep.configurePayoutDestination.useMutation({ onSuccess: () => { setDestinationAccount(""); setDestinationBank(""); lookup.reset(); lookedUp.current = ""; utils.rep.earnings.invalidate(); } });
   const deals = data?.deals || [];
   const totals = deals.reduce((acc, { deal }) => { acc[deal.state] = (acc[deal.state] || 0) + deal.repCommissionKobo; return acc; }, {} as Record<string, number>);
   for (const correction of query.data?.corrections || []) if (correction.state !== "reversed") totals[correction.state === "paid" ? "paid" : "payable"] = (totals[correction.state === "paid" ? "paid" : "payable"] || 0) + correction.amountKobo;
@@ -164,9 +177,22 @@ export function RepEarnings() {
     {offline && cached && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You're offline, so this may be out of date.</strong> Read-only records saved {new Date(cached.savedAt).toLocaleString()} on this device. Disputes and all financial actions require a connection.</p></div>}
     <div className="metrics-grid three"><Metric label="Ready to pay" value={money(totals.payable || 0)} note="Goes out in the next payout" tone="teal" /><Metric label="Paid" value={money(totals.paid || 0)} note="Before tax" /><Metric label="Disputed" value={money(totals.disputed || 0)} note="On hold while Operations looks into it" tone="mustard" /></div>
     <Panel title="Your bank account" action={<ShieldCheck size={18} />}>
-      <p className="panel-note">We keep your account number encrypted. The account name must match the name on your verified bank record.</p>
-      {data?.destination.configured && <p className="success-message"><ShieldCheck size={16} />Destination configured for {data.destination.accountName} · {data.destination.bankCode} · ending {data.destination.accountLast4} · version {data.destination.version}.</p>}
-      {!offline && <form className="form-stack" onSubmit={(event) => { event.preventDefault(); destination.mutate({ token, accountNumber: destinationAccount, bankCode: destinationBank, accountName: destinationName }); }}><div className="form-row"><label>Bank code<input required value={destinationBank} onChange={(event) => setDestinationBank(event.target.value)} maxLength={12} autoComplete="off" /></label><label>Name on the account<input required minLength={3} maxLength={160} value={destinationName} onChange={(event) => setDestinationName(event.target.value)} autoComplete="off" /></label></div><label>10-digit account number<input required type="password" inputMode="numeric" pattern="[0-9]{10}" minLength={10} maxLength={10} value={destinationAccount} onChange={(event) => setDestinationAccount(event.target.value.replace(/\D/g, ""))} autoComplete="off" /></label><button className="button secondary" disabled={destination.isPending || !/^\d{10}$/.test(destinationAccount)}>{destination.isPending ? "Encrypting…" : data?.destination.configured ? "Replace encrypted destination" : "Save encrypted destination"}</button>{destination.error && <p className="form-error" role="alert">{destination.error.message}</p>}</form>}
+      <p className="panel-note">Choose your bank and type your account number. We ask the bank whose account it is, and it must be in the name on your ID check. The account number is stored encrypted.</p>
+      {data?.destination.configured && <BankAccountStatus destination={data.destination} />}
+      {!offline && <form className="form-stack" onSubmit={(event) => { event.preventDefault(); destination.mutate({ token, accountNumber: destinationAccount, bankCode: destinationBank }); }}>
+        <div className="form-row">
+          <BankPicker banks={banks.data} loading={banks.isLoading} value={destinationBank} onChange={setDestinationBank} />
+          <label>10-digit account number<input required inputMode="numeric" pattern="[0-9]{10}" minLength={10} maxLength={10} value={destinationAccount} onChange={(event) => setDestinationAccount(event.target.value.replace(/\D/g, ""))} autoComplete="off" /></label>
+        </div>
+        {banks.error && <p className="form-error" role="alert">{banks.error.message}</p>}
+        <div aria-live="polite">
+          {lookup.isPending && <p className="panel-note">Checking with your bank…</p>}
+          {lookupCurrent && lookup.data && <p className={lookup.data.nameCheck === "no_match" ? "form-error" : "success-message"}><ShieldCheck size={16} />Account name: <strong>{lookup.data.accountName}</strong>{lookup.data.nameCheck === "review" ? " · close to the name on your ID check, so Operations will confirm it before payouts go there." : lookup.data.nameCheck === "no_match" ? " · this isn't the name on your ID check. Use an account in your own name." : ""}</p>}
+          {lookupCurrent && lookup.error && <p className="form-error" role="alert">{lookup.error.message}</p>}
+        </div>
+        <button className="button secondary" disabled={destination.isPending || !lookupCurrent || !lookup.data || lookup.data.nameCheck === "no_match"}>{destination.isPending ? "Saving…" : data?.destination.configured ? "Use this account instead" : "Save this account"}</button>
+        {destination.error && <p className="form-error" role="alert">{destination.error.message}</p>}
+      </form>}
     </Panel>
     <Panel title="Your sales">
       {query.isLoading ? <Loading /> : query.error && !cached ? <ErrorState message={query.error.message} retry={query.refetch} /> : deals.length ? <div className="table-wrap"><table><thead><tr><th>Sale / product</th><th>Vendor</th><th>Created</th><th>Waiting period</th><th>State</th><th>You earn</th><th></th></tr></thead><tbody>{deals.map(({ deal, productName, vendorName }) => <tr key={deal.id}><td><strong>#{deal.id} · {productName}</strong><small className="table-sub mono">{deal.eventId.slice(0, 13)}…</small></td><td>{vendorName}</td><td>{shortDate(deal.createdAt)}</td><td>{shortDate(deal.confirmAt)}</td><td><StateBadge state={deal.state} /></td><td><strong>{money(deal.repCommissionKobo)}</strong><small className="table-sub">Platform {money(deal.platformFeeKobo)}</small></td><td>{!offline && !["disputed", "void", "clawed_back"].includes(deal.state) && <button className="icon-button" title="Report a problem" onClick={() => setDisputeDeal(deal.id)}><FileQuestion size={17} /></button>}</td></tr>)}</tbody></table></div> : <EmptyState title="No sales yet" detail="Share a product link. Your sales will show up here once vendors confirm them." />}
@@ -174,4 +200,52 @@ export function RepEarnings() {
     <div className="dashboard-grid lower"><Panel title="Payouts"><div className="deal-list">{data?.payouts.length ? data.payouts.map((p) => <div className="deal-row" key={p.id}><WalletCards size={20} /><div><strong>{money(p.amountNetKobo)} net</strong><small>{p.provider} · {shortDate(p.paidAt || p.createdAt)}</small></div><StateBadge state={p.state} /></div>) : <EmptyState title="No payouts yet" detail="The minimum payout is ₦500, and 10% is held back for tax." />}</div></Panel><Panel title="Recent updates"><div className="history-list">{data?.history.length ? data.history.slice(0, 10).map((h) => <div key={h.id}><span className="history-dot" /><p><strong>{h.fromState || "created"} → {h.toState}</strong><small>{h.actor} · {shortDate(h.createdAt)}</small>{h.reason && <em>{h.reason}</em>}</p></div>) : <EmptyState title="No updates yet" detail="Each change will appear here with who made it and why." />}</div></Panel></div>
     {disputeDeal && <div className="modal-backdrop" role="presentation" onClick={() => setDisputeDeal(null)}><form className="modal" onSubmit={(e) => { e.preventDefault(); dispute.mutate({ token, dealId: disputeDeal, reasonCode: reason, evidence }); }} onClick={(e) => e.stopPropagation()}><p className="eyebrow">DEAL #{disputeDeal}</p><h2>Report a problem with this commission</h2><p>We'll hold this sale while Operations looks into it.</p><label>Reason<select value={reason} onChange={(e) => setReason(e.target.value)}><option value="activation_not_credited">Sale not credited</option><option value="commission_amount">Wrong commission amount</option><option value="incorrect_refund">Wrong refund</option><option value="payout_issue">Payout issue</option></select></label><label>What happened?<textarea value={evidence} onChange={(e) => setEvidence(e.target.value)} placeholder="Include dates, the vendor's reference and what you expected" /></label>{dispute.error && <p className="form-error">{dispute.error.message}</p>}<div className="modal-actions"><button type="button" className="button secondary" onClick={() => setDisputeDeal(null)}>Cancel</button><button className="button primary" disabled={dispute.isPending}>Send report</button></div></form></div>}
   </RepFrame>;
+}
+
+// Shown first in the bank list: the banks and wallets most campus reps use.
+const COMMON_BANKS = ["044", "058", "011", "033", "057", "035", "232", "999992", "999991", "50515", "50211", "214"];
+
+function BankAccountStatus({ destination }: { destination: { bankName?: string | null; bankCode: string; accountName: string; accountLast4: string; nameCheck: string; reviewNote?: string | null } }) {
+  const where = `${destination.accountName} · ${destination.bankName || destination.bankCode} · ending ${destination.accountLast4}`;
+  if (destination.nameCheck === "matched" || destination.nameCheck === "approved") return <p className="success-message"><ShieldCheck size={16} />Payouts go to {where}. Confirmed with your bank.</p>;
+  if (destination.nameCheck === "review") return <p className="panel-note"><strong>Waiting for Operations.</strong> {where}. The bank's name for this account is close to the name on your ID check, so a person confirms it before payouts go there.</p>;
+  if (destination.nameCheck === "rejected") return <p className="form-error">Operations couldn't confirm {where} is yours{destination.reviewNote ? `: ${destination.reviewNote}` : "."} Add an account in your own name.</p>;
+  return <p className="form-error">Your saved account ({where}) was added before we checked accounts with the bank. Add it again below so the bank can confirm it.</p>;
+}
+
+// Short names people actually type, mapped to Paystack's bank names.
+const BANK_ALIASES: Record<string, string> = { "058": "gtb gtbank gtco", "033": "uba", "011": "firstbank first bank fbn", "214": "fcmb", "057": "zenith", "035": "wema alat", "232": "sterling", "070": "fidelity", "999992": "opay", "999991": "palmpay", "50515": "moniepoint", "50211": "kuda", "044": "access" };
+
+function BankPicker({ banks, loading, value, onChange }: { banks?: { name: string; code: string }[]; loading: boolean; value: string; onChange: (code: string) => void }) {
+  const selected = banks?.find((b) => b.code === value);
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = !banks ? [] : words.length
+    ? banks.filter((b) => { const hay = `${b.name} ${BANK_ALIASES[b.code] || ""}`.toLowerCase(); return words.every((w) => hay.includes(w)); })
+        .sort((a, b) => Number(!a.name.toLowerCase().startsWith(words[0])) - Number(!b.name.toLowerCase().startsWith(words[0])))
+    : banks.filter((b) => COMMON_BANKS.includes(b.code));
+  const shown = matches.slice(0, 8);
+  const choose = (code: string) => { onChange(code); setText(""); setOpen(false); };
+  if (selected) return <label>Bank<div className="bank-picked"><strong>{selected.name}</strong><button type="button" className="text-link" onClick={() => { onChange(""); setOpen(true); }}>Change</button></div></label>;
+  return <div className="bank-picker">
+    <label htmlFor="bank-search">Bank</label>
+    <input id="bank-search" role="combobox" aria-expanded={open} aria-controls="bank-options" aria-autocomplete="list" autoComplete="off" required
+      placeholder={loading ? "Loading banks…" : "Search for your bank, e.g. GTBank or OPay"} disabled={loading} value={text}
+      onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+      onChange={(event) => { setText(event.target.value); setActive(0); setOpen(true); }}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowDown") { event.preventDefault(); setActive((i) => Math.min(i + 1, shown.length - 1)); }
+        else if (event.key === "ArrowUp") { event.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+        else if (event.key === "Enter" && open && shown[active]) { event.preventDefault(); choose(shown[active].code); }
+        else if (event.key === "Escape") setOpen(false);
+      }} />
+    {open && !loading && <ul id="bank-options" role="listbox" className="bank-options">
+      {!words.length && <li className="bank-options-hint" aria-hidden="true">Common banks</li>}
+      {shown.map((b, i) => <li key={b.code} role="option" aria-selected={i === active} className={i === active ? "active" : ""} onMouseDown={(event) => { event.preventDefault(); choose(b.code); }}>{b.name}</li>)}
+      {words.length > 0 && !shown.length && <li className="bank-options-hint">No bank matches “{text}”.</li>}
+      {matches.length > shown.length && <li className="bank-options-hint">Keep typing to narrow {matches.length} banks.</li>}
+    </ul>}
+  </div>;
 }

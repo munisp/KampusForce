@@ -296,7 +296,7 @@ export async function runPayoutBatch(actorUserId?: number) {
       const identityApproval = user ? await currentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx) : null;
       const studentAssurance = user ? await studentAssurancePreflight(user.id, tx) : null;
       if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch || !identityApproval || !studentAssurance?.eligible) {
-        return { repId, status: "held", reason: studentAssurance?.reason || "Current identity approval, KYC, rep status, or bank name-match pre-flight failed" };
+        return { repId, status: "held", reason: user && !user.bankNameMatch ? "No bank account confirmed with the bank yet" : studentAssurance?.reason || "Current identity approval, KYC or rep status pre-flight failed" };
       }
       const fraudHold = await blockingFraudHold(tx, repId);
       if (fraudHold) {

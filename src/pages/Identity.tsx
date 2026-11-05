@@ -7,6 +7,7 @@ import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 import { EnrollmentPanel } from "@/components/product/EnrollmentPanel";
 import { DocumentPreview, DocumentUploads } from "@/components/product/IdentityDocuments";
+import { idTypeLabel } from "@/lib/files";
 
 const caseLabels: Record<string, string> = { representative_kyc: "Campus rep ID check", campus_lead_kyc: "Campus lead ID check", vendor_kyb: "Business check", operations_kyc: "Staff ID check", customer_handoff: "Customer handoff" };
 const evidenceLabels: Record<string, string> = { document_ocr: "Reading your ID document", document_structure: "Checking the document's layout", vlm_extraction: "Cross-checking the document's details", capture_integrity: "Checking the photo is genuine", liveness: "Confirming you're a live person", deepfake: "Checking for fake images", face_match: "Matching your face to your ID", bank_name_match: "Matching your bank account name", registry_kyb: "Checking the business registry", reviewer_attestation: "Staff declaration", manual_document_check: "The document is genuine, in date, and has the right name", manual_face_check: "The selfie shows the same person as the ID", manual_business_check: "The CAC certificate matches the business name and number" };
@@ -86,7 +87,7 @@ export default function Identity() {
             {selected.decisionReason && <p className="panel-note"><strong>Latest decision:</strong> {selected.decisionReason}</p>}
             {queueOf(selected.state) === "waiting" && <p className="panel-note">{selected.state === "draft" ? "They haven't submitted their documents yet." : "You asked for more. It comes back to To review when they resubmit."}</p>}
             {reviewerControls && manualCase && selected.state === "manual_review" && <>
-              <div className="identity-document-grid">{selectedDocuments.map((document) => <div key={document.id} className="identity-document-card"><h3>{reviewerLabels[document.kind] || document.kind}</h3><DocumentPreview documentId={document.id} label={reviewerLabels[document.kind] || "document"} /></div>)}</div>
+              <div className="identity-document-grid">{selectedDocuments.map((document) => <div key={document.id} className="identity-document-card"><h3>{reviewerLabels[document.kind] || document.kind}</h3>{idTypeLabel(document.idType) && <p className="identity-id-type-note">They say this is a <strong>{idTypeLabel(document.idType)}</strong></p>}<DocumentPreview documentId={document.id} label={reviewerLabels[document.kind] || "document"} /></div>)}</div>
               <div className="identity-decision">
                 <div className="identity-checklist"><strong>Confirm before approving</strong>{selected.requiredEvidence.map((kind) => <label key={kind}><input type="checkbox" data-check={kind} checked={confirmed.includes(kind)} onChange={(event) => setConfirmed(event.target.checked ? [...confirmed, kind] : confirmed.filter((item) => item !== kind))} />{reviewChecks[kind] || kind}</label>)}</div>
                 <label htmlFor="identity-review-reason"><strong>Reason</strong> <small>Needed to reject or ask for more. The applicant sees it.</small></label>

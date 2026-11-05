@@ -35,6 +35,7 @@ import {
 import { campusLeadRankings, recalculateCampusLeadEligibility } from "./services/leadEligibility";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { activateRecruitment, activateSelfRegisteredRep, revokeRecruitment } from "./services/recruiting";
+import { listBankAccountReviews, reviewBankAccount } from "./services/payoutDestinations";
 import { recentJobRuns, runDueJobs } from "./services/jobs";
 import { campusTelemetry } from "./services/telemetry";
 import { acknowledgeOperationalIncident, listOperationalIncidents, monitorOperationalSignals, resolveOperationalIncident } from "./services/incidents";
@@ -300,6 +301,22 @@ export const opsRouter = createRouter({
       await tx.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "campus.status_changed", entityType: "campus", entityId: String(current.id), metadataJson: { from: current.status, to: input.status } });
       return campus;
     });
+  }),
+  bankAccountReviews: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return listBankAccountReviews();
+  }),
+  reviewBankAccount: authedQuery.input(z.object({
+    userId: z.number().int().positive(),
+    approve: z.boolean(),
+    note: z.string().trim().min(5).max(500),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    const result = await reviewBankAccount({ ...input, reviewerUserId: ctx.user.id });
+    await notifyUser(input.approve
+      ? { userId: input.userId, type: "payout_account_approved", title: "Your bank account is confirmed", body: "Operations confirmed your bank account. Payouts can go to it now.", href: "/rep/earnings", entityType: "payout_destination", entityId: String(input.userId) }
+      : { userId: input.userId, type: "payout_account_rejected", title: "Your bank account wasn't confirmed", body: `Operations couldn't confirm the account is yours: ${input.note} Add an account in your own name.`, href: "/rep/earnings", entityType: "payout_destination", entityId: String(input.userId) });
+    return result;
   }),
   activateRep: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);

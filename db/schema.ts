@@ -657,6 +657,13 @@ export const payoutDestinations = pgTable("payout_destinations", {
   bankCode: varchar("bank_code", { length: 12 }).notNull(),
   accountName: varchar("account_name", { length: 160 }).notNull(),
   accountLast4: varchar("account_last4", { length: 4 }).notNull(),
+  // The bank's own name for the account (Paystack /bank/resolve) compared with the ID-checked name:
+  // matched | review (Operations decides) | approved | rejected | unchecked (saved before bank checks existed).
+  nameCheck: varchar("name_check", { length: 16 }).notNull().default("unchecked"),
+  bankName: varchar("bank_name", { length: 120 }),
+  reviewedByUserId: integer("reviewed_by_user_id"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: varchar("review_note", { length: 500 }),
   keyVersion: varchar("key_version", { length: 40 }).notNull().default("v1"),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1401,6 +1408,8 @@ export const identityDocuments = pgTable("identity_documents", {
   caseId: integer("case_id").references(() => identityCases.id),
   attestationId: integer("attestation_id"),
   kind: varchar("kind", { length: 40 }).notNull(),
+  // For government IDs: which one the person says they uploaded (nin_slip, national_id_card, passport, drivers_licence, voters_card).
+  idType: varchar("id_type", { length: 30 }),
   contentType: varchar("content_type", { length: 60 }).notNull(),
   sizeBytes: integer("size_bytes").notNull(),
   sha256: varchar("sha256", { length: 64 }).notNull(),

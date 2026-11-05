@@ -5,7 +5,7 @@ import { ErrorState, Loading } from "./Loading";
 import { fullDate, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
-import { documentLabels, fileToBase64, MAX_DOCUMENT_BYTES } from "@/lib/files";
+import { documentLabels, fileToBase64, MAX_DOCUMENT_BYTES, shrinkPhoto } from "@/lib/files";
 
 function futureDate(days: number) {
   const value = new Date(Date.now() + days * 86_400_000);
@@ -47,7 +47,7 @@ export function EnrollmentPanel() {
     </Panel>
     {showForm && <div className="fraud-intake-grid">
       <Panel title="Show you're currently enrolled" action={<GraduationCap size={18} />}>
-        <form className="privacy-form" onSubmit={async (event) => { event.preventDefault(); setProofError(""); if (!proof) return; if (proof.size > MAX_DOCUMENT_BYTES) { setProofError("That file is too big. The limit is 10 MB."); return; } try { const { documentId } = await uploadProof.mutateAsync({ token, contentBase64: await fileToBase64(proof) }); submit.mutate({ token, providerName, providerMode: "sandbox", documentId, academicTerm: term, verificationMethod: "institution_document", requestedValidUntil: new Date(`${validUntil}T23:59:59.000Z`) }); setProof(null); (event.target as HTMLFormElement).reset(); } catch (failure) { setProofError(failure instanceof Error ? failure.message : "That upload failed. Please try again."); } }}>
+        <form className="privacy-form" onSubmit={async (event) => { event.preventDefault(); setProofError(""); if (!proof) return; if (proof.size > MAX_DOCUMENT_BYTES) { setProofError("That file is too big. The limit is 10 MB."); return; } try { const { documentId } = await uploadProof.mutateAsync({ token, contentBase64: await fileToBase64(await shrinkPhoto(proof)) }); submit.mutate({ token, providerName, providerMode: "sandbox", documentId, academicTerm: term, verificationMethod: "institution_document", requestedValidUntil: new Date(`${validUntil}T23:59:59.000Z`) }); setProof(null); (event.target as HTMLFormElement).reset(); } catch (failure) { setProofError(failure instanceof Error ? failure.message : "That upload failed. Please try again."); } }}>
           <label>Your school<input value={providerName} onChange={(event) => setProviderName(event.target.value)} minLength={2} maxLength={80} required /></label>
           <label>{documentLabels.student_proof.title}<input id="student-proof" type="file" accept="image/jpeg,image/png,application/pdf" required onChange={(event) => setProof(event.target.files?.[0] || null)} /><small>{documentLabels.student_proof.hint} JPG, PNG or PDF, up to 10 MB.</small></label>
           {proofError && <p className="form-error" role="alert">{proofError}</p>}

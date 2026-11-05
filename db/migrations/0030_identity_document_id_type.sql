@@ -1,0 +1,1 @@
+ALTER TABLE "identity_documents" ADD COLUMN "id_type" varchar(30);
