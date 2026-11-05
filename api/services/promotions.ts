@@ -431,7 +431,7 @@ export async function processPromotionOrchestration(limit = 50) {
   const dueWithClockTolerance = new Date(Date.now() + ORCHESTRATION_CLOCK_TOLERANCE_MS);
   const due = await getDb().select({ id: promotionOrchestrationEvents.id }).from(promotionOrchestrationEvents)
     .where(and(inArray(promotionOrchestrationEvents.state, ["pending", "failed"]), lte(promotionOrchestrationEvents.availableAt, dueWithClockTolerance)))
-    .orderBy(promotionOrchestrationEvents.createdAt).limit(limit);
+    .orderBy(desc(promotionOrchestrationEvents.createdAt)).limit(limit);
   let processed = 0;
   let failed = 0;
   for (const row of due) {

@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { auditLogs, payoutDestinations, users } from "@db/schema";
 import { getDb } from "../queries/connection";
@@ -175,7 +175,7 @@ export async function listBankAccountReviews() {
     accountName: payoutDestinations.accountName,
     accountLast4: payoutDestinations.accountLast4,
     updatedAt: payoutDestinations.updatedAt,
-  }).from(payoutDestinations).innerJoin(users, eq(users.id, payoutDestinations.userId)).where(eq(payoutDestinations.nameCheck, "review")).orderBy(payoutDestinations.updatedAt);
+  }).from(payoutDestinations).innerJoin(users, eq(users.id, payoutDestinations.userId)).where(eq(payoutDestinations.nameCheck, "review")).orderBy(desc(payoutDestinations.updatedAt));
 }
 
 export async function reviewBankAccount(input: { userId: number; approve: boolean; note: string; reviewerUserId: number }) {

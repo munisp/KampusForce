@@ -142,10 +142,10 @@ export function PrivacyDesk() {
     setClosureNote("");
   };
   const requestHistory = selectedRequest
-    ? data.dsarRequestEvents.filter((event) => event.requestId === selectedRequest.id).sort((a, b) => a.id - b.id)
+    ? data.dsarRequestEvents.filter((event) => event.requestId === selectedRequest.id).sort((a, b) => b.id - a.id)
     : [];
   const breachHistory = selectedAssessment
-    ? data.breachAssessmentEvents.filter((event) => event.assessmentId === selectedAssessment.id).sort((a, b) => a.id - b.id)
+    ? data.breachAssessmentEvents.filter((event) => event.assessmentId === selectedAssessment.id).sort((a, b) => b.id - a.id)
     : [];
 
   return <>

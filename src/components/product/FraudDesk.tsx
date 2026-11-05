@@ -36,7 +36,7 @@ export function FraudDesk() {
   });
   const selected = useMemo(() => overview.data?.fraudCases.find((row) => row.fraudCase.id === caseId) || overview.data?.fraudCases[0], [overview.data, caseId]);
   const selectedHold = overview.data?.fraudHolds.find((hold) => hold.caseId === selected?.fraudCase.id);
-  const selectedEvents = overview.data?.fraudCaseEvents.filter((event) => event.caseId === selected?.fraudCase.id).sort((a, b) => a.id - b.id) || [];
+  const selectedEvents = overview.data?.fraudCaseEvents.filter((event) => event.caseId === selected?.fraudCase.id).sort((a, b) => b.id - a.id) || [];
   if (overview.isLoading) return <Loading />;
   if (overview.error) return <ErrorState message={overview.error.message} retry={overview.refetch} />;
   const data = overview.data!;

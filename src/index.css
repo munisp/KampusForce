@@ -1333,3 +1333,9 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .identity-id-type { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .identity-id-type select { min-height: 38px; }
 .identity-id-type-note { margin: 2px 0 8px; font-size: 13px; color: var(--muted); }
+
+/* Shown on the sign-in page after an expired session signed the person out */
+.session-ended { position: fixed; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 60; width: min(560px, calc(100% - 32px)); display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid var(--mustard); border-radius: 10px; box-shadow: 0 12px 30px rgba(16, 42, 67, .22); }
+.session-ended p { margin: 0; flex: 1; font-size: 14px; line-height: 1.45; }
+.session-ended button { border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.session-ended button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }

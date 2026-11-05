@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SIGNED_OUT_REASON_KEY } from "@/providers/workspace";
 import { ArrowRight, KeyRound, Landmark, ShieldCheck, Store, UserRound, UsersRound } from "lucide-react";
 import { useNavigate } from "react-router";
 import { CinematicLanding } from "@/components/landing/CinematicLanding";
@@ -24,6 +25,9 @@ export default function Login() {
   const [code, setCode] = useState("");
   const [sandboxCode, setSandboxCode] = useState("");
   const [error, setError] = useState("");
+  const [expiredNotice, setExpiredNotice] = useState(() => {
+    try { const reason = sessionStorage.getItem(SIGNED_OUT_REASON_KEY); sessionStorage.removeItem(SIGNED_OUT_REASON_KEY); return reason === "expired"; } catch { return false; }
+  });
   const methods = trpc.auth.methods.useQuery();
   const oidc = methods.data?.oidc;
   const sandbox = methods.data?.sandbox ?? false;
@@ -47,7 +51,7 @@ export default function Login() {
   const signedIn = token && user;
   const toWorkspace = () => navigate(workspacePath(user?.role ?? "rep"));
 
-  return <CinematicLanding
+  return <>{expiredNotice && <div className="session-ended" role="status"><p><strong>You've been signed out.</strong> Your session ended, so sign in again to carry on.</p><button type="button" aria-label="Dismiss" onClick={() => setExpiredNotice(false)}>×</button></div>}<CinematicLanding
     navAction={signedIn ? <button type="button" className="kf-nav-action" onClick={toWorkspace}>Continue as {user.name} <ArrowRight size={16} /></button>
       : signIn ? <button type="button" className="kf-nav-action" onClick={signIn}>Sign in <ArrowRight size={16} /></button>
       : <a className="kf-nav-action" href="#sandbox">{sandbox ? "Open sandbox" : "Sign in"} <ArrowRight size={16} /></a>}
@@ -80,5 +84,5 @@ export default function Login() {
         </div>
         </>}
     </section>
-  </CinematicLanding>;
+  </CinematicLanding></>;
 }
