@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
-import { attributionRecords, commissionRules, consentLogs, dealStateHistory, deals, products, promotionLinks, reps, vendorEvents, vendors } from "@db/schema";
+import { attributionRecords, commissionRules, consentLogs, dealStateHistory, deals, products, promotionLinks, recordedSales, reps, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
 import { enforceActivationVelocity } from "./fraud";
@@ -236,6 +236,12 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     });
     if (promotionLink && attribution.promotionId === promotionLink.promotion.id) {
       await tx.update(promotionLinks).set({ lastUsedAt: new Date() }).where(eq(promotionLinks.id, promotionLink.link.id));
+    }
+    // A rep who recorded this sale themselves sees it verified by the vendor's report (an Operations approval
+    // records itself in services/recordedSales.ts).
+    if ((payload.meta as { verified_by?: string } | undefined)?.verified_by !== "operations") {
+      await tx.update(recordedSales).set({ state: "verified", verifiedBy: "vendor", dealId, decidedAt: new Date() })
+        .where(and(eq(recordedSales.vendorId, vendor.id), eq(recordedSales.customerPhoneHash, phoneHash), eq(recordedSales.repId, attribution.repId), eq(recordedSales.state, "waiting")));
     }
     return { status: "accepted" as const, kf_event_id: eventId, deal_id: dealId, promotion_id: attribution.promotionId || null };
   });

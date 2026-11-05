@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Check, CheckCircle2, Clock3, Clipboard, Copy, ExternalLink, FileQuestion, Filter, Link2, QrCode, Search, Send, ShieldCheck, WalletCards } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { EmptyState, Metric, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
 import { GettingStarted } from "@/components/product/GettingStarted";
+import { fileToBase64, formatBytes, MAX_DOCUMENT_BYTES, shrinkPhoto } from "@/lib/files";
 import { RepFraudCases } from "@/components/product/RepFraudCases";
 import { useSystemStatus } from "@/components/product/WorkspaceLayout";
 import { money, productCategories, shortDate, StateBadge } from "@/lib/format";
@@ -43,7 +44,7 @@ export function RepOverview() {
       <Panel title="What to do next" className="action-panel">
         <span className="action-number">01</span><h3>Make your first sale.</h3><p>Pick a product and share your link. You earn when the vendor confirms the customer completed it.</p>
         <Link className="button primary" to="/rep/share">Get my link <ArrowRight size={16} /></Link>
-        <Link className="text-link claim-link" to="/rep/claim">Already sold to someone? Claim the sale <ArrowRight size={14} /></Link>
+        <Link className="text-link claim-link" to="/rep/record">Onboarded someone? Record the sale <ArrowRight size={14} /></Link>
         <div className="action-rule"><span>Trigger</span><strong>When the vendor confirms the sale, not at sign-up</strong></div>
         <div className="action-rule"><span>Split</span><strong>80% to you, 20% to KampusForce</strong></div>
       </Panel>
@@ -195,7 +196,8 @@ export function RepEarnings() {
         {destination.error && <p className="form-error" role="alert">{destination.error.message}</p>}
       </form>}
     </Panel>
-    <Panel title="Your sales" action={<Link className="text-link" to="/rep/claim">Claim a sale <ArrowRight size={14} /></Link>}>
+    <RecordedSalesList onlyWaiting />
+    <Panel title="Your sales" action={<Link className="text-link" to="/rep/record">Record a sale <ArrowRight size={14} /></Link>}>
       {query.isLoading ? <Loading /> : query.error && !cached ? <ErrorState message={query.error.message} retry={query.refetch} /> : deals.length ? <div className="table-wrap"><table><thead><tr><th>Sale / product</th><th>Vendor</th><th>Created</th><th>Waiting period</th><th>State</th><th>You earn</th><th></th></tr></thead><tbody>{deals.map(({ deal, productName, vendorName }) => <tr key={deal.id}><td><strong>#{deal.id} · {productName}</strong><small className="table-sub mono">{deal.eventId.slice(0, 13)}…</small></td><td>{vendorName}</td><td>{shortDate(deal.createdAt)}</td><td>{shortDate(deal.confirmAt)}</td><td><StateBadge state={deal.state} /></td><td><strong>{money(deal.repCommissionKobo)}</strong><small className="table-sub">Platform {money(deal.platformFeeKobo)}</small></td><td>{!offline && !["disputed", "void", "clawed_back"].includes(deal.state) && <button className="icon-button" title="Report a problem" onClick={() => setDisputeDeal(deal.id)}><FileQuestion size={17} /></button>}</td></tr>)}</tbody></table></div> : <EmptyState title="No sales yet" detail="Share a product link. Your sales will show up here once vendors confirm them." />}
     </Panel>
     <div className="dashboard-grid lower"><Panel title="Payouts"><div className="deal-list">{data?.payouts.length ? data.payouts.map((p) => <div className="deal-row" key={p.id}><WalletCards size={20} /><div><strong>{money(p.amountNetKobo)} net</strong><small>{p.provider} · {shortDate(p.paidAt || p.createdAt)}</small></div><StateBadge state={p.state} /></div>) : <EmptyState title="No payouts yet" detail="The minimum payout is ₦500, and 10% is held back for tax." />}</div></Panel><Panel title="Recent updates"><div className="history-list">{data?.history.length ? data.history.slice(0, 10).map((h) => <div key={h.id}><span className="history-dot" /><p><strong>{h.fromState || "created"} → {h.toState}</strong><small>{h.actor} · {shortDate(h.createdAt)}</small>{h.reason && <em>{h.reason}</em>}</p></div>) : <EmptyState title="No updates yet" detail="Each change will appear here with who made it and why." />}</div></Panel></div>
@@ -251,44 +253,79 @@ function BankPicker({ banks, loading, value, onChange }: { banks?: { name: strin
   </div>;
 }
 
-/** "I already sold this": a rep claims a customer they sold to before linking them. */
-export function RepClaim() {
+/** A rep records a sale they made, with proof. It shows as waiting for verification straight away. */
+export function RepRecordSale() {
   const { token } = useWorkspace();
   const utils = trpc.useUtils();
   const catalog = trpc.rep.catalog.useQuery({ token });
   const me = trpc.rep.me.useQuery({ token });
   const [productId, setProductId] = useState(0);
   const [phone, setPhone] = useState("");
-  const claim = trpc.rep.claimSale.useMutation({ onSuccess: () => { utils.rep.earnings.invalidate(); utils.rep.dashboard.invalidate(); utils.rep.onboarding.invalidate(); } });
-  // No product is chosen for the rep: claiming the wrong one would link the customer to the wrong vendor.
-  const selectedId = productId;
+  const [note, setNote] = useState("");
+  const [proof, setProof] = useState<File | null>(null);
+  const [status, setStatus] = useState("");
+  const [fileKey, setFileKey] = useState(0);
+  const record = trpc.rep.recordSale.useMutation({ onSuccess: () => { setPhone(""); setNote(""); setProof(null); setFileKey((k) => k + 1); utils.rep.recordedSales.invalidate(); utils.rep.earnings.invalidate(); utils.rep.dashboard.invalidate(); utils.rep.onboarding.invalidate(); } });
   const active = me.data?.rep.status === "active";
-  const result = claim.data;
-  return <RepFrame title="Claim a sale" subtitle="Already sold to someone? Claim them here so the sale is credited to you.">
+  const result = record.data;
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!proof) return;
+    if (proof.size > MAX_DOCUMENT_BYTES) { setStatus("That file is too big. The limit is 10 MB."); return; }
+    setStatus("Preparing your proof…");
+    const ready = await shrinkPhoto(proof);
+    setStatus(`Sending ${formatBytes(ready.size)}…`);
+    record.mutate({ token, productId, customerPhone: phone, note: note.trim() || undefined, proofBase64: await fileToBase64(ready) }, { onSettled: () => setStatus("") });
+  };
+  return <RepFrame title="Record a sale" subtitle="Onboarded someone? Record it here. It shows in your earnings straight away, waiting for verification.">
     <div className="share-layout">
-      <Panel title="Who did you sell to?" className="share-builder">
-        {!active && me.data && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You can claim sales once you're active.</strong> Finish the steps on your Overview first.</p></div>}
-        <form className="form-stack" onSubmit={(event) => { event.preventDefault(); claim.mutate({ token, productId: selectedId, customerPhone: phone }); }}>
-          <label>Product they bought<select value={selectedId} onChange={(e) => { setProductId(Number(e.target.value)); claim.reset(); }} disabled={!active} required><option value={0}>Choose the product</option>{(catalog.data || []).map(({ product, vendorName }) => <option key={product.id} value={product.id}>{product.name} · {vendorName}</option>)}</select></label>
-          <label>Their phone number<input required inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); claim.reset(); }} placeholder="0800 000 0000" disabled={!active} autoComplete="off" /><small>The number they used with the vendor.</small></label>
-          <button className="button primary" disabled={!active || claim.isPending || !selectedId || phone.trim().length < 7}>{claim.isPending ? "Checking…" : "Claim this sale"}<ArrowRight size={16} /></button>
+      <Panel title="Who did you onboard?" className="share-builder">
+        {!active && me.data && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You can record sales once you're active.</strong> Finish the steps on your Overview first.</p></div>}
+        <form className="form-stack" onSubmit={submit}>
+          <label>Product<select value={productId} onChange={(e) => { setProductId(Number(e.target.value)); record.reset(); }} disabled={!active} required><option value={0}>Choose the product</option>{(catalog.data || []).map(({ product, vendorName }) => <option key={product.id} value={product.id}>{product.name} · {vendorName}</option>)}</select></label>
+          <label>Customer's phone number<input required inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); record.reset(); }} placeholder="0800 000 0000" disabled={!active} autoComplete="off" /><small>The number they used with the vendor.</small></label>
+          <label>Proof<input key={fileKey} type="file" accept="image/jpeg,image/png,application/pdf" required disabled={!active} onChange={(e) => { setProof(e.target.files?.[0] || null); record.reset(); }} /><small>A screenshot or photo of the customer's confirmation, a receipt or a reference. JPG, PNG or PDF, up to 10 MB. Whoever verifies the sale sees it.</small></label>
+          <label>Note <span className="optional">optional</span><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="e.g. Helped them sign up in the library on Tuesday" disabled={!active} /></label>
+          <button className="button primary" disabled={!active || record.isPending || !productId || !proof || phone.trim().length < 7}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
+          {status && !record.isPending && <p className="form-error">{status}</p>}
         </form>
-        {claim.error && <p className="form-error" role="alert">{claim.error.message}</p>}
-        {result && <div className={`claim-result ${result.outcome}`} role="status">
-          {result.outcome === "credited" && <><CheckCircle2 size={20} /><div><strong>{result.sales === 1 ? "That sale is now yours." : `${result.sales} sales are now yours.`}</strong><p>It's in your Earnings. You're paid once the vendor's waiting period ends.</p><Link className="text-link" to="/rep/earnings">See your earnings <ArrowRight size={14} /></Link></div></>}
-          {result.outcome === "waiting" && <><Clock3 size={20} /><div><strong>This customer is now linked to you.</strong><p>The vendor hasn't sent a sale for them yet. When it arrives, it's credited to you automatically.</p></div></>}
-          {result.outcome === "already_yours" && <><CheckCircle2 size={20} /><div><strong>This customer is already yours.</strong><p>Any sale from them is credited to you. Check Earnings to see it.</p></div></>}
-          {result.outcome === "taken" && <><ShieldCheck size={20} /><div><strong>Another rep already has this customer.</strong><p>The first rep to link a customer gets their sales. If you think that's wrong, report it from Support.</p></div></>}
+        {record.error && <p className="form-error" role="alert">{record.error.message}</p>}
+        {result && <div className={`claim-result ${result.state === "verified" ? "credited" : "waiting"}`} role="status">
+          {result.state === "verified"
+            ? <><CheckCircle2 size={20} /><div><strong>Recorded and already verified.</strong><p>The vendor had already reported this customer, so the sale is in your Earnings now.</p><Link className="text-link" to="/rep/earnings">See your earnings <ArrowRight size={14} /></Link></div></>
+            : <><Clock3 size={20} /><div><strong>Recorded. Waiting for verification.</strong><p>{result.expectedRepCommissionKobo ? `You'll earn ${money(result.expectedRepCommissionKobo)} once it's verified. ` : ""}It's verified when the vendor reports this customer, or when Operations checks your proof. You'll get a notification.</p></div></>}
         </div>}
       </Panel>
-      <Panel title="How claiming works">
+      <Panel title="How it works">
         <div className="fraud-boundaries">
-          <p><strong>Within 24 hours</strong><span>A sale the vendor sent in the last 24 hours, with nobody linked to the customer, goes to the first rep who claims it.</span></p>
-          <p><strong>Once per customer</strong><span>Each customer belongs to the first rep who links them. Nobody else can claim them afterwards.</span></p>
-          <p><strong>Only what the product pays for</strong><span>You earn when the customer does what the product pays for, such as signing up or adding money.</span></p>
-          <p><strong>Honest claims only</strong><span>Claims are recorded and checked. Claiming customers you didn't serve can lead to a strike or suspension.</span></p>
+          <p><strong>1. You record it</strong><span>It shows in your earnings straight away as waiting for verification.</span></p>
+          <p><strong>2. It's verified</strong><span>Automatically when the vendor reports this customer, or by Operations, who look at your proof.</span></p>
+          <p><strong>3. You're paid</strong><span>After the vendor's waiting period, it's paid out with your other earnings.</span></p>
+          <p><strong>Once per customer</strong><span>Each customer belongs to the first rep who links them. Honest records only: a false one can lead to a strike or suspension.</span></p>
         </div>
       </Panel>
     </div>
+    <RecordedSalesList />
   </RepFrame>;
+}
+
+const RECORDED_STATE: Record<string, { label: string; cls: string }> = {
+  waiting: { label: "Waiting for verification", cls: "waiting" },
+  verified: { label: "Verified", cls: "ok" },
+  rejected: { label: "Not verified", cls: "no" },
+};
+
+export function RecordedSalesList({ onlyWaiting = false }: { onlyWaiting?: boolean }) {
+  const { token } = useWorkspace();
+  const list = trpc.rep.recordedSales.useQuery({ token });
+  const rows = (list.data || []).filter((row) => !onlyWaiting || row.sale.state === "waiting");
+  if (onlyWaiting && !rows.length) return null;
+  return <Panel title={onlyWaiting ? "Waiting for verification" : "Sales you recorded"} action={<Link className="text-link" to="/rep/record">Record a sale <ArrowRight size={14} /></Link>}>
+    {list.isLoading ? <Loading /> : rows.length ? <div className="table-wrap"><table><thead><tr><th>Product</th><th>Customer</th><th>Recorded</th><th>Status</th></tr></thead><tbody>{rows.map(({ sale, productName, vendorName }) => <tr key={sale.id}>
+      <td><strong>{productName}</strong><small className="table-sub">{vendorName}</small></td>
+      <td className="mono">•••• {sale.customerPhoneLast4}</td>
+      <td>{shortDate(sale.createdAt)}</td>
+      <td><span className={`new-rep-badge ${RECORDED_STATE[sale.state]?.cls || "waiting"}`}>{RECORDED_STATE[sale.state]?.label || sale.state}</span>{sale.state === "verified" && <small className="table-sub">{sale.verifiedBy === "vendor" ? "The vendor reported it" : "Checked by Operations"}</small>}{sale.state === "rejected" && sale.reviewReason && <small className="table-sub">{sale.reviewReason}</small>}</td>
+    </tr>)}</tbody></table></div> : <EmptyState title="No recorded sales yet" detail="When you onboard someone, record it here so it's credited to you." />}
+  </Panel>;
 }
