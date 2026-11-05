@@ -1,5 +1,5 @@
 import { notifyUser } from "./services/notifications";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, sql, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
@@ -18,7 +18,7 @@ import {
   supportTickets,
   users,
   vendorEvents,
-  vendors,
+  vendors, enrollmentAttestations
 } from "@db/schema";
 import { createRouter } from "./middleware";
 import { authedQuery, requireRole } from "./services/auth";
@@ -317,6 +317,32 @@ export const opsRouter = createRouter({
       ? { userId: input.userId, type: "payout_account_approved", title: "Your bank account is confirmed", body: "Operations confirmed your bank account. Payouts can go to it now.", href: "/rep/earnings", entityType: "payout_destination", entityId: String(input.userId) }
       : { userId: input.userId, type: "payout_account_rejected", title: "Your bank account wasn't confirmed", body: `Operations couldn't confirm the account is yours: ${input.note} Add an account in your own name.`, href: "/rep/earnings", entityType: "payout_destination", entityId: String(input.userId) });
     return result;
+  }),
+  // New reps waiting to be activated, with what each still needs, so Operations can activate from ID checks.
+  repsToActivate: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin", "finance"]);
+    const rows = await getDb().select({ repId: reps.id, userId: users.id, code: reps.code, name: users.name, email: users.email, kycState: users.kycState, campusName: campuses.name, termsAcceptedAt: reps.contractorAgreementSignedAt, createdAt: reps.createdAt })
+      .from(reps).innerJoin(users, eq(users.id, reps.userId)).innerJoin(campuses, eq(campuses.id, reps.campusId))
+      .where(eq(reps.status, "pending")).orderBy(desc(reps.createdAt)).limit(100);
+    const userIds = rows.map((r) => r.userId);
+    const enrolments = userIds.length ? await getDb().select({ userId: enrollmentAttestations.userId, state: enrollmentAttestations.state, validUntil: enrollmentAttestations.validUntil })
+      .from(enrollmentAttestations).where(inArray(enrollmentAttestations.userId, userIds)).orderBy(desc(enrollmentAttestations.createdAt)) : [];
+    const invitations = userIds.length ? await getDb().select({ id: campusRecruitments.id, userId: campusRecruitments.acceptedUserId })
+      .from(campusRecruitments).where(and(inArray(campusRecruitments.acceptedUserId, userIds), eq(campusRecruitments.status, "accepted"))) : [];
+    const now = Date.now();
+    return rows.map((row) => {
+      const latest = enrolments.find((e) => e.userId === row.userId);
+      const enrolment = !latest ? "missing" : latest.state === "verified" && (!latest.validUntil || latest.validUntil.getTime() > now) ? "verified" : latest.state === "submitted" ? "submitted" : "redo";
+      const idApproved = row.kycState === "verified";
+      const waitingOn = [
+        !idApproved && (row.kycState === "pending" ? "ID check waiting for review" : "ID check not sent"),
+        enrolment === "submitted" && "Enrolment proof waiting for review",
+        enrolment === "missing" && "Enrolment proof not sent",
+        enrolment === "redo" && "Enrolment proof needs sending again",
+        !row.termsAcceptedAt && "Contractor terms not accepted",
+      ].filter(Boolean) as string[];
+      return { ...row, idApproved, enrolment, invitationId: invitations.find((i) => i.userId === row.userId)?.id ?? null, ready: waitingOn.length === 0, waitingOn };
+    });
   }),
   activateRep: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);

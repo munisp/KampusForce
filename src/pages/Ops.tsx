@@ -10,6 +10,8 @@ import { FraudDesk } from "@/components/product/FraudDesk";
 import { LaunchDesk } from "@/components/product/LaunchDesk";
 import { RolloutEvidenceDesk } from "@/components/product/RolloutEvidenceDesk";
 import { AssuranceDesk } from "@/components/product/AssuranceDesk";
+import { useNewRepCounts } from "@/components/product/NewRepsDesk";
+import { Link } from "react-router";
 
 type View = "control" | "incidents" | "fraud" | "assurance" | "privacy" | "support" | "leads" | "rollout" | "launch" | "evidence";
 
@@ -60,6 +62,7 @@ export default function Ops() {
   const data = overview.data!;
   return <WorkspaceLayout title="Operations" subtitle="Every sale, from confirmation to payment.">
     {system.testMode && <div className="sandbox-banner"><ShieldCheck size={18} /><p><strong>Test mode.</strong> Payouts here are practice, so no bank transfer happens. Vendor top-ups use Paystack's test system.</p></div>}
+    <WaitingForYou openChecks={() => setView("assurance")} />
     <div className="workspace-tabs" role="tablist" aria-label="Operations sections"><button className={view === "control" ? "active" : ""} onClick={() => setView("control")}><ReceiptText size={16} />Payments</button><button className={view === "incidents" ? "active" : ""} onClick={() => setView("incidents")}><AlertTriangle size={16} />Problems <span>{data.metrics.openIncidents}</span></button><button className={view === "fraud" ? "active" : ""} onClick={() => setView("fraud")}><Gavel size={16} />Fraud reviews <span>{data.metrics.openFraudCases}</span></button><button className={view === "assurance" ? "active" : ""} onClick={() => setView("assurance")}><ShieldCheck size={16} />Rep & vendor checks</button><button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}><LockKeyhole size={16} />Privacy requests <span>{data.metrics.openDsars + data.metrics.openBreaches}</span></button><button className={view === "support" ? "active" : ""} onClick={() => setView("support")}><LifeBuoy size={16} />Support <span>{data.metrics.openSupport}</span></button><button className={view === "rollout" ? "active" : ""} onClick={() => setView("rollout")}><Building2 size={16} />Campuses</button><button className={view === "leads" ? "active" : ""} onClick={() => setView("leads")}><UsersRound size={16} />Campus leads</button><button className={view === "launch" ? "active" : ""} onClick={() => setView("launch")}><ShieldCheck size={16} />Go-live checklist</button><button className={view === "evidence" ? "active" : ""} onClick={() => setView("evidence")}><ClipboardCheck size={16} />Launch reports</button></div>
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}{actionError && <p className="form-error" role="alert">{actionError.message}</p>}
     {view === "control" && <>
@@ -128,4 +131,27 @@ export default function Ops() {
     </>}
     {caseId && <div className="modal-backdrop" onClick={() => setCaseId(null)}><div className="modal" onClick={(e) => e.stopPropagation()}><p className="eyebrow">DISPUTE #{caseId}</p><h2>Record a decision</h2><p>If the rep is right, the sale goes back to ready to pay. If not, it goes back to how it was before. Your decision is recorded.</p><label>Reason<textarea value={decision} onChange={(e) => setDecision(e.target.value)} placeholder="What you checked, and why you decided this" /></label><label>Extra commission the rep is owed (₦, optional)<input id="dispute-correction" type="number" min="1" step="1" value={correction} onChange={(e) => setCorrection(e.target.value)} placeholder="Leave empty if the amount was right" /><small>This comes out of the vendor's wallet and goes out with the rep's next payout. It's only paid if you press Rep is right.</small></label>{resolve.error && <p className="form-error" role="alert">{resolve.error.message}</p>}<div className="decision-actions"><button className="button secondary" disabled={decision.length < 5 || !!correction || resolve.isPending} onClick={() => resolve.mutate({ token, disputeId: caseId, decision, upholdRep: false })}><X size={16} />Rep is wrong</button><button className="button primary" disabled={decision.length < 5 || resolve.isPending} onClick={() => resolve.mutate({ token, disputeId: caseId, decision, upholdRep: true, correctionKobo: correction ? Math.round(Number(correction) * 100) : undefined })}><Check size={16} />Rep is right</button></div></div></div>}
   </WorkspaceLayout>;
+}
+
+/** What's waiting for Operations right now, each linking straight to the list where it's done. */
+function WaitingForYou({ openChecks }: { openChecks: () => void }) {
+  const { token } = useWorkspace();
+  const identity = trpc.identity.overview.useQuery({ token });
+  const banks = trpc.ops.bankAccountReviews.useQuery({ token });
+  const { enrolments, toActivate } = useNewRepCounts();
+  const idChecks = (identity.data?.cases || []).filter((c) => ["manual_review", "submitted", "processing"].includes(c.state)).length;
+  const items = [
+    { count: idChecks, label: idChecks === 1 ? "ID or business check to review" : "ID and business checks to review", to: "/identity" },
+    { count: enrolments, label: enrolments === 1 ? "enrolment proof to check" : "enrolment proofs to check", to: "/identity?tab=enrolment" },
+    { count: toActivate, label: toActivate === 1 ? "campus rep ready to activate" : "campus reps ready to activate", to: "/identity?tab=activate" },
+    { count: banks.data?.length || 0, label: (banks.data?.length || 0) === 1 ? "bank account name to confirm" : "bank account names to confirm", onClick: openChecks },
+  ].filter((item) => item.count > 0);
+  if (identity.isLoading) return null;
+  return <section className="waiting-for-you" aria-label="Waiting for you">
+    <strong>Waiting for you</strong>
+    {items.length ? <ul>{items.map((item) => <li key={item.label}>{item.to
+      ? <Link to={item.to}><span className="wfy-count">{item.count}</span>{item.label}<ArrowRight size={14} /></Link>
+      : <button type="button" onClick={item.onClick}><span className="wfy-count">{item.count}</span>{item.label}<ArrowRight size={14} /></button>}</li>)}</ul>
+      : <span className="wfy-clear"><CheckCircle2 size={15} />Nothing needs you right now.</span>}
+  </section>;
 }
