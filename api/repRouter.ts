@@ -163,6 +163,26 @@ export const repRouter = createRouter({
     const text = `I can help you activate ${product.name} at the vendor’s listed price. Use my KampusForce link: ${url}`;
     return { url, qr, text, whatsappUrl: `https://wa.me/?text=${encodeURIComponent(text)}`, attributed, pickedUpSales: pickedUp.filter((r) => r.status === "accepted").length };
   }),
+  // "I already sold this": link the customer to the rep and pick up a sale the vendor sent in the last 24 hours.
+  claimSale: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string().trim().min(7).max(20) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    const rep = await currentRep(ctx.user.id);
+    if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations needs to activate you before you can claim sales." });
+    const [product] = await getDb().select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
+    if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Choose a product from the list." });
+    let link: Awaited<ReturnType<typeof ensureAttribution>>;
+    try {
+      link = await ensureAttribution({ repId: rep.id, productId: product.id, customerPhone: input.customerPhone, source: "claim", actorUserId: ctx.user.id });
+    } catch {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Check the customer's phone number and try again." });
+    }
+    if (!link.created) {
+      return { outcome: link.attribution.repId === rep.id ? "already_yours" as const : "taken" as const, sales: 0 };
+    }
+    const picked = await pickUpHeldSales({ vendorId: product.vendorId, customerPhoneHash: link.phoneHash, repId: rep.id });
+    const sales = picked.filter((r) => r.status === "accepted").length;
+    return { outcome: sales ? "credited" as const : "waiting" as const, sales };
+  }),
   assistedStart: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);

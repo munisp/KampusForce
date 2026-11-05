@@ -1368,3 +1368,12 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .waiting-for-you a:focus-visible, .waiting-for-you button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .wfy-count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--navy); color: var(--paper); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wfy-clear { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+
+/* Rep: Claim a sale */
+.claim-result { display: flex; gap: 12px; align-items: flex-start; margin-top: 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--paper); }
+.claim-result p { margin: 4px 0 6px; color: var(--muted); }
+.claim-result strong { color: var(--navy); }
+.claim-result.credited, .claim-result.already_yours { border-color: var(--teal); background: var(--teal-soft); color: var(--teal); }
+.claim-result.waiting { border-color: var(--mustard); background: var(--mustard-soft); color: var(--ink); }
+.claim-result.taken { color: var(--muted); }
+.claim-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; }
