@@ -236,6 +236,11 @@ export const vendorEvents = pgTable("vendor_events", {
   vendorId: integer("vendor_id").notNull().references(() => vendors.id),
   type: vendorEventTypeEnum("type").notNull(),
   customerRefHash: varchar("customer_ref_hash", { length: 64 }).notNull(),
+  // Same keyed hash as attribution_records: lets a sale held for "no rep linked" be picked up by the first
+  // rep who links that customer within 24 hours. Never the phone number itself.
+  customerPhoneHash: varchar("customer_phone_hash", { length: 64 }),
+  pickedUpAt: timestamp("picked_up_at", { withTimezone: true }),
+  pickedUpEventId: varchar("picked_up_event_id", { length: 36 }),
   productId: integer("product_id").references(() => products.id),
   amountKobo: bigint("amount_kobo", { mode: "number" }),
   payloadJson: json("payload_json").notNull(),
@@ -248,7 +253,7 @@ export const vendorEvents = pgTable("vendor_events", {
   dealId: integer("deal_id").references(() => deals.id),
   payloadRetainUntil: timestamp("payload_retain_until", { withTimezone: true }).notNull().defaultNow(),
   payloadPurgedAt: timestamp("payload_purged_at", { withTimezone: true }),
-}, (t) => [index("vendor_event_retention_idx").on(t.payloadRetainUntil, t.payloadPurgedAt), index("vendor_event_deal_idx").on(t.dealId)]);
+}, (t) => [index("vendor_event_retention_idx").on(t.payloadRetainUntil, t.payloadPurgedAt), index("vendor_event_deal_idx").on(t.dealId), index("vendor_event_held_customer_idx").on(t.vendorId, t.customerPhoneHash, t.status)]);
 
 export const vendorIngestionRetries = pgTable("vendor_ingestion_retries", {
   id: varchar("id", { length: 36 }).primaryKey(),

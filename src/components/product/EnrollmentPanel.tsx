@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Clock3, GraduationCap, ShieldCheck } from "lucide-react";
 import { EmptyState, Panel } from "./WorkspaceLayout";
 import { ErrorState, Loading } from "./Loading";
@@ -17,6 +17,12 @@ export function EnrollmentPanel() {
   const utils = trpc.useUtils();
   const overview = trpc.assurance.overview.useQuery({ token });
   const [providerName, setProviderName] = useState("");
+  // Schools are KampusForce's campuses; the rep's own campus is chosen to start with.
+  const campusList = trpc.registration.options.useQuery(undefined, { staleTime: 3_600_000 });
+  const me = trpc.rep.me.useQuery({ token });
+  const ownCampus = me.data?.campus?.name;
+  const schools = [...new Set([...(ownCampus ? [ownCampus] : []), ...(campusList.data?.campuses.map((c) => c.name) || [])])].sort((a, b) => a.localeCompare(b, "en-NG"));
+  useEffect(() => { if (!providerName && ownCampus) setProviderName(ownCampus); }, [ownCampus]); // eslint-disable-line react-hooks/exhaustive-deps
   const [proof, setProof] = useState<File | null>(null);
   const [renewing, setRenewing] = useState(false);
   const [proofError, setProofError] = useState("");
@@ -48,7 +54,7 @@ export function EnrollmentPanel() {
     {showForm && <div className="fraud-intake-grid">
       <Panel title="Show you're currently enrolled" action={<GraduationCap size={18} />}>
         <form className="privacy-form" onSubmit={async (event) => { event.preventDefault(); setProofError(""); if (!proof) return; if (proof.size > MAX_DOCUMENT_BYTES) { setProofError("That file is too big. The limit is 10 MB."); return; } try { const { documentId } = await uploadProof.mutateAsync({ token, contentBase64: await fileToBase64(await shrinkPhoto(proof)) }); submit.mutate({ token, providerName, providerMode: "sandbox", documentId, academicTerm: term, verificationMethod: "institution_document", requestedValidUntil: new Date(`${validUntil}T23:59:59.000Z`) }); setProof(null); (event.target as HTMLFormElement).reset(); } catch (failure) { setProofError(failure instanceof Error ? failure.message : "That upload failed. Please try again."); } }}>
-          <label>Your school<input value={providerName} onChange={(event) => setProviderName(event.target.value)} minLength={2} maxLength={80} required /></label>
+          <label>Your school<select value={providerName} onChange={(event) => setProviderName(event.target.value)} required disabled={campusList.isLoading}><option value="">{campusList.isLoading ? "Loading schools…" : "Choose your school"}</option>{schools.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
           <label>{documentLabels.student_proof.title}<input id="student-proof" type="file" accept="image/jpeg,image/png,application/pdf" required onChange={(event) => setProof(event.target.files?.[0] || null)} /><small>{documentLabels.student_proof.hint} JPG, PNG or PDF, up to 10 MB.</small></label>
           {proofError && <p className="form-error" role="alert">{proofError}</p>}
           <label>Academic term<input value={term} onChange={(event) => setTerm(event.target.value)} minLength={2} maxLength={40} placeholder="2026/2027, first semester" required /></label>
