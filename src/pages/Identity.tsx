@@ -38,9 +38,17 @@ export default function Identity() {
   if (overview.isLoading) return <WorkspaceLayout title="Verification" subtitle={subtitle}><Loading /></WorkspaceLayout>;
   if (overview.error) return <WorkspaceLayout title="Verification" subtitle={subtitle}><ErrorState message={overview.error.message} retry={overview.refetch} /></WorkspaceLayout>;
   const data = overview.data!;
-  const inQueue = (item: typeof data.cases[number]) => (["manual_review", "submitted", "processing"].includes(item.state) ? "review" : ["draft", "needs_more_info"].includes(item.state) ? "waiting" : "decided") === queue;
-  const queued = data.cases.filter(inQueue).sort((a, b) => new Date(a.reviewDueAt || 0).getTime() - new Date(b.reviewDueAt || 0).getTime());
-  const selected = data.cases.find((item) => item.id === selectedId) || (["ops", "admin", "finance"].includes(user.role) ? (queue === "review" ? queued[0] : data.cases.find(inQueue)) : data.cases.find((item) => ["draft", "needs_more_info", "manual_review", "submitted", "processing"].includes(item.state)) || data.cases[0]) || null;
+  const stateQueue = (state: string) => (["manual_review", "submitted", "processing"].includes(state) ? "review" : ["draft", "needs_more_info"].includes(state) ? "waiting" : "decided");
+  // Newest first in every list. To review keeps checks past their deadline on top so nothing urgent is buried.
+  const time = (value?: string | Date | null) => (value ? new Date(value).getTime() : 0);
+  const pastDue = (item: typeof data.cases[number]) => !!item.reviewDueAt && time(item.reviewDueAt) < overview.dataUpdatedAt;
+  const queueCases = {
+    review: data.cases.filter((item) => stateQueue(item.state) === "review").sort((a, b) => Number(pastDue(b)) - Number(pastDue(a)) || (pastDue(a) ? time(a.reviewDueAt) - time(b.reviewDueAt) : time(b.submittedAt || b.updatedAt) - time(a.submittedAt || a.updatedAt))),
+    waiting: data.cases.filter((item) => stateQueue(item.state) === "waiting").sort((a, b) => time(b.updatedAt) - time(a.updatedAt)),
+    decided: data.cases.filter((item) => stateQueue(item.state) === "decided").sort((a, b) => time(b.decidedAt || b.updatedAt) - time(a.decidedAt || a.updatedAt)),
+  };
+  const queued = queueCases[queue];
+  const selected = data.cases.find((item) => item.id === selectedId) || (["ops", "admin", "finance"].includes(user.role) ? queued[0] : data.cases.find((item) => ["draft", "needs_more_info", "manual_review", "submitted", "processing"].includes(item.state)) || data.cases[0]) || null;
   const privileged = ["ops", "admin"].includes(user.role);
   const staff = privileged || user.role === "finance";
   const hasOpenCase = data.cases.some((item) => item.subjectType === "user" ? item.subjectId === user.id && !["rejected", "revoked", "expired"].includes(item.state) : !["rejected", "revoked", "expired"].includes(item.state));
@@ -56,7 +64,6 @@ export default function Identity() {
   const consented = ownConsents.length >= 2;
   const allUploaded = !!selected && selected.requiredDocuments.every((kind) => selectedDocuments.some((document) => document.kind === kind));
   const queueOf = (state: string) => (["manual_review", "submitted", "processing"].includes(state) ? "review" : ["draft", "needs_more_info"].includes(state) ? "waiting" : "decided");
-  const queueCases = { review: data.cases.filter((item) => queueOf(item.state) === "review").sort((a, b) => new Date(a.reviewDueAt || 0).getTime() - new Date(b.reviewDueAt || 0).getTime()), waiting: data.cases.filter((item) => queueOf(item.state) === "waiting"), decided: data.cases.filter((item) => queueOf(item.state) === "decided") };
   const typeLabel = (type: string) => caseLabels[type] || type.replaceAll("_", " ");
   const person = (item: typeof data.cases[number]) => item.subject?.companyName || item.subject?.name || typeLabel(item.caseType);
   const overdue = (item: typeof data.cases[number]) => queueOf(item.state) === "review" && !!item.reviewDueAt && new Date(item.reviewDueAt).getTime() < overview.dataUpdatedAt;

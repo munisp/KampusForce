@@ -306,7 +306,7 @@ export async function exportTalentCampaign(input: { actor: SalesActor; campaignI
   const db = getDb();
   const rows = await db.select({ application: talentApplications, applicant: applicants, outcome: talentOutcomes }).from(talentApplications)
     .innerJoin(applicants, eq(talentApplications.applicantId, applicants.id)).leftJoin(talentOutcomes, and(eq(talentOutcomes.applicationId, talentApplications.id), eq(talentOutcomes.campaignId, campaign.id)))
-    .where(eq(talentApplications.campaignId, campaign.id)).orderBy(talentApplications.id).limit(10000);
+    .where(eq(talentApplications.campaignId, campaign.id)).orderBy(desc(talentApplications.id)).limit(10000);
   const header = ["applicationRef", "applicantRef", "fullName", "email", "course", "studyLevel", "graduationYear", "stage", "score", "verifiedOutcome"];
   const csv = [header.map(talentCsvCell).join(","), ...rows.map((row) => [row.application.applicationRef, row.applicant.applicantRef, row.applicant.fullName, row.applicant.email, row.applicant.course, row.applicant.studyLevel, row.applicant.graduationYear, row.application.currentStage, row.application.score, row.outcome?.state === "verified" ? row.outcome.outcomeType : ""].map(talentCsvCell).join(","))].join("\r\n");
   const payloadHash = talentHash(csv);

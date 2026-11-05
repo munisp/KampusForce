@@ -24,7 +24,7 @@ export function RepFraudCases() {
     <div className="trust-strip"><ShieldAlert size={18} /><span><strong>A review doesn't take away your commission.</strong> Your payouts are paused during a review. If it goes against you, you can appeal once.</span></div>
     <div className="rep-fraud-list">{cases.map((fraudCase) => {
       const hold = fraud.data.holds.find((item) => item.caseId === fraudCase.id);
-      const events = fraud.data.events.filter((event) => event.caseId === fraudCase.id).sort((a, b) => a.id - b.id);
+      const events = fraud.data.events.filter((event) => event.caseId === fraudCase.id).sort((a, b) => b.id - a.id);
       return <article key={fraudCase.id}>
         <div className="rep-fraud-heading"><div><span className="ticket-ref">{fraudCase.caseRef}</span><h3>{fraudCase.reason.replaceAll("_", " ")}</h3><small>Review due {shortDate(fraudCase.reviewDueAt)}</small></div><div><StateBadge state={fraudCase.state} />{hold && <StateBadge state={`${hold.state} hold`} />}</div></div>
         {fraudCase.reviewNote && <p><strong>Operations decision:</strong> {fraudCase.reviewNote}</p>}

@@ -369,7 +369,8 @@ export async function getIdentityWorkspace(actor: typeof users.$inferSelect) {
   const privileged = ["ops", "admin"].includes(actor.role);
   let cases: IdentityCase[];
   if (privileged) {
-    cases = await db.select().from(identityCases).orderBy(desc(identityCases.createdAt)).limit(100);
+    // The 100 most recently active checks, so one decided today is never cut off for being registered long ago.
+    cases = await db.select().from(identityCases).orderBy(desc(identityCases.updatedAt)).limit(100);
   } else if (actor.role === "vendor") {
     const [vendor] = await db.select().from(vendors).where(eq(vendors.userId, actor.id)).limit(1);
     cases = vendor ? await db.select().from(identityCases).where(and(eq(identityCases.subjectType, "vendor"), eq(identityCases.subjectId, vendor.id))).orderBy(desc(identityCases.createdAt)).limit(30) : [];
@@ -434,7 +435,7 @@ export async function listIdentityLifecycleEvents(limit = 200) {
     payload: identityLifecycleEvents.payload,
     exportState: identityLifecycleEvents.exportState,
     occurredAt: identityLifecycleEvents.occurredAt,
-  }).from(identityLifecycleEvents).orderBy(identityLifecycleEvents.id).limit(bounded);
+  }).from(identityLifecycleEvents).orderBy(desc(identityLifecycleEvents.id)).limit(bounded);
 }
 
 export async function expireIdentityApprovals(now = new Date()) {

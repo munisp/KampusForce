@@ -66,7 +66,7 @@ export const repRouter = createRouter({
     requireRole(ctx.user, ["rep", "vendor", "ops"]);
     return getDb().select({ product: products, rule: commissionRules, vendorName: vendors.companyName, vendorQualityScore: vendors.qualityScore }).from(products)
       .innerJoin(vendors, eq(products.vendorId, vendors.id)).innerJoin(commissionRules, eq(commissionRules.productId, products.id))
-      .where(and(eq(products.status, "active"), isNull(commissionRules.supersededAt)));
+      .where(and(eq(products.status, "active"), isNull(commissionRules.supersededAt))).orderBy(desc(products.id));
   }),
   dashboard: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep"]);

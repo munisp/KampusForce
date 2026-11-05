@@ -59,7 +59,7 @@ export const vendorRouter = createRouter({
       .innerJoin(commissionRules, eq(commissionRules.productId, products.id))
       .innerJoin(vendors, eq(products.vendorId, vendors.id))
       .where(and(eq(products.vendorId, vendor.id), isNull(commissionRules.supersededAt)))
-      .orderBy(products.id);
+      .orderBy(desc(products.id));
     const ruleHistory = await getDb().select({ rule: commissionRules, productName: products.name }).from(commissionRules)
       .innerJoin(products, eq(commissionRules.productId, products.id))
       .where(eq(products.vendorId, vendor.id)).orderBy(desc(commissionRules.publishedAt)).limit(30);
