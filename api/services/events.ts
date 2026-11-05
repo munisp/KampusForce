@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
 import { attributionRecords, commissionRules, consentLogs, dealStateHistory, deals, products, promotionLinks, reps, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
@@ -20,6 +20,10 @@ export type VendorEventInput = {
   amount_kobo?: number;
   meta?: Record<string, unknown>;
 };
+
+/** A sale held because no rep is linked to the customer yet. The first rep to link them within 24 hours picks it up. */
+export const NO_REP_YET = "No rep linked to this customer yet; the first rep to link them within 24 hours picks it up";
+const PICK_UP_WINDOW_MS = 24 * 3_600_000;
 
 export type IngestVendorEventOptions = {
   credentialId?: number | null;
@@ -43,6 +47,7 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     vendorId: vendor.id,
     type: payload.type,
     customerRefHash,
+    customerPhoneHash: phoneHash,
     productId: product?.id || null,
     amountKobo: payload.amount_kobo || null,
     payloadJson: redactVendorEventPayload(payload),
@@ -128,7 +133,7 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
       }
     }
     if (!attribution) {
-      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: "No rep linked to this customer yet; a rep can claim it within 24 hours" });
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: NO_REP_YET });
       return { status: "quarantined" as const, kf_event_id: eventId, reason: "No active attribution" };
     }
     const trigger = (payload.type === "account_created" ? "signup" : payload.type) as typeof commissionRules.$inferInsert.triggerEvent;
@@ -234,4 +239,38 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     }
     return { status: "accepted" as const, kf_event_id: eventId, deal_id: dealId, promotion_id: attribution.promotionId || null };
   });
+}
+
+/**
+ * Called after a rep is newly linked to a customer: any sale from that vendor for that customer that was held in the
+ * last 24 hours because no rep was linked is sent through the normal process again, so it is credited to this rep
+ * if it would have been. Every usual check still applies (the event must trigger the commission, not already earned,
+ * the rep's daily cap, the vendor's wallet). Each held sale is picked up at most once.
+ */
+export async function pickUpHeldSales(input: { vendorId: number; customerPhoneHash: string; repId: number }) {
+  const db = getDb();
+  const [vendor] = await db.select().from(vendors).where(eq(vendors.id, input.vendorId)).limit(1);
+  if (!vendor || vendor.status !== "active") return [];
+  const held = await db.select().from(vendorEvents).where(and(
+    eq(vendorEvents.vendorId, input.vendorId),
+    eq(vendorEvents.customerPhoneHash, input.customerPhoneHash),
+    eq(vendorEvents.status, "quarantined"),
+    eq(vendorEvents.quarantineReason, NO_REP_YET),
+    isNull(vendorEvents.pickedUpAt),
+    gt(vendorEvents.receivedAt, new Date(Date.now() - PICK_UP_WINDOW_MS)),
+  )).orderBy(asc(vendorEvents.receivedAt));
+  const results: { heldEventId: string; status: string; dealId?: number }[] = [];
+  for (const event of held) {
+    // Claim the held sale first, so two reps (or two clicks) can't both pick it up.
+    const claimed = await db.update(vendorEvents).set({ pickedUpAt: new Date() })
+      .where(and(eq(vendorEvents.id, event.id), isNull(vendorEvents.pickedUpAt))).returning({ id: vendorEvents.id });
+    if (!claimed.length) continue;
+    const original = event.payloadJson as VendorEventInput;
+    const result = await ingestVendorEvent(vendor.webhookKey, { ...original, event_id: `${original.event_id}:picked-up` }, {
+      identifiers: { customerPhoneHash: input.customerPhoneHash, customerRefHash: event.customerRefHash },
+    });
+    await db.update(vendorEvents).set({ pickedUpEventId: result.kf_event_id ? String(result.kf_event_id) : null }).where(eq(vendorEvents.id, event.id));
+    results.push({ heldEventId: event.id, status: result.status, dealId: "deal_id" in result ? (result as { deal_id?: number }).deal_id : undefined });
+  }
+  return results;
 }

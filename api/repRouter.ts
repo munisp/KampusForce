@@ -30,6 +30,7 @@ import { openDealDispute } from "./services/ledger";
 import { configurePayoutDestination, lookUpBankAccount, payoutDestinationStatus } from "./services/payoutDestinations";
 import { listBanks } from "./services/bankAccounts";
 import { repOnboarding } from "./services/onboarding";
+import { pickUpHeldSales } from "./services/events";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -147,20 +148,27 @@ export const repRouter = createRouter({
     const [product] = await getDb().select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
     if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Active product not found" });
     let attributed = false;
-    if (input.customerPhone) attributed = (await ensureAttribution({ repId: rep.id, productId: product.id, customerPhone: input.customerPhone, source: input.source, actorUserId: ctx.user.id })).created;
+    let pickedUp: Awaited<ReturnType<typeof pickUpHeldSales>> = [];
+    if (input.customerPhone) {
+      const link = await ensureAttribution({ repId: rep.id, productId: product.id, customerPhone: input.customerPhone, source: input.source, actorUserId: ctx.user.id });
+      attributed = link.created;
+      // A sale this vendor sent in the last 24 hours, held because no rep was linked yet, now goes to this rep.
+      if (link.created) pickedUp = await pickUpHeldSales({ vendorId: product.vendorId, customerPhoneHash: link.phoneHash, repId: rep.id });
+    }
     const origin = ctx.req.headers.get("origin") || `${ctx.req.headers.get("x-forwarded-proto") || "http"}://${ctx.req.headers.get("host")}`;
     // Attribution is already persisted above. Never put customer identifiers in a
     // copied URL, browser history, referrer, screenshot, QR code, or access log.
     const url = `${origin}/l/${rep.code}?p=${encodeURIComponent(product.vendorRef)}`;
     const qr = await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: "#102a43", light: "#fffdf7" } });
     const text = `I can help you activate ${product.name} at the vendor’s listed price. Use my KampusForce link: ${url}`;
-    return { url, qr, text, whatsappUrl: `https://wa.me/?text=${encodeURIComponent(text)}`, attributed };
+    return { url, qr, text, whatsappUrl: `https://wa.me/?text=${encodeURIComponent(text)}`, attributed, pickedUpSales: pickedUp.filter((r) => r.status === "accepted").length };
   }),
   assistedStart: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
     if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations must activate your rep profile before assisted onboarding" });
-    const { attribution } = await ensureAttribution({ repId: rep.id, productId: input.productId, customerPhone: input.customerPhone, source: "assisted", actorUserId: ctx.user.id });
+    const { attribution, created, phoneHash } = await ensureAttribution({ repId: rep.id, productId: input.productId, customerPhone: input.customerPhone, source: "assisted", actorUserId: ctx.user.id });
+    if (created) await pickUpHeldSales({ vendorId: attribution.vendorId, customerPhoneHash: phoneHash, repId: rep.id });
     const [{ id }] = await getDb().insert(assistedSessions).values({ repId: rep.id, productId: input.productId, customerPhoneHash: attribution.customerPhoneHash, currentStep: 1, consentAt: new Date() }).returning({ id: assistedSessions.id });
     return { sessionId: id, attributionId: attribution.id };
   }),
