@@ -24,7 +24,7 @@ import {
   recoverInterruptedPayoutDispatches,
 } from "../api/services/ledger";
 import {
-  configurePayoutDestination,
+  encryptPayoutAccountNumber,
   payoutDestinationStatus,
   resolvePayoutDestination,
 } from "../api/services/payoutDestinations";
@@ -116,8 +116,10 @@ async function main() {
       campusId: campus.id,
     });
 
-    const configured = await configurePayoutDestination(repUser.id, { accountNumber, bankCode: "058", accountName: "Production Gate Recipient" });
-    assert.deepEqual(configured, { configured: true, bankCode: "058", accountName: "Production Gate Recipient", accountLast4: "6789", version: 1, fullAccountNumberPersisted: false });
+    // The bank name check calls Paystack (api/services/bankAccounts.test.ts covers it); here the account is stored as
+    // already confirmed so this script stays offline and checks encryption and dispatch.
+    await db.insert(payoutDestinations).values({ userId: repUser.id, ...encryptPayoutAccountNumber(repUser.id, accountNumber), bankCode: "058", bankName: "Guaranty Trust Bank", accountName: "Production Gate Recipient", accountLast4: "6789", nameCheck: "matched" });
+    await db.insert(auditLogs).values({ actorUserId: repUser.id, action: "payout.destination_configured", entityType: "payout_destination", entityId: String(repUser.id), metadataJson: { bankCode: "058", accountLast4: "6789", encryptedAtRest: true, fullAccountNumberPersisted: false, nameCheck: "matched" } });
     const status = await payoutDestinationStatus(repUser.id);
     assert.equal(status.configured, true);
     assert.ok(!JSON.stringify(status).includes(accountNumber));

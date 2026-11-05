@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, CircleDollarSign, Clock3, Copy, FlaskConical, KeyRound, LifeBuoy, Plus, Radio, Settings2, ShieldCheck, Wallet } from "lucide-react";
 import { EmptyState, Metric, Panel, useSystemStatus, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
+import { GettingStarted } from "@/components/product/GettingStarted";
 import { money, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
@@ -13,6 +14,9 @@ export default function Vendor() {
   const { token } = useWorkspace();
   const system = useSystemStatus();
   const overview = trpc.vendor.overview.useQuery({ token });
+  const onboarding = trpc.vendor.onboarding.useQuery({ token });
+  // Re-read the checklist whenever the dashboard data changes (a product listed, funds added, an approval).
+  useEffect(() => { if (overview.dataUpdatedAt) onboarding.refetch(); }, [overview.dataUpdatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const utils = trpc.useUtils();
   const [view, setView] = useState<View>("command");
   const [amount, setAmount] = useState("100000");
@@ -73,7 +77,7 @@ export default function Vendor() {
   const counts = data.funnel.reduce((acc, d) => { acc[d.state] = (acc[d.state] || 0) + 1; return acc; }, {} as Record<string, number>);
   const gross = data.funnel.reduce((sum, d) => sum + (["paid", "payable", "confirmed"].includes(d.state) ? d.vendorCommissionKobo : 0), 0);
   return <WorkspaceLayout title={data.vendor.companyName} subtitle="Confirm sales, and KampusForce pays the reps.">
-    {data.vendor.status !== "active" && <div className="sandbox-banner" id="vendor-pending"><Clock3 size={18} /><p><strong>Your business is awaiting approval.</strong> Finish your business check under Verification. Once Operations approves it, you can list products and add funds.</p></div>}
+    {onboarding.data && <GettingStarted steps={onboarding.data.steps} intro="Three steps before reps can start selling for you. Each one unlocks the next." />}
     {system.paymentsTest && <div className="sandbox-banner"><FlaskConical size={18} /><p><strong>Test mode.</strong> Payments use Paystack's test system, so no real money moves. You can also try out a sale below.</p></div>}
     <div className="workspace-tabs" role="tablist" aria-label="Vendor workspace views"><button className={view === "command" ? "active" : ""} onClick={() => setView("command")}><CircleDollarSign size={16} />Overview</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}><Settings2 size={16} />Commission terms</button><button className={view === "support" ? "active" : ""} onClick={() => setView("support")}><LifeBuoy size={16} />Support <span>{data.funnelMetrics.openSupport}</span></button></div>
     {view === "command" && <>

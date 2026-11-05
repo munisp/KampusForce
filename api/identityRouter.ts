@@ -20,6 +20,7 @@ import {
 import { processSyntheticIdentityCase } from "./services/identityFixtures";
 import { purgeCaseDocuments, uploadCaseDocument, viewIdentityDocument } from "./services/identityDocuments";
 import { notifyUser } from "./services/notifications";
+import { GOVERNMENT_ID_TYPES } from "./services/identityDocuments";
 
 const evidenceKind = z.enum(["document_ocr", "document_structure", "vlm_extraction", "registry_kyb", "bank_name_match", "liveness", "deepfake", "face_match", "capture_integrity", "reviewer_attestation"]);
 
@@ -71,8 +72,12 @@ export const identityRouter = createRouter({
   uploadDocument: authedQuery.input(z.object({
     caseId: z.number().int().positive(),
     kind: z.enum(["government_id", "selfie", "business_certificate", "owner_id"]),
+    idType: z.enum(GOVERNMENT_ID_TYPES).optional(),
     contentBase64: z.string().min(4).max(14 * 1024 * 1024),
-  })).mutation(async ({ ctx, input }) => uploadCaseDocument({ ...input, actorUserId: ctx.user.id })),
+  })).mutation(async ({ ctx, input }) => {
+    if (["government_id", "owner_id"].includes(input.kind) && !input.idType) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose which ID you're uploading." });
+    return uploadCaseDocument({ ...input, idType: ["government_id", "owner_id"].includes(input.kind) ? input.idType : undefined, actorUserId: ctx.user.id });
+  }),
 
   viewDocument: authedQuery.input(z.object({ documentId: z.number().int().positive() })).mutation(async ({ ctx, input }) => viewIdentityDocument({ documentId: input.documentId, actor: ctx.user })),
 
