@@ -81,6 +81,7 @@ export default function Vendor() {
     {system.paymentsTest && <div className="sandbox-banner"><FlaskConical size={18} /><p><strong>Test mode.</strong> Payments use Paystack's test system, so no real money moves. You can also try out a sale below.</p></div>}
     <div className="workspace-tabs" role="tablist" aria-label="Vendor workspace views"><button className={view === "command" ? "active" : ""} onClick={() => setView("command")}><CircleDollarSign size={16} />Overview</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}><Settings2 size={16} />Commission terms</button><button className={view === "support" ? "active" : ""} onClick={() => setView("support")}><LifeBuoy size={16} />Support <span>{data.funnelMetrics.openSupport}</span></button></div>
     {view === "command" && <>
+      <OpsVerifiedSales />
       <div className="metrics-grid"><Metric label="Wallet balance" value={money(wallet?.balanceKobo || 0)} note="Money set aside to pay reps" tone="teal" /><Metric label="Customers referred" value={data.funnelMetrics.attributed} note={`${data.funnelMetrics.activationRate}% activation rate`} /><Metric label="Commission confirmed" value={money(gross)} note={`${counts.pending || 0} deals awaiting confirmation`} tone="mustard" /><Metric label="Your rating" value={`${data.vendor.qualityScore}/100`} note={`${data.funnelMetrics.csatRatings} closed-case ratings`} /></div>
       <Panel title="Your sales so far" action={<span className="result-count">From referral to payment</span>}>
         <div className="funnel-track"><div><span>01</span><strong>{data.funnelMetrics.attributed}</strong><small>Referred</small></div><div><span>02</span><strong>{data.funnelMetrics.activated}</strong><small>Sold</small></div><div><span>03</span><strong>{data.funnelMetrics.confirmed}</strong><small>Confirmed</small></div><div><span>04</span><strong>{data.funnelMetrics.paid}</strong><small>Paid</small></div></div>
@@ -148,3 +149,28 @@ const TEST_SALE_TITLE: Record<string, string> = {
   ignored: "Nothing to pay",
   duplicate: "Already received",
 };
+
+/** Sales KampusForce Operations verified from a rep's proof, which this vendor never reported. The vendor can dispute one. */
+function OpsVerifiedSales() {
+  const { token } = useWorkspace();
+  const utils = trpc.useUtils();
+  const list = trpc.vendor.opsVerifiedSales.useQuery({ token });
+  const [open, setOpen] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const [notice, setNotice] = useState("");
+  const dispute = trpc.vendor.disputeVerifiedSale.useMutation({ onSuccess: () => { setOpen(null); setReason(""); setNotice("Disputed. The sale is on hold and Operations will review it."); utils.vendor.opsVerifiedSales.invalidate(); utils.vendor.overview.invalidate(); } });
+  const rows = list.data || [];
+  if (!rows.length) return null;
+  return <Panel title="Sales verified by KampusForce" action={<span className="result-count">{rows.length}</span>}>
+    <p className="panel-note">A campus rep recorded these with proof, and KampusForce Operations verified them because your system hadn't reported them. If one didn't happen, dispute it: the sale is held while Operations reviews it.</p>
+    {notice && <p className="success-message" role="status"><CheckCircle2 size={16} />{notice}</p>}
+    {dispute.error && <p className="form-error" role="alert">{dispute.error.message}</p>}
+    <div className="table-wrap"><table><thead><tr><th>Product</th><th>Customer</th><th>Rep</th><th>Verified</th><th>Status</th><th></th></tr></thead><tbody>{rows.map(({ sale, productName, repCode, dealState }) => <tr key={sale.id}>
+      <td><strong>{productName}</strong></td><td className="mono">•••• {sale.customerPhoneLast4}</td><td className="mono">{repCode}</td><td>{sale.decidedAt ? shortDate(sale.decidedAt) : "—"}</td>
+      <td>{dealState ? <StateBadge state={dealState} /> : "—"}</td>
+      <td>{dealState && !["disputed", "void", "clawed_back"].includes(dealState) && (open === sale.id
+        ? <form className="form-stack" onSubmit={(e) => { e.preventDefault(); dispute.mutate({ token, id: sale.id, reason }); }}><input aria-label="Why didn't this sale happen?" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why didn't this sale happen?" minLength={10} maxLength={1000} required /><div className="decision-actions"><button type="button" className="button secondary small" onClick={() => setOpen(null)}>Cancel</button><button className="button primary small" disabled={reason.trim().length < 10 || dispute.isPending}>Send dispute</button></div></form>
+        : <button className="button secondary small" onClick={() => { setOpen(sale.id); setReason(""); }}>Dispute</button>)}</td>
+    </tr>)}</tbody></table></div>
+  </Panel>;
+}

@@ -1377,3 +1377,4 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .claim-result.waiting { border-color: var(--mustard); background: var(--mustard-soft); color: var(--ink); }
 .claim-result.taken { color: var(--muted); }
 .claim-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; }
+.new-rep-badge.no { background: var(--red-soft); color: var(--red); }

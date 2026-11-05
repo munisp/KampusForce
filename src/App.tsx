@@ -18,7 +18,7 @@ const RepOverview = lazy(() => import("@/pages/Rep").then((module) => ({ default
 const RepCatalog = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepCatalog })));
 const RepShare = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepShare })));
 const RepAssist = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepAssist })));
-const RepClaim = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepClaim })));
+const RepRecordSale = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepRecordSale })));
 const RepEarnings = lazy(() => import("@/pages/Rep").then((module) => ({ default: module.RepEarnings })));
 
 function Protected({ children }: { children: ReactNode }) {
@@ -36,7 +36,8 @@ export default function App() {
     <Route path="/rep/catalog" element={<Protected><RepCatalog /></Protected>} />
     <Route path="/rep/share" element={<Protected><RepShare /></Protected>} />
     <Route path="/rep/assist" element={<Protected><RepAssist /></Protected>} />
-    <Route path="/rep/claim" element={<Protected><RepClaim /></Protected>} />
+    <Route path="/rep/record" element={<Protected><RepRecordSale /></Protected>} />
+    <Route path="/rep/claim" element={<Navigate to="/rep/record" replace />} />
     <Route path="/rep/earnings" element={<Protected><RepEarnings /></Protected>} />
     <Route path="/rep/support" element={<Protected><RepSupport /></Protected>} />
     <Route path="/rep/team" element={<Protected><RepTeam /></Protected>} />

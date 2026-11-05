@@ -16,7 +16,7 @@ const navByRole = {
     { to: "/rep/share", label: "Share a product", icon: QrCode },
     { to: "/rep/support", label: "Support", icon: LifeBuoy },
     { to: "/rep/team", label: "My team", icon: UsersRound },
-    { to: "/rep/claim", label: "Claim a sale", icon: HandCoins },
+    { to: "/rep/record", label: "Record a sale", icon: HandCoins },
     { to: "/rep/earnings", label: "Earnings", icon: CircleDollarSign },
     { to: "/rep/assist", label: "Help a customer", icon: ClipboardCheck },
   ],
