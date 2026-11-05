@@ -315,7 +315,7 @@ export async function getRolloutReadiness() {
       fullQuarterRequired: true,
       campusLaunchCertified: false,
       nationalLaunchCertified: false,
-      boundary: "Approved external evidence can complete a register check; it never marks a campus live, certifies a national launch or proves the underlying external outcome by itself.",
+      boundary: "Approving proof ticks an item off here. It doesn't open a campus or start a national launch.",
     },
     campuses: campusRows,
     cohorts,

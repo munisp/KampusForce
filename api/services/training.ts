@@ -8,8 +8,8 @@ const moduleSeeds: Array<typeof trainingModules.$inferInsert> = [
   {
     moduleKey: "ethical-sales-foundations",
     title: "Ethical sales foundations",
-    summary: "Consent, truthful product comparisons and the limits of a student representative’s role.",
-    content: "Sell the vendor’s actual terms, never an invented bonus or guaranteed return. Explain that the representative may earn vendor-funded commission. Obtain consent before attribution or a referral. Do not add a customer markup, pressure a student, or present a planning forecast as earned commission. A suitable recommendation accounts for the student’s need, price, activation requirement and vendor quality. Record the next step accurately so another team member does not repeat or contradict the conversation.",
+    summary: "Consent, truthful product comparisons and the limits of a campus representative’s role.",
+    content: "Sell the vendor’s actual terms, never an invented bonus or guaranteed return. Explain that the representative may earn vendor-funded commission. Obtain consent before attribution or a referral. Do not add a customer markup, pressure a customer, or present a planning forecast as earned commission. A suitable recommendation accounts for the customer’s need, price, activation requirement and vendor quality. Record the next step accurately so another team member does not repeat or contradict the conversation.",
     category: "conduct",
     durationMinutes: 18,
     passingScore: 80,
@@ -39,7 +39,7 @@ const moduleSeeds: Array<typeof trainingModules.$inferInsert> = [
     moduleKey: "consultative-opportunity-management",
     title: "Consultative opportunity management",
     summary: "Use discovery, complete timelines and explainable next actions instead of pipeline vanity.",
-    content: "Start with the student’s goal and constraints. Record useful activity promptly: what was requested, what was explained and what happens next. A quiet opportunity needs a reason and a realistic follow-up, not arbitrary stage advancement. Drafts are prepared from recorded context and require human approval. Mark shared only after you actually share through your own channel. Won requires a vendor-verified deal; Lost requires a reason so targeting can improve.",
+    content: "Start with the customer’s goal and constraints. Record useful activity promptly: what was requested, what was explained and what happens next. A quiet opportunity needs a reason and a realistic follow-up, not arbitrary stage advancement. Drafts are prepared from recorded context and require human approval. Mark shared only after you actually share through your own channel. Won requires a vendor-verified deal; Lost requires a reason so targeting can improve.",
     category: "sales_skills",
     durationMinutes: 24,
     passingScore: 80,
@@ -54,14 +54,14 @@ const moduleSeeds: Array<typeof trainingModules.$inferInsert> = [
     moduleKey: "objection-handling-and-follow-up",
     title: "Objection handling and contextual follow-up",
     summary: "Resolve price, trust and timing concerns without pressure or unsupported claims.",
-    content: "Listen and classify the concern before responding. For price, compare the vendor’s listed total and exclusions. For trust, explain the vendor boundary and verifiable activation evidence. For timing, agree a specific follow-up and snooze rather than repeatedly contacting the student. If the product is unsuitable, close Lost with the reason. Never use a leaderboard position to pressure a customer or another rep.",
+    content: "Listen and classify the concern before responding. For price, compare the vendor’s listed total and exclusions. For trust, explain the vendor boundary and verifiable activation evidence. For timing, agree a specific follow-up and snooze rather than repeatedly contacting the customer. If the product is unsuitable, close Lost with the reason. Never use a leaderboard position to pressure a customer or another rep.",
     category: "sales_skills",
     durationMinutes: 20,
     passingScore: 80,
     required: false,
     sortOrder: 4,
     quizJson: [
-      { question: "A student asks for time. What is best?", options: ["Send daily messages", "Agree a contextual follow-up date", "Mark the deal Won"], answerIndex: 1 },
+      { question: "A customer asks for time. What is best?", options: ["Send daily messages", "Agree a contextual follow-up date", "Mark the deal Won"], answerIndex: 1 },
       { question: "How should price objections be handled?", options: ["Invent a discount", "Review actual vendor terms", "Hide fees"], answerIndex: 1 },
     ],
   },
@@ -117,7 +117,7 @@ export async function getTrainingWorkspace(actor: SalesActor) {
       readinessPercent: requiredCount ? Math.round(completedRequired / requiredCount * 100) : 100,
       averageBestScore: progress.length ? Math.round(progress.reduce((sum, row) => sum + row.bestScore, 0) / progress.length) : 0,
     },
-    boundary: "Completion is an internal learning record and readiness signal, not an accredited external certification or permission to perform regulated KYC.",
+    boundary: "Finishing a lesson is a record for KampusForce. It isn't a certificate, and it doesn't let you do ID checks.",
   };
 }
 

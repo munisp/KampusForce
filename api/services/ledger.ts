@@ -4,6 +4,7 @@ import {
   auditLogs,
   campusLeadAssignments,
   campusLeadOverrides,
+  commissionCorrections,
   commissionRules,
   dealStateHistory,
   deals,
@@ -106,8 +107,8 @@ export async function confirmDueDeals(actorUserId?: number) {
       });
       const clawbackUntil = rule ? new Date(Date.now() + rule.clawbackDays * 86_400_000) : null;
       await tx.update(deals).set({ clawbackUntil, updatedAt: new Date() }).where(eq(deals.id, current.id));
-      await stateChange(tx, current.id, "pending", "confirmed", actorUserId ? `staff:${actorUserId}` : "system:confirmation", "Refund-free window elapsed; escrow reserved");
-      await stateChange(tx, current.id, "confirmed", "payable", actorUserId ? `staff:${actorUserId}` : "system:confirmation", override ? `Eligible for payout; ₦${override.overrideKobo / 100} lead override funded from platform margin` : "Eligible for the next payout batch");
+      await stateChange(tx, current.id, "pending", "confirmed", actorUserId ? `staff:${actorUserId}` : "system:confirmation", "Waiting period over; commission set aside");
+      await stateChange(tx, current.id, "confirmed", "payable", actorUserId ? `staff:${actorUserId}` : "system:confirmation", override ? `Ready for payout; ₦${override.overrideKobo / 100} campus lead bonus paid by KampusForce` : "Ready for the next payout");
       await signalPromotionActivationConfirmed(current.id, actorUserId, tx);
       await signalActivationEvidence(current.id, "ledger.confirmation", `deal:${current.id};state:payable;commission-rule:${current.commissionRuleId || "unversioned"}`, new Date(), tx);
       return true;
@@ -141,13 +142,22 @@ async function reverseDealLocked(tx: Transaction, dealId: number, actor: string)
   if (effectiveState !== "pending") {
     const [wallet] = await tx.select().from(escrowWallets).where(eq(escrowWallets.vendorId, deal.vendorId)).limit(1).for("update");
     if (!wallet) throw new Error("Vendor escrow wallet missing");
-    await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo + deal.vendorCommissionKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, deal.vendorId));
+    const corrections = await tx.select().from(commissionCorrections).where(and(eq(commissionCorrections.dealId, deal.id), inArray(commissionCorrections.state, ["accrued", "paid"]))).for("update");
+    const correctionTotal = corrections.reduce((total, correction) => total + correction.amountKobo, 0);
+    await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo + deal.vendorCommissionKobo + correctionTotal, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, deal.vendorId));
     const group = randomReference("reverse");
     await tx.insert(ledgerEntries).values([
       { dealId: deal.id, account: "rep_payable", direction: "debit", amountKobo: deal.repCommissionKobo, entryGroup: group },
       { dealId: deal.id, account: "platform_revenue", direction: "debit", amountKobo: deal.platformFeeKobo, entryGroup: group },
       { dealId: deal.id, account: "vendor_escrow", direction: "credit", amountKobo: deal.vendorCommissionKobo, entryGroup: group },
     ]);
+    for (const correction of corrections) {
+      await tx.insert(ledgerEntries).values([
+        { dealId: deal.id, account: "rep_payable", direction: "debit", amountKobo: correction.amountKobo, entryGroup: group },
+        { dealId: deal.id, account: "vendor_escrow", direction: "credit", amountKobo: correction.amountKobo, entryGroup: group },
+      ]);
+      await tx.update(commissionCorrections).set({ state: "reversed", reversedAt: new Date() }).where(eq(commissionCorrections.id, correction.id));
+    }
     const [override] = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.dealId, deal.id)).limit(1).for("update");
     if (override && override.state !== "reversed") {
       await tx.insert(ledgerEntries).values([
@@ -174,7 +184,7 @@ async function reverseDealLocked(tx: Transaction, dealId: number, actor: string)
       decidedAt: new Date(),
     }).where(eq(disputes.id, activeDispute.id));
   }
-  await stateChange(tx, deal.id, deal.state, target, actor, activeDispute ? "Vendor refund during dispute; prior entitlement reversed" : effectiveState === "paid" ? "Refund inside clawback window; negative balances net future payouts, including paid lead overrides" : "Refund before payout; commission and any lead override reversed");
+  await stateChange(tx, deal.id, deal.state, target, actor, activeDispute ? "Vendor refunded during the dispute; commission cancelled" : effectiveState === "paid" ? "Refunded during the refund period; this comes off future payouts, including campus lead bonuses" : "Refunded before payout; commission and any campus lead bonus cancelled");
   return { state: target, reversed: true };
 }
 
@@ -204,7 +214,25 @@ export async function openDealDispute(input: { dealId: number; repId: number; ac
   });
 }
 
-export async function resolveDealDispute(input: { disputeId: number; actorUserId: number; upholdRep: boolean; decision: string }) {
+/** Extra commission a rep was underpaid. It comes from the vendor's wallet, never from KampusForce, and goes out with the rep's next payout. */
+async function recordCommissionCorrection(tx: Transaction, input: { dispute: typeof disputes.$inferSelect; deal: typeof deals.$inferSelect; amountKobo: number; actorUserId: number }) {
+  const { deal, dispute, amountKobo } = input;
+  if (dispute.previousDealState === "pending") throw new TRPCError({ code: "CONFLICT", message: "This sale is still in its waiting period. Correct the commission once it's confirmed." });
+  const [wallet] = await tx.select().from(escrowWallets).where(eq(escrowWallets.vendorId, deal.vendorId)).limit(1).for("update");
+  if (!wallet || wallet.balanceKobo < amountKobo) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `The vendor's wallet only has ₦${((wallet?.balanceKobo || 0) / 100).toLocaleString("en-NG")}. Ask them to add funds, then decide this dispute.` });
+  await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo - amountKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, deal.vendorId));
+  const group = randomReference("correct");
+  await tx.insert(ledgerEntries).values([
+    { dealId: deal.id, account: "vendor_escrow", direction: "debit", amountKobo, entryGroup: group },
+    { dealId: deal.id, account: "rep_payable", direction: "credit", amountKobo, entryGroup: group },
+  ]);
+  await enqueueFinancialPosting(tx, { entryGroup: group, operation: "commission_correction", accountRefs: { vendor_escrow: `vendor:${deal.vendorId}`, rep_payable: `rep:${deal.repId}` } });
+  await tx.insert(commissionCorrections).values({ disputeId: dispute.id, dealId: deal.id, repId: deal.repId, vendorId: deal.vendorId, amountKobo, entryGroup: group, createdByUserId: input.actorUserId });
+  await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.commission_corrected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, amountKobo, vendorId: deal.vendorId, repId: deal.repId, entryGroup: group } });
+}
+
+export async function resolveDealDispute(input: { disputeId: number; actorUserId: number; upholdRep: boolean; decision: string; correctionKobo?: number }) {
+  if (input.correctionKobo && !input.upholdRep) throw new TRPCError({ code: "BAD_REQUEST", message: "A correction can only be paid when the rep is right." });
   return db().transaction(async (tx) => {
     const [dispute] = await tx.select().from(disputes).where(eq(disputes.id, input.disputeId)).limit(1).for("update");
     if (!dispute) throw new TRPCError({ code: "NOT_FOUND", message: "Dispute not found" });
@@ -215,22 +243,20 @@ export async function resolveDealDispute(input: { disputeId: number; actorUserId
     }
     const previousState = dispute.previousDealState;
     if (input.upholdRep) {
+      if (input.correctionKobo) await recordCommissionCorrection(tx, { dispute, deal, amountKobo: input.correctionKobo, actorUserId: input.actorUserId });
       await tx.update(disputes).set({ state: "resolved", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
-      await stateChange(tx, deal.id, "disputed", previousState, `user:${input.actorUserId}`, "Dispute upheld; prior deal state restored");
-      if (previousState === "confirmed") await stateChange(tx, deal.id, "confirmed", "payable", `user:${input.actorUserId}`, "Restored confirmed entitlement returned to payout eligibility");
+      await stateChange(tx, deal.id, "disputed", previousState, `user:${input.actorUserId}`, input.correctionKobo ? `Dispute upheld; ₦${(input.correctionKobo / 100).toLocaleString("en-NG")} extra commission added` : "Dispute upheld; prior deal state restored");
+      if (previousState === "confirmed") await stateChange(tx, deal.id, "confirmed", "payable", `user:${input.actorUserId}`, "Commission restored and ready for the next payout");
       await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.resolved", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, restoredState: previousState, payoutEligibleState: previousState === "confirmed" ? "payable" : previousState } });
-      return { disputeId: dispute.id, state: "resolved" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false };
+      return { disputeId: dispute.id, state: "resolved" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false, correctionKobo: input.correctionKobo || 0, dealRepId: deal.repId, dealVendorId: deal.vendorId };
     }
-    if (previousState === "pending") {
-      await tx.update(disputes).set({ state: "rejected", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
-      await stateChange(tx, deal.id, "disputed", "void", `user:${input.actorUserId}`, "Dispute rejected before commission confirmation");
-      await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousState, dealState: "void" } });
-      return { disputeId: dispute.id, state: "rejected" as const, dealState: "void" as const, reversed: false };
-    }
-    const result = await reverseDealLocked(tx, deal.id, `user:${input.actorUserId}:dispute`);
-    await tx.update(disputes).set({ decision: input.decision, decidedByUserId: input.actorUserId }).where(eq(disputes.id, dispute.id));
-    await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousState, dealState: result.state } });
-    return { disputeId: dispute.id, state: "rejected" as const, dealState: result.state, reversed: result.reversed };
+    // A rejected claim changes nothing: the rep loses the argument, not the commission. Refunds and fraud cases are
+    // how money is taken back, each with its own evidence.
+    await tx.update(disputes).set({ state: "rejected", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
+    await stateChange(tx, deal.id, "disputed", previousState, `user:${input.actorUserId}`, "Dispute rejected; prior deal state restored");
+    if (previousState === "confirmed") await stateChange(tx, deal.id, "confirmed", "payable", `user:${input.actorUserId}`, "Restored confirmed entitlement returned to payable");
+    await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.rejected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, restoredState: previousState } });
+    return { disputeId: dispute.id, state: "rejected" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false };
   });
 }
 
@@ -257,7 +283,8 @@ async function leadOverrideOutstandingKobo(leadRepId: number, client: LedgerClie
 export async function runPayoutBatch(actorUserId?: number) {
   const payable = await db().select().from(deals).where(and(eq(deals.state, "payable"), isNull(deals.payoutId)));
   const accruedOverrides = await db().select().from(campusLeadOverrides).where(and(eq(campusLeadOverrides.state, "accrued"), isNull(campusLeadOverrides.payoutId)));
-  const repIds = [...new Set([...payable.map((deal) => deal.repId), ...accruedOverrides.map((override) => override.leadRepId)])];
+  const accruedCorrections = await db().select().from(commissionCorrections).where(and(eq(commissionCorrections.state, "accrued"), isNull(commissionCorrections.payoutId)));
+  const repIds = [...new Set([...payable.map((deal) => deal.repId), ...accruedOverrides.map((override) => override.leadRepId), ...accruedCorrections.map((correction) => correction.repId)])];
   const results: { repId: number; status: string; grossKobo?: number; netKobo?: number; overrideKobo?: number; payoutId?: number; reason?: string }[] = [];
   const batchId = `KF-${new Date().toISOString().slice(0, 10)}-${randomReference("batch").slice(-8)}`;
   for (const repId of repIds) {
@@ -269,7 +296,7 @@ export async function runPayoutBatch(actorUserId?: number) {
       const identityApproval = user ? await currentIdentityApproval({ subjectType: "user", subjectId: user.id, caseTypes: ["representative_kyc", "campus_lead_kyc"] }, tx) : null;
       const studentAssurance = user ? await studentAssurancePreflight(user.id, tx) : null;
       if (!rep || !user || rep.status !== "active" || user.kycState !== "verified" || !user.bankNameMatch || !identityApproval || !studentAssurance?.eligible) {
-        return { repId, status: "held", reason: studentAssurance?.reason || "Current identity approval, KYC, rep status, or bank name-match pre-flight failed" };
+        return { repId, status: "held", reason: user && !user.bankNameMatch ? "No bank account confirmed with the bank yet" : studentAssurance?.reason || "Current identity approval, KYC or rep status pre-flight failed" };
       }
       const fraudHold = await blockingFraudHold(tx, repId);
       if (fraudHold) {
@@ -279,7 +306,9 @@ export async function runPayoutBatch(actorUserId?: number) {
         .where(and(eq(deals.repId, repId), eq(deals.state, "payable"), isNull(deals.payoutId))).for("update");
       const entitledOverrides = await tx.select().from(campusLeadOverrides)
         .where(and(eq(campusLeadOverrides.leadRepId, repId), eq(campusLeadOverrides.state, "accrued"), isNull(campusLeadOverrides.payoutId))).for("update");
-      const directGross = entitledDeals.reduce((total, deal) => total + deal.repCommissionKobo, 0);
+      const entitledCorrections = await tx.select().from(commissionCorrections)
+        .where(and(eq(commissionCorrections.repId, repId), eq(commissionCorrections.state, "accrued"), isNull(commissionCorrections.payoutId))).for("update");
+      const directGross = entitledDeals.reduce((total, deal) => total + deal.repCommissionKobo, 0) + entitledCorrections.reduce((total, correction) => total + correction.amountKobo, 0);
       const overrideGross = entitledOverrides.reduce((total, override) => total + override.overrideKobo, 0);
       const gross = directGross + overrideGross;
       const directOutstanding = await repOutstandingKobo(repId, tx);
@@ -307,6 +336,9 @@ export async function runPayoutBatch(actorUserId?: number) {
       }
       for (const override of entitledOverrides) {
         await tx.update(campusLeadOverrides).set({ payoutId: payout.id }).where(eq(campusLeadOverrides.id, override.id));
+      }
+      for (const correction of entitledCorrections) {
+        await tx.update(commissionCorrections).set({ payoutId: payout.id }).where(eq(commissionCorrections.id, correction.id));
       }
       await tx.insert(auditLogs).values({
         actorUserId: actorUserId || null,
@@ -558,6 +590,7 @@ async function recordPayoutOutcome(input: {
 
     const entitledDeals = await tx.select().from(deals).where(eq(deals.payoutId, payout.id)).for("update");
     const entitledOverrides = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.payoutId, payout.id)).for("update");
+    const entitledCorrections = await tx.select().from(commissionCorrections).where(eq(commissionCorrections.payoutId, payout.id)).for("update");
     const directOutstanding = await repOutstandingKobo(payout.repId, tx);
     const overrideOutstanding = await leadOverrideOutstandingKobo(payout.repId, tx);
     const fraudHold = await blockingFraudHold(tx, payout.repId);
@@ -566,6 +599,7 @@ async function recordPayoutOutcome(input: {
     const valid = !fraudHold && rep?.status === "active" && user?.kycState === "verified" && user.bankNameMatch && !!identityApproval && !!studentAssurance?.eligible
       && entitledDeals.every((deal) => deal.state === "payable")
       && entitledOverrides.every((override) => override.state === "accrued")
+      && entitledCorrections.every((correction) => correction.state === "accrued")
       && directOutstanding + overrideOutstanding >= payout.amountGrossKobo;
     if (!valid) {
       await tx.update(payoutAttempts).set({ state: "succeeded", completedAt: new Date() }).where(eq(payoutAttempts.id, attempt.id));
@@ -603,10 +637,13 @@ async function recordPayoutOutcome(input: {
     for (const deal of entitledDeals) {
       await stateChange(tx, deal.id, "payable", "paid", input.actorUserId ? `staff:${input.actorUserId}` : "system:provider_webhook", input.mode === "live"
         ? `Verified provider success ${attempt.providerRef}; event ${input.providerEventId || "recorded"}`
-        : `Sandbox provider success ${attempt.providerRef}; no live bank transfer implied`);
+        : "Test payout marked as paid; no real money was sent");
     }
     for (const override of entitledOverrides) {
       await tx.update(campusLeadOverrides).set({ state: "paid" }).where(eq(campusLeadOverrides.id, override.id));
+    }
+    for (const correction of entitledCorrections) {
+      await tx.update(commissionCorrections).set({ state: "paid" }).where(eq(commissionCorrections.id, correction.id));
     }
     await tx.update(payoutAttempts).set({ state: "succeeded", completedAt: new Date() }).where(eq(payoutAttempts.id, attempt.id));
     await tx.update(payouts).set({ state: "paid", paidAt: new Date(), nextRetryAt: null, lastFailureCode: null, updatedAt: new Date() }).where(eq(payouts.id, payout.id));
@@ -679,7 +716,8 @@ export async function recoverFailedPayout(payoutId: number, actorUserId: number)
     const linkedOverrides = await tx.select().from(campusLeadOverrides).where(eq(campusLeadOverrides.payoutId, failed.id)).for("update");
     const directOutstanding = await repOutstandingKobo(failed.repId, tx);
     const overrideOutstanding = await leadOverrideOutstandingKobo(failed.repId, tx);
-    if (linkedDeals.some((deal) => deal.state !== "payable") || linkedOverrides.some((override) => override.state !== "accrued")
+    const linkedCorrections = await tx.select().from(commissionCorrections).where(eq(commissionCorrections.payoutId, failed.id)).for("update");
+    if (linkedDeals.some((deal) => deal.state !== "payable") || linkedOverrides.some((override) => override.state !== "accrued") || linkedCorrections.some((correction) => correction.state !== "accrued")
       || directOutstanding + overrideOutstanding < failed.amountGrossKobo) {
       throw new Error("Linked entitlements or outstanding balances changed; hold for Finance review");
     }
@@ -697,6 +735,7 @@ export async function recoverFailedPayout(payoutId: number, actorUserId: number)
     }).returning({ id: payouts.id });
     await tx.update(deals).set({ payoutId: replacement.id, updatedAt: new Date() }).where(eq(deals.payoutId, failed.id));
     await tx.update(campusLeadOverrides).set({ payoutId: replacement.id }).where(eq(campusLeadOverrides.payoutId, failed.id));
+    await tx.update(commissionCorrections).set({ payoutId: replacement.id }).where(eq(commissionCorrections.payoutId, failed.id));
     await tx.insert(auditLogs).values({
       actorUserId,
       action: "payout.finance_recovery_queued",

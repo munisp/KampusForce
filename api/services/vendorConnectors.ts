@@ -237,6 +237,6 @@ export async function listVendorConnectorWorkspace(actor: SalesActor) {
     metrics: representativeMetrics,
     representatives,
     capabilities: { manage: ["vendor", "ops", "admin"].includes(actor.role), review: ["ops", "admin"].includes(actor.role), accept: actor.role === "rep", readOnly: actor.role === "finance" },
-    boundary: "Clicks, registrations, ATS selection and sandbox provisioning are funnel evidence only. Only signed vendor events can enter the existing verified activation path. Customer KYC remains with the vendor. No live external account creation or production connector delivery is performed.",
+    boundary: "Clicks and sign-ups don't earn commission. Only a sale the vendor confirms counts, and customers verify their identity with the vendor.",
   };
 }

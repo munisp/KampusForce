@@ -8,6 +8,8 @@ import { notificationDeliveryConfiguration } from "../services/notificationDeliv
 
 export const healthRoutes = new Hono();
 
+const paymentsTest = () => (process.env.PAYSTACK_SECRET_KEY || "").trim().startsWith("sk_test_");
+
 healthRoutes.get("/live", (c) => {
   const configuration = integrationConfiguration();
   return c.json({ status: "ok", service: "kampusforce", mode: configuration.effectiveMode, requestedMode: configuration.requestedMode });
@@ -32,6 +34,7 @@ healthRoutes.get("/ready", async (c) => {
     return c.json({
       status: ready ? "ready" : "not_ready",
       mode: configuration.effectiveMode,
+      paymentsTest: paymentsTest(),
       requestedMode: configuration.requestedMode,
       checks: {
         database: "up",
@@ -45,6 +48,6 @@ healthRoutes.get("/ready", async (c) => {
     }, ready ? 200 : 503);
   } catch (error) {
     log.error("readiness check failed", { error: error instanceof Error ? error.message : String(error) });
-    return c.json({ status: "not_ready", mode: configuration.effectiveMode, checks: { database: "down" } }, 503);
+    return c.json({ status: "not_ready", mode: configuration.effectiveMode, paymentsTest: paymentsTest(), checks: { database: "down" } }, 503);
   }
 });

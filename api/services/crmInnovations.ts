@@ -334,6 +334,6 @@ export async function listCrmInnovationWorkspace(actor: SalesActor) {
       averageFeedback: feedback.length ? Math.round(feedback.reduce((sum, row) => sum + row.rating, 0) / feedback.length * 10) / 10 : null,
     },
     features: ["Relationship 360", "Next Best Action", "Versioned Lead Scoring", "Scenario Forecasts", "Consent-Led Sequences", "Team Collaboration", "Duplicate Review", "Influence Touchpoints", "Capacity Routing", "Voice of Customer"],
-    boundary: "CRM intelligence is planning and relationship evidence. Forecasts are not earned commission; sequences require current purpose consent and human approval; influence and routing never rewrite first-touch attribution or financial outcomes.",
+    boundary: "This helps you plan. A forecast isn't earned commission, a person must approve messages, and nothing here changes who gets credit or any money.",
   };
 }

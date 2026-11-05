@@ -109,7 +109,7 @@ export async function listCampaignWorkspace(actor: SalesActor) {
       converted: enrollments.filter((row) => row.enrollment.state === "converted").length,
       conversionRate: enrollments.length ? Math.round(enrollments.filter((row) => row.enrollment.state === "converted").length / enrollments.length * 100) : 0,
     },
-    boundary: "Campaign delivery is in-app notification only. Conversions come from later verified records; no SMS, email, WhatsApp or external advertising delivery is claimed.",
+    boundary: "Campaigns only send notifications inside the app. Results come from sales recorded later.",
   };
 }
 

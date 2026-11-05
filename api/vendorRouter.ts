@@ -1,3 +1,4 @@
+import { confirmEscrowFunding, paystackFundingConfigured, startEscrowFunding, vendorFundingEmail } from "./services/escrowFunding";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -7,6 +8,7 @@ import {
   commissionRuleDrafts,
   commissionRules,
   deals,
+  escrowTopups,
   escrowWallets,
   products,
   reps,
@@ -22,6 +24,7 @@ import { ingestWithDurableRetry } from "./services/ingestionRetries";
 import { activeWebhookCredential, rotateVendorWebhookCredential } from "./services/webhookCredentials";
 import { calculateRuleDryRun, publishRuleDraft } from "./services/rules";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
+import { vendorOnboarding } from "./services/onboarding";
 
 async function currentVendor(userId: number) {
   const [vendor] = await getDb().select().from(vendors).where(eq(vendors.userId, userId)).limit(1);
@@ -44,6 +47,10 @@ const ruleInput = z.object({
 });
 
 export const vendorRouter = createRouter({
+  onboarding: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["vendor"]);
+    return vendorOnboarding(ctx.user.id);
+  }),
   overview: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["vendor"]);
     const vendor = await currentVendor(ctx.user.id);
@@ -95,8 +102,58 @@ export const vendorRouter = createRouter({
       macros,
     };
   }),
+  // Paystack checkout, once a vendor is approved. The escrow is credited when Paystack confirms the payment.
+  startEscrowFunding: authedQuery.input(z.object({ amountKobo: z.number().int().min(10000).max(1000000000) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["vendor"]);
+    const vendor = await currentVendor(ctx.user.id);
+    if (vendor.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Your business must be approved before you can add funds." });
+    return startEscrowFunding({ vendorId: vendor.id, email: await vendorFundingEmail(vendor.id), amountKobo: input.amountKobo, actorUserId: ctx.user.id });
+  }),
+  confirmEscrowFunding: authedQuery.input(z.object({ reference: z.string().min(10).max(64) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["vendor"]);
+    const vendor = await currentVendor(ctx.user.id);
+    const [topup] = await getDb().select({ vendorId: escrowTopups.vendorId }).from(escrowTopups).where(eq(escrowTopups.reference, input.reference)).limit(1);
+    if (!topup || topup.vendorId !== vendor.id) throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found" });
+    return confirmEscrowFunding(input.reference, ctx.user.id);
+  }),
+  addProduct: authedQuery.input(z.object({
+    name: z.string().trim().min(3).max(180),
+    category: z.enum(["fintech", "airtime_data", "devices", "edtech", "micro_insurance"]),
+    description: z.string().trim().min(10).max(1000),
+    priceKobo: z.number().int().min(0).max(100000000000),
+    landingUrl: z.string().trim().url().max(500).refine((u) => u.startsWith("https://"), "The product link must start with https://"),
+    basis: z.enum(["flat", "pct"]),
+    pctBps: z.number().int().min(1).max(10000).optional(),
+    flatAmountKobo: z.number().int().min(1).max(1000000000).optional(),
+    triggerEvent: z.enum(["signup", "kyc_complete", "funded", "first_transaction", "renewal"]),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["vendor"]);
+    const vendor = await currentVendor(ctx.user.id);
+    if (vendor.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Your business must be approved before you can list products." });
+    const terms = { productId: 1, basis: input.basis, pctBps: input.pctBps, flatAmountKobo: input.flatAmountKobo, triggerEvent: input.triggerEvent, recurrenceMonths: 1, confirmDays: 7, clawbackDays: 30 };
+    let economics: ReturnType<typeof calculateRuleDryRun>;
+    try {
+      economics = calculateRuleDryRun(terms, input.basis === "pct" ? input.priceKobo || 100000 : null);
+    } catch (error) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Invalid commission rule" });
+    }
+    return getDb().transaction(async (tx) => {
+      const [product] = await tx.insert(products).values({
+        vendorId: vendor.id, vendorRef: `v${vendor.id}-${crypto.randomUUID().slice(0, 8)}`, name: input.name, category: input.category, description: input.description,
+        priceKobo: input.priceKobo, landingUrl: input.landingUrl, pitchScript: input.description, status: "active",
+      }).returning();
+      await tx.insert(commissionRules).values({
+        productId: product.id, version: 1, basis: economics.basis, pctBps: economics.pctBps, flatAmountKobo: economics.flatAmountKobo, triggerEvent: economics.triggerEvent,
+        recurrenceMonths: economics.recurrenceMonths, recurrenceIntervalMonths: economics.recurrenceIntervalMonths, confirmDays: economics.confirmDays, clawbackDays: economics.clawbackDays,
+        activationCapPerRepDay: economics.activationCapPerRepDay, publishedAt: new Date(),
+      });
+      await tx.insert(auditLogs).values({ actorUserId: ctx.user.id, action: "vendor.product_added", entityType: "product", entityId: String(product.id), metadataJson: { vendorRef: product.vendorRef } });
+      return { productId: product.id, vendorRef: product.vendorRef, repCommissionKobo: economics.repCommissionKobo, platformFeeKobo: economics.platformFeeKobo };
+    });
+  }),
   topupEscrow: authedQuery.input(z.object({ amountKobo: z.number().int().min(10000).max(1000000000) })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["vendor"]);
+    if (paystackFundingConfigured()) throw new TRPCError({ code: "FORBIDDEN", message: "Escrow is funded through Paystack checkout." });
     const vendor = await currentVendor(ctx.user.id);
     return getDb().transaction(async (tx) => {
       const [wallet] = await tx.update(escrowWallets).set({

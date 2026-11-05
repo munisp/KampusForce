@@ -1,3 +1,5 @@
+import { purgeExpiredIdentityDocuments } from "./identityDocuments";
+import { sweepEscrowFunding } from "./escrowFunding";
 import { and, desc, eq, lte } from "drizzle-orm";
 import { authSessions, commissionRuleDrafts, jobRuns, otpChallenges, rateLimitBuckets } from "@db/schema";
 import { getDb } from "../queries/connection";
@@ -14,7 +16,7 @@ import { expireIdentityApprovals } from "./identity";
 import { runPromotionScheduleSweep } from "./promotions";
 import { processDueNotificationDeliveries } from "./notificationDelivery";
 
-export const JOB_KEYS = ["confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup", "ingestion_retry", "event_retention", "identity_expiry", "promotion_orchestration", "notification_delivery", "auth_session_cleanup"] as const;
+export const JOB_KEYS = ["escrow_funding_sweep", "confirmation_sweep", "draft_expiry", "sla_breach", "recruitment_expiry", "payout_dispatch", "rate_limit_cleanup", "ingestion_retry", "event_retention", "identity_expiry", "identity_document_purge", "promotion_orchestration", "notification_delivery", "auth_session_cleanup"] as const;
 export type JobKey = typeof JOB_KEYS[number] | "payout_batch" | "lead_eligibility" | "monitoring_sweep";
 
 export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedule" = "manual", slotKey: string = crypto.randomUUID()) {
@@ -25,7 +27,11 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
   try {
     let result: Record<string, unknown>;
     let processedCount = 0;
-    if (jobKey === "confirmation_sweep") {
+    if (jobKey === "escrow_funding_sweep") {
+      const sweep = await sweepEscrowFunding();
+      result = sweep;
+      processedCount = sweep.credited + sweep.closed;
+    } else if (jobKey === "confirmation_sweep") {
       const sweep = await confirmDueDeals();
       result = sweep;
       processedCount = sweep.confirmed;
@@ -70,6 +76,10 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
     } else if (jobKey === "identity_expiry") {
       result = await expireIdentityApprovals();
       processedCount = Number(result.expired || 0);
+    } else if (jobKey === "identity_document_purge") {
+      const purge = await purgeExpiredIdentityDocuments();
+      result = purge;
+      processedCount = purge.purged;
     } else if (jobKey === "promotion_orchestration") {
       result = await runPromotionScheduleSweep();
       processedCount = Number(result.processed || 0);

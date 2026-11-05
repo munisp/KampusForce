@@ -152,7 +152,7 @@ export async function resolveSupportTicket(input: {
   if (input.actor === "ops" && !["ops_queue", "vendor_queue", "campus_lead_queue"].includes(ticket.state)) throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket is not ready for operations resolution" });
   if (input.macroId) {
     const [macro] = await db.select().from(supportResolutionMacros).where(and(eq(supportResolutionMacros.id, input.macroId), eq(supportResolutionMacros.vendorId, ticket.vendorId), eq(supportResolutionMacros.active, true))).limit(1);
-    if (!macro) throw new TRPCError({ code: "BAD_REQUEST", message: "Resolution macro is not approved for this vendor" });
+    if (!macro) throw new TRPCError({ code: "BAD_REQUEST", message: "That saved reply isn't available for this vendor" });
   }
   const now = new Date();
   await db.update(supportTickets).set({ state: "resolved", resolution: input.resolution, resolutionMacroId: input.macroId || null, resolvedAt: now, updatedAt: now }).where(eq(supportTickets.id, ticket.id));
@@ -166,7 +166,7 @@ export async function rateSupportTicket(input: { ticketId: number; actorUserId: 
   return db.transaction(async (tx) => {
     const [ticket] = await tx.select().from(supportTickets).where(eq(supportTickets.id, input.ticketId)).limit(1).for("update");
     if (!ticket || ticket.repId !== input.repId) throw new TRPCError({ code: "NOT_FOUND", message: "Resolved ticket not found" });
-    if (ticket.state !== "resolved") throw new TRPCError({ code: "BAD_REQUEST", message: "CSAT can be submitted once after resolution" });
+    if (ticket.state !== "resolved") throw new TRPCError({ code: "BAD_REQUEST", message: "You can rate a request once, after it's solved" });
     const now = new Date();
     await tx.update(supportTickets).set({ state: "closed", csat: input.csat, csatComment: input.comment || null, closedAt: now, updatedAt: now }).where(eq(supportTickets.id, ticket.id));
     await tx.insert(supportTicketEvents).values({ ticketId: ticket.id, actorUserId: input.actorUserId, actorRole: "rep", action: "csat_submitted", fromState: "resolved", toState: "closed", note: input.comment || `CSAT ${input.csat}/5`, evidenceJson: { csat: input.csat } });

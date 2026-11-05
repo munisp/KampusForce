@@ -1,4 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { uploadStudentProof } from "./services/identityDocuments";
 import { z } from "zod";
 import {
   activationRiskCases,
@@ -12,6 +14,7 @@ import {
   users,
   vendorAssuranceAudits,
   vendors,
+  identityDocuments,
 } from "@db/schema";
 import { createRouter } from "./middleware";
 import { authedQuery, requireRole } from "./services/auth";
@@ -31,6 +34,18 @@ import { expireBiometricEvaluations, recordBiometricEvaluation } from "./service
 const reviewReason = z.string().trim().min(10).max(500).refine((value) => !/\d{7,}/.test(value), "Do not paste identity or account identifiers into review notes");
 const evidenceReference = z.string().trim().min(8).max(256);
 const providerName = z.string().trim().min(2).max(80);
+
+async function withStudentProofs<T extends { attestation: { id: number } }>(rows: T[]) {
+  const ids = rows.map((row) => row.attestation.id);
+  const proofs = ids.length ? await getDb().select({ id: identityDocuments.id, attestationId: identityDocuments.attestationId, sha256: identityDocuments.sha256, ownerUserId: identityDocuments.ownerUserId }).from(identityDocuments).where(and(inArray(identityDocuments.attestationId, ids), isNull(identityDocuments.purgedAt))) : [];
+  // The same file on another account is worth a second look, so the reviewer is told.
+  const hashes = [...new Set(proofs.map((proof) => proof.sha256))];
+  const sameFile = hashes.length ? await getDb().select({ sha256: identityDocuments.sha256, ownerUserId: identityDocuments.ownerUserId }).from(identityDocuments).where(inArray(identityDocuments.sha256, hashes)) : [];
+  return rows.map((row) => {
+    const proof = proofs.find((item) => item.attestationId === row.attestation.id);
+    return { ...row, proofDocumentId: proof?.id || null, proofUsedByAnotherAccount: !!proof && sameFile.some((item) => item.sha256 === proof.sha256 && item.ownerUserId !== proof.ownerUserId) };
+  });
+}
 
 export const assuranceRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -58,7 +73,7 @@ export const assuranceRouter = createRouter({
     ]);
     return {
       scope: "operations" as const,
-      enrollments, duplicates, risks, vendorAudits, biometrics, events, repOptions, vendorOptions,
+      enrollments: await withStudentProofs(enrollments), duplicates, risks, vendorAudits, biometrics, events, repOptions, vendorOptions,
       metrics: {
         pendingEnrollment: enrollments.filter((row) => row.attestation.state === "submitted").length,
         duplicateOpen: duplicates.filter((row) => row.item.state === "open").length,
@@ -73,13 +88,29 @@ export const assuranceRouter = createRouter({
   submitEnrollment: authedQuery.input(z.object({
     providerName,
     providerMode: z.enum(["sandbox", "live"]),
-    attestationReference: evidenceReference,
+    attestationReference: evidenceReference.optional(),
+    documentId: z.number().int().positive().optional(),
     academicTerm: z.string().trim().min(2).max(40),
     verificationMethod: z.enum(["institution_provider", "institution_document", "student_record_provider"]),
     requestedValidUntil: z.date(),
   })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
-    return submitEnrollmentAttestation({ ...input, userId: ctx.user.id });
+    const { documentId, attestationReference, ...rest } = input;
+    if (!documentId) {
+      if (!attestationReference) throw new TRPCError({ code: "BAD_REQUEST", message: "Please upload proof of your enrolment." });
+      return submitEnrollmentAttestation({ ...rest, attestationReference, userId: ctx.user.id });
+    }
+    const [document] = await getDb().select().from(identityDocuments).where(and(eq(identityDocuments.id, documentId), eq(identityDocuments.ownerUserId, ctx.user.id), eq(identityDocuments.kind, "student_proof"), isNull(identityDocuments.attestationId), isNull(identityDocuments.purgedAt))).limit(1);
+    if (!document) throw new TRPCError({ code: "NOT_FOUND", message: "Please upload your proof again." });
+    const submitted = await submitEnrollmentAttestation({ ...rest, attestationReference: `document:${document.id}:${document.sha256}`, userId: ctx.user.id });
+    await getDb().update(identityDocuments).set({ attestationId: submitted.id }).where(eq(identityDocuments.id, document.id));
+    return submitted;
+  }),
+
+  uploadStudentProof: authedQuery.input(z.object({ contentBase64: z.string().min(4).max(14 * 1024 * 1024) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    const document = await uploadStudentProof({ actorUserId: ctx.user.id, contentBase64: input.contentBase64 });
+    return { documentId: document.id };
   }),
 
   reviewEnrollment: authedQuery.input(z.object({ caseId: z.number().int().positive(), decision: z.enum(["verify", "reject", "revoke"]), reason: reviewReason })).mutation(async ({ ctx, input }) => {

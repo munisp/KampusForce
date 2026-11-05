@@ -2,13 +2,15 @@ import { createHmac } from "node:crypto";
 import type { IdentityCase } from "@db/schema";
 
 export const IDENTITY_POLICY_VERSION = "identity-v1";
-export const IDENTITY_NOTICE_VERSION = "privacy-notice-v1";
+export const IDENTITY_NOTICE_VERSION = "privacy-notice-v2";
+export const IDENTITY_DOCUMENT_RETENTION_DAYS = 30;
 export const IDENTITY_VALIDITY_DAYS = 365;
 export const IDENTITY_REVIEW_SLA_HOURS = 24;
 
 export const personCaseTypes = ["representative_kyc", "campus_lead_kyc", "operations_kyc"] as const;
 export type IdentityCaseType = IdentityCase["caseType"];
-export type IdentityEvidenceKind = "document_ocr" | "document_structure" | "vlm_extraction" | "registry_kyb" | "bank_name_match" | "liveness" | "deepfake" | "face_match" | "capture_integrity" | "reviewer_attestation";
+export type IdentityEvidenceKind = "document_ocr" | "document_structure" | "vlm_extraction" | "registry_kyb" | "bank_name_match" | "liveness" | "deepfake" | "face_match" | "capture_integrity" | "reviewer_attestation" | "manual_document_check" | "manual_face_check" | "manual_business_check";
+export type IdentityDocumentKind = "government_id" | "selfie" | "business_certificate" | "owner_id" | "student_proof";
 
 const personEvidence: IdentityEvidenceKind[] = [
   "document_ocr",
@@ -44,10 +46,26 @@ export function requiredEvidence(caseType: IdentityCaseType): IdentityEvidenceKi
   return [...personEvidence, "bank_name_match"];
 }
 
-export function missingIdentityEvidence(caseType: IdentityCaseType, evidence: { kind: string; state: string }[]) {
+export function requiredDocuments(caseType: IdentityCaseType): IdentityDocumentKind[] {
+  if (caseType === "customer_handoff") return [];
+  return caseType === "vendor_kyb" ? ["business_certificate", "owner_id"] : ["government_id", "selfie"];
+}
+
+/** What a reviewer confirms by eye. Nothing here is checked against government records. */
+export function manualChecks(caseType: IdentityCaseType): IdentityEvidenceKind[] {
+  if (caseType === "customer_handoff") return [];
+  return caseType === "vendor_kyb" ? ["manual_document_check", "manual_business_check"] : ["manual_document_check", "manual_face_check"];
+}
+
+export function caseEvidence(identityCase: Pick<IdentityCase, "caseType" | "reviewMethod">) {
+  return identityCase.reviewMethod === "manual" ? manualChecks(identityCase.caseType) : requiredEvidence(identityCase.caseType);
+}
+
+export function missingIdentityEvidence(identityCase: IdentityCaseType | Pick<IdentityCase, "caseType" | "reviewMethod">, evidence: { kind: string; state: string }[]) {
   const latest = new Map<string, string>();
   for (const item of evidence) latest.set(item.kind, item.state);
-  return requiredEvidence(caseType).filter((kind) => latest.get(kind) !== "passed");
+  const required = typeof identityCase === "string" ? requiredEvidence(identityCase) : caseEvidence(identityCase);
+  return required.filter((kind) => latest.get(kind) !== "passed");
 }
 
 export function identityApprovalValid(identityCase: Pick<IdentityCase, "state" | "validUntil"> | null | undefined, now = new Date()) {

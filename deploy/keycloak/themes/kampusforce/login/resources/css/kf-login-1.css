@@ -1,0 +1,125 @@
+/* KampusForce over keycloak.v2 / PatternFly 5. Same tokens as src/components/landing/landing.css. */
+@font-face { font-family: "Archivo KF"; font-weight: 100 900; font-display: swap; src: url("../fonts/archivo-variable.woff2") format("woff2"); }
+
+:root {
+  --kf-ink: #081827;
+  --kf-ground: #0c2236;
+  --kf-field: #10293f;
+  --kf-paper: #f7f3e8;
+  --kf-dim: #b4c5d4;
+  --kf-line: #3a5369;
+  --kf-accent: #f4b942;
+  --kf-error: #ff9d8a;
+  --kf-sans: "Archivo KF", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --keycloak-bg-logo-url: none;
+  --keycloak-card-top-color: transparent;
+  --pf-v5-global--FontFamily--text: var(--kf-sans);
+  --pf-v5-global--FontFamily--heading: var(--kf-sans);
+  --pf-v5-global--primary-color--100: var(--kf-accent);
+  --pf-v5-global--primary-color--200: #ffd071;
+  --pf-v5-global--link--Color: var(--kf-accent);
+  --pf-v5-global--link--Color--hover: #ffd071;
+  --pf-v5-global--BackgroundColor--100: var(--kf-ink);
+  --pf-v5-global--Color--100: var(--kf-paper);
+  --pf-v5-global--Color--200: var(--kf-dim);
+  --pf-v5-global--BorderColor--100: var(--kf-line);
+  --pf-v5-global--BorderRadius--sm: 0;
+  --pf-v5-global--active-color--100: var(--kf-accent);
+  --pf-v5-global--active-color--200: var(--kf-accent);
+  --pf-v5-global--danger-color--100: var(--kf-error);
+  --pf-v5-global--danger-color--200: var(--kf-error);
+}
+
+html, body, .pf-v5-c-login { background: var(--kf-ink) !important; color: var(--kf-paper); font-family: var(--kf-sans); }
+
+/* The campus at sunset on the right, the form on the left, on large screens. */
+@media (min-width: 1100px) {
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 0 44%;
+    background:
+      linear-gradient(to top, rgba(4, 12, 20, 0.88) 0%, rgba(4, 12, 20, 0.25) 60%, rgba(4, 12, 20, 0.35) 100%),
+      linear-gradient(to right, var(--kf-ink) 0%, rgba(8, 24, 39, 0) 22%),
+      url("../img/kf-campus-1.webp") center / cover no-repeat;
+  }
+  body::after {
+    content: "EVERY SALE.\A EVERY NAIRA.\A ONE CLEAR RECORD.";
+    white-space: pre;
+    position: fixed;
+    right: 56px;
+    bottom: 52px;
+    z-index: 1;
+    pointer-events: none;
+    font-size: clamp(2.2rem, 3.9vw, 4rem);
+    font-weight: 600;
+    line-height: 0.96;
+    letter-spacing: -0.035em;
+    color: var(--kf-paper);
+  }
+  .pf-v5-c-login { width: 44%; position: relative; z-index: 2; min-height: 100vh; }
+  .pf-v5-c-login__container { width: 100%; max-width: 28rem; margin-inline: auto; }
+}
+
+#kc-header, .pf-v5-c-login__header { margin-bottom: 1.5rem; text-align: left; }
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--kf-paper);
+}
+#kc-header-wrapper::before { content: ""; width: 28px; height: 28px; background: url("../img/kf-mark.svg") center / contain no-repeat; }
+
+.pf-v5-c-login__main { background: transparent !important; border: 0; box-shadow: none; }
+.pf-v5-c-login__main-header { padding-inline: 0; }
+.pf-v5-c-login__main-body, .pf-v5-c-login__main-footer, .pf-v5-c-login__main-footer-band { padding-inline: 0; }
+.pf-v5-c-login__main-header h1, #kc-page-title {
+  font-family: var(--kf-sans);
+  font-size: clamp(2.2rem, 3.4vw, 3rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  color: var(--kf-paper);
+}
+label, .pf-v5-c-form__label, .pf-v5-c-form__label-text, .pf-v5-c-check__label { color: var(--kf-paper) !important; }
+.pf-v5-c-form__helper-text, .pf-v5-c-helper-text__item-text { color: var(--kf-dim); }
+.pf-v5-c-form__helper-text .pf-m-error, .pf-v5-c-helper-text__item.pf-m-error .pf-v5-c-helper-text__item-text, .kc-feedback-text, #input-error, [id^="input-error"] { color: var(--kf-error) !important; }
+
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--before--BorderBlockStartColor: var(--kf-line);
+  --pf-v5-c-form-control--before--BorderInlineStartColor: var(--kf-line);
+  --pf-v5-c-form-control--before--BorderInlineEndColor: var(--kf-line);
+  --pf-v5-c-form-control--before--BorderBlockEndColor: var(--kf-line);
+  --pf-v5-c-form-control--after--BorderBlockEndColor: var(--kf-line);
+  --pf-v5-c-form-control--BackgroundColor: var(--kf-field);
+  --pf-v5-c-form-control--Color: var(--kf-paper);
+  background: var(--kf-field) !important;
+  color: var(--kf-paper) !important;
+  border-radius: 0;
+}
+.pf-v5-c-form-control > input, .pf-v5-c-form-control input, .pf-v5-c-form-control select, .pf-v5-c-form-control textarea { background: transparent !important; color: var(--kf-paper) !important; caret-color: var(--kf-accent); }
+.pf-v5-c-form-control input:-webkit-autofill { -webkit-text-fill-color: var(--kf-paper); box-shadow: 0 0 0 1000px var(--kf-field) inset; caret-color: var(--kf-accent); }
+.pf-v5-c-form-control:focus-within { outline: 2px solid var(--kf-accent); outline-offset: 1px; }
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control, .pf-v5-c-button.pf-m-control { background: var(--kf-field); color: var(--kf-paper); border-radius: 0; --pf-v5-c-button--after--BorderColor: var(--kf-line); }
+
+.pf-v5-c-button.pf-m-primary { background: var(--kf-accent); color: var(--kf-ink); border-radius: 0; font-weight: 600; padding-block: 0.8rem; }
+.pf-v5-c-button.pf-m-primary:hover, .pf-v5-c-button.pf-m-primary:focus { background: #ffd071; color: var(--kf-ink); }
+.pf-v5-c-button.pf-m-secondary { background: transparent; color: var(--kf-paper); border-radius: 0; --pf-v5-c-button--after--BorderColor: var(--kf-paper); }
+.pf-v5-c-button.pf-m-link, a { color: var(--kf-accent); }
+.pf-v5-c-alert { background: var(--kf-ground); border-radius: 0; color: var(--kf-paper); }
+.pf-v5-c-alert__title { color: var(--kf-paper); }
+.pf-v5-c-login__main-footer-band { background: transparent; border-top: 1px solid var(--kf-line); color: var(--kf-dim); }
+.pf-v5-c-login__main-footer-band-item, #kc-info-wrapper { color: var(--kf-dim); }
+*:focus-visible { outline-color: var(--kf-accent); }
+
+@media (max-width: 1099px) {
+  .pf-v5-c-login__container { padding-inline: 20px; }
+  #kc-header, .pf-v5-c-login__header { padding: 1.25rem 0 0; }
+}

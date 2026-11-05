@@ -30,11 +30,11 @@ async function main() {
   const [campus] = await db.select().from(campuses).where(eq(campuses.name, "University of Lagos")).limit(1);
   if (!campus) throw new Error("University of Lagos fixture could not be seeded");
   const userSeeds = [
-    { phoneE164: "+2348000000001", name: "Ada Okafor", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_ada", ninLast4: "0001", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0001", bankAccountName: "Ada Okafor", bankNameMatch: true },
-    { phoneE164: "+2348000000002", name: "CampusSave Partnerships", role: "vendor" as const, kycState: "verified" as const },
-    { phoneE164: "+2348000000003", name: "KampusForce Operations", role: "ops" as const, kycState: "verified" as const },
-    { phoneE164: "+2348000000004", name: "Tobi Bello", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_tobi", ninLast4: "0004", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0004", bankAccountName: "Tobi Bello", bankNameMatch: true },
-    { phoneE164: "+2348000000005", name: "KampusForce Finance", role: "finance" as const },
+    { phoneE164: "+2348000000001", email: "ada.okafor@kampusforce.test", name: "Ada Okafor", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_ada", ninLast4: "0001", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0001", bankAccountName: "Ada Okafor", bankNameMatch: true },
+    { phoneE164: "+2348000000002", email: "campussave.vendor@kampusforce.test", name: "CampusSave Partnerships", role: "vendor" as const, kycState: "verified" as const },
+    { phoneE164: "+2348000000003", email: "kf.operations@kampusforce.test", name: "KampusForce Operations", role: "ops" as const, kycState: "verified" as const },
+    { phoneE164: "+2348000000004", email: "tobi.bello@kampusforce.test", name: "Tobi Bello", role: "rep" as const, kycState: "verified" as const, ninToken: "sandbox_nin_token_tobi", ninLast4: "0004", bankName: "Sandbox Bank", bankCode: "999", bankAccountLast4: "0004", bankAccountName: "Tobi Bello", bankNameMatch: true },
+    { phoneE164: "+2348000000005", email: "kf.finance@kampusforce.test", name: "KampusForce Finance", role: "finance" as const },
   ];
   const createdUsers = [];
   for (const seed of userSeeds) {
@@ -92,7 +92,7 @@ async function main() {
   const productSeeds = [
     { vendorRef: "savings-01", name: "CampusSave funded account", category: "fintech" as const, description: "A regulated partner savings account activated with an initial deposit.", priceKobo: 500000, pitchScript: "Open and fund your account inside CampusSave’s regulated flow. KampusForce never takes your BVN, NIN, or cash.", rule: { basis: "flat" as const, flatAmountKobo: 100000, triggerEvent: "funded" as const } },
     { vendorRef: "data-01", name: "CampusConnect monthly data", category: "airtime_data" as const, description: "Monthly campus data bundle with commission on verified renewals.", priceKobo: 400000, pitchScript: "Choose the same listed price in the vendor flow. Your rep earns on confirmed renewals.", rule: { basis: "pct" as const, pctBps: 500, triggerEvent: "renewal" as const } },
-    { vendorRef: "device-01", name: "DeviceHub student accessories", category: "devices" as const, description: "Verified device and accessory purchases with no KampusForce markup.", priceKobo: 6800000, pitchScript: "Compare the listed device, pay the vendor directly, and keep your receipt for support.", rule: { basis: "pct" as const, pctBps: 500, triggerEvent: "first_transaction" as const } },
+    { vendorRef: "device-01", name: "DeviceHub campus accessories", category: "devices" as const, description: "Verified device and accessory purchases with no KampusForce markup.", priceKobo: 6800000, pitchScript: "Compare the listed device, pay the vendor directly, and keep your receipt for support.", rule: { basis: "pct" as const, pctBps: 500, triggerEvent: "first_transaction" as const } },
     { vendorRef: "edtech-01", name: "LearnLoop subscription", category: "edtech" as const, description: "A learning subscription with renewal-based commission.", priceKobo: 200000, pitchScript: "Use the trial first. Subscribe only if the course fits your study goals.", rule: { basis: "pct" as const, pctBps: 1000, triggerEvent: "renewal" as const } },
     { vendorRef: "insurance-01", name: "CoverCampus micro-insurance", category: "micro_insurance" as const, description: "Partner-issued micro-insurance with commission on verified premiums.", priceKobo: 40000, pitchScript: "Read the insurer’s coverage and exclusions. Your rep does not collect premiums.", rule: { basis: "pct" as const, pctBps: 1500, triggerEvent: "renewal" as const } },
   ];

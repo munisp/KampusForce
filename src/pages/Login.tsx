@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { ArrowRight, Check, KeyRound, Landmark, ShieldCheck, Store, UserRound, UsersRound } from "lucide-react";
+import { ArrowRight, KeyRound, Landmark, ShieldCheck, Store, UserRound, UsersRound } from "lucide-react";
 import { useNavigate } from "react-router";
-import { Brand } from "@/components/product/Brand";
+import { CinematicLanding } from "@/components/landing/CinematicLanding";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 import { startSignIn } from "@/lib/oidc";
@@ -43,33 +43,24 @@ export default function Login() {
     onError: (e) => setError(e.message),
   });
 
-  return <div className="entry-page">
-    <header className="entry-nav"><Brand /><a href="#sandbox">{sandbox ? "Open sandbox" : "Sign in"} <ArrowRight size={16} /></a></header>
-    <main>
-      <section className="entry-hero">
-        <div className="entry-copy">
-          <p className="eyebrow"><span className="live-dot" />Campus commerce, accounted for</p>
-          <h1>Every activation.<br /><em>Every naira.</em><br />One clear record.</h1>
-          <p className="entry-lede">KampusForce connects vendors, verified student reps and customers—then turns vendor-verified activations into transparent commissions and payouts.</p>
-          <div className="entry-principles">
-            <span><Check size={16} />80% to the rep</span><span><Check size={16} />No joining fees</span><span><Check size={16} />Vendor-funded escrow</span>
-          </div>
-        </div>
-        <div className="entry-ledger" aria-label="Commission example">
-          <div className="ledger-top"><span>COMMISSION TRACE</span><span className="mono">KF / 001</span></div>
-          <div className="ledger-event"><span className="pulse-ring"><KeyRound size={20} /></span><div><small>VENDOR-VERIFIED EVENT</small><strong>First successful activation</strong></div><span className="verified-chip">VERIFIED</span></div>
-          <div className="ledger-amount"><small>Funded commission</small><strong>₦1,000</strong></div>
-          <div className="split-bar"><span /><span /></div>
-          <div className="split-labels"><div><strong>₦800</strong><span>Student rep · 80%</span></div><div><strong>₦200</strong><span>Platform · 20%</span></div></div>
-          <div className="ledger-flow"><span>Pending</span><ArrowRight size={14} /><span>Confirmed</span><ArrowRight size={14} /><span>Payable</span><ArrowRight size={14} /><span>Paid</span></div>
-          <p>Money moves only after the event and escrow checks pass.</p>
-        </div>
-      </section>
+  const signIn = oidc ? () => { setError(""); startSignIn(oidc).catch(() => setError("Sign-in could not start. Try again.")); } : undefined;
+  const signedIn = token && user;
+  const toWorkspace = () => navigate(workspacePath(user?.role ?? "rep"));
 
-      <section className="sandbox-section" id="sandbox">
+  return <CinematicLanding
+    navAction={signedIn ? <button type="button" className="kf-nav-action" onClick={toWorkspace}>Continue as {user.name} <ArrowRight size={16} /></button>
+      : signIn ? <button type="button" className="kf-nav-action" onClick={signIn}>Sign in <ArrowRight size={16} /></button>
+      : <a className="kf-nav-action" href="#sandbox">{sandbox ? "Open sandbox" : "Sign in"} <ArrowRight size={16} /></a>}
+    primaryAction={signedIn ? <button type="button" className="kf-cta" onClick={toWorkspace}>Continue as {user.name} <ArrowRight size={16} /></button>
+      : <a className="kf-cta" href={oidc ? "/signup" : "#sandbox"}>{oidc ? "Create an account" : "Get started"} <ArrowRight size={16} /></a>}
+    secondaryAction={!signedIn && signIn ? <button type="button" className="kf-cta kf-cta-quiet" onClick={signIn}>Sign in</button> : undefined}
+  >
+    <section className="sandbox-section">
         {token && user && <button className="continue-session" onClick={() => navigate(workspacePath(user.role))}>Continue as {user.name}<ArrowRight size={17} /></button>}
         {oidc && <div className="otp-block"><div><KeyRound size={22} /><span><strong>Sign in</strong><small>With your KampusForce account.</small></span></div>
-          <button className="button primary" onClick={() => { setError(""); startSignIn(oidc).catch(() => setError("Sign-in could not start. Try again.")); }}>Sign in with Keycloak<ArrowRight size={16} /></button></div>}
+          <button className="button primary" onClick={() => { setError(""); startSignIn(oidc).catch(() => setError("Sign-in could not start. Try again.")); }}>Sign in<ArrowRight size={16} /></button></div>}
+        {oidc && <div className="otp-block"><div><UsersRound size={22} /><span><strong>New here?</strong><small>Create an account as a campus rep or a vendor.</small></span></div>
+          <a className="button secondary" href="/signup">Create an account<ArrowRight size={16} /></a></div>}
         {!sandbox && error && <p className="form-error" role="alert">{error}</p>}
         {sandbox && <>
         <div className="section-intro"><p className="eyebrow">Executable product slice</p><h2>Choose a workspace.</h2><p>Use seeded sandbox identities to exercise the same database-backed activation, escrow and settlement records. No real money or KYC checks occur.</p></div>
@@ -88,8 +79,6 @@ export default function Login() {
           </form>
         </div>
         </>}
-      </section>
-    </main>
-    <footer className="entry-footer"><span>Phase 19 institutional & connector controls · Nigeria</span><span>External demand → internal readiness → verified outcomes</span></footer>
-  </div>;
+    </section>
+  </CinematicLanding>;
 }

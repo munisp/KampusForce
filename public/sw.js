@@ -1,4 +1,4 @@
-const CACHE = "kampusforce-shell-v7";
+const CACHE = "kampusforce-shell-v8";
 const CORE = ["/", "/manifest.webmanifest", "/icons/kf.svg"];
 
 function isPrivateOrRedirectPath(pathname) {
@@ -38,6 +38,8 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || isPrivateOrRedirectPath(url.pathname)) return;
+  // Video arrives in partial ranges, which the cache can't store. Let the browser fetch media itself.
+  if (url.pathname.startsWith("/media/")) return;
 
   if (request.mode === "navigate") {
     event.respondWith(fetch(request).then((response) => {

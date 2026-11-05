@@ -5,6 +5,7 @@ import {
   auditLogs,
   identityCases,
   identityConsents,
+  identityDocuments,
   identityEvidenceMetadata,
   identityLifecycleEvents,
   identityReviews,
@@ -27,6 +28,9 @@ import {
   missingIdentityEvidence,
   personCaseTypes,
   requiredEvidence,
+  caseEvidence,
+  manualChecks,
+  requiredDocuments,
   sanitizeIdentityFindings,
   validateIdentityEvidenceMetadata,
 } from "./identityPolicy";
@@ -76,7 +80,9 @@ async function syncUserIdentityEligibility(tx: IdentityClient, userId: number) {
   const payoutApproval = currentApprovals.some((identityCase) => ["representative_kyc", "campus_lead_kyc"].includes(identityCase.caseType));
   const hasOpenCase = history.some((identityCase) => openStates.includes(identityCase.state as typeof openStates[number]));
   const kycState = currentApprovals.length ? "verified" : hasOpenCase ? "pending" : history.some((identityCase) => identityCase.state === "rejected") ? "rejected" : "unverified";
-  await tx.update(users).set({ kycState, bankNameMatch: payoutApproval }).where(eq(users.id, userId));
+  // bankNameMatch means "payout account confirmed with the bank" and is set only by the bank check
+  // (services/payoutDestinations.ts). Losing the ID approval still clears it.
+  await tx.update(users).set(payoutApproval ? { kycState } : { kycState, bankNameMatch: false }).where(eq(users.id, userId));
 }
 
 async function ensureIdentityCaseWithClient(input: {
@@ -88,9 +94,10 @@ async function ensureIdentityCaseWithClient(input: {
   campusId?: number | null;
   triggerEvent: string;
   providerMode?: IdentityCase["providerMode"];
+  reviewMethod?: "manual" | "synthetic";
   forceNew?: boolean;
 }, client: IdentityClient) {
-  if (input.caseType === "customer_handoff") throw new TRPCError({ code: "BAD_REQUEST", message: "Customer KYC remains in the vendor-regulated flow" });
+  if (input.caseType === "customer_handoff") throw new TRPCError({ code: "BAD_REQUEST", message: "Customers verify their identity with the vendor" });
   if (input.subjectType === "user") {
     const [subject] = await client.select({ id: users.id }).from(users).where(eq(users.id, input.subjectId)).limit(1).for("update");
     if (!subject) throw new TRPCError({ code: "NOT_FOUND", message: "Identity subject not found" });
@@ -115,6 +122,7 @@ async function ensureIdentityCaseWithClient(input: {
     vendorId: input.vendorId || null,
     campusId: input.campusId || null,
     providerMode: input.providerMode || "sandbox",
+    reviewMethod: input.reviewMethod || (process.env.KF_IDENTITY_REVIEW_METHOD === "synthetic" ? "synthetic" : "manual"),
     policyVersion: IDENTITY_POLICY_VERSION,
     triggerEvent: input.triggerEvent,
     reviewDueAt: new Date(Date.now() + IDENTITY_REVIEW_SLA_HOURS * 3_600_000),
@@ -181,7 +189,13 @@ export async function submitIdentityCase(caseId: number, actorUserId: number) {
     if (!purposes.has("identity_verification") || !purposes.has("biometric_liveness")) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Identity and liveness privacy notices must both be acknowledged" });
     }
-    const [updated] = await tx.update(identityCases).set({ state: "submitted", submittedAt: new Date(), updatedAt: new Date(), decisionReason: null }).where(eq(identityCases.id, caseId)).returning();
+    if (identityCase.reviewMethod === "manual") {
+      const uploaded = await tx.select({ kind: identityDocuments.kind }).from(identityDocuments).where(and(eq(identityDocuments.caseId, caseId), isNull(identityDocuments.purgedAt)));
+      const kinds = new Set(uploaded.map((document) => document.kind));
+      if (requiredDocuments(identityCase.caseType).some((kind) => !kinds.has(kind))) throw new TRPCError({ code: "BAD_REQUEST", message: "Please upload all the documents before submitting." });
+    }
+    const now = new Date();
+    const [updated] = await tx.update(identityCases).set({ state: identityCase.reviewMethod === "manual" ? "manual_review" : "submitted", submittedAt: now, updatedAt: now, reviewDueAt: new Date(now.getTime() + IDENTITY_REVIEW_SLA_HOURS * 3_600_000), decisionReason: null }).where(eq(identityCases.id, caseId)).returning();
     if (updated.subjectType === "user") await syncUserIdentityEligibility(tx, actorUserId);
     await appendIdentityEvent(tx, updated, "identity.onboarding_submitted", { provider_outcome: "submitted" });
     await tx.insert(auditLogs).values({ actorUserId, action: "identity.onboarding_submitted", entityType: "identity_case", entityId: String(caseId), metadataJson: { caseRef: updated.caseRef, policyVersion: updated.policyVersion } });
@@ -246,7 +260,7 @@ export async function routeIdentityCaseToReview(caseId: number, actorUserId: num
     const [identityCase] = await tx.select().from(identityCases).where(eq(identityCases.id, caseId)).limit(1).for("update");
     if (!identityCase || !["submitted", "processing"].includes(identityCase.state)) throw new TRPCError({ code: "CONFLICT", message: "Case is not ready for evidence completion" });
     const evidence = await tx.select().from(identityEvidenceMetadata).where(eq(identityEvidenceMetadata.caseId, caseId)).orderBy(identityEvidenceMetadata.id);
-    const missing = missingIdentityEvidence(identityCase.caseType, evidence);
+    const missing = missingIdentityEvidence(identityCase, evidence);
     if (missing.length) throw new TRPCError({ code: "BAD_REQUEST", message: `Required passing evidence is missing: ${missing.join(", ")}` });
     const [updated] = await tx.update(identityCases).set({ state: "manual_review", updatedAt: new Date() }).where(eq(identityCases.id, caseId)).returning();
     await appendIdentityEvent(tx, updated, "identity.manual_review_requested", { provider_outcome: "manual_review" });
@@ -260,6 +274,7 @@ export async function reviewIdentityCase(input: {
   actorUserId: number;
   decision: "approve" | "request_info" | "reject" | "revoke";
   reason: string;
+  confirmedChecks?: string[];
 }) {
   const reason = input.reason.trim();
   if (reason.length < 10 || reason.length > 500) throw new TRPCError({ code: "BAD_REQUEST", message: "A review reason between 10 and 500 characters is required" });
@@ -277,7 +292,13 @@ export async function reviewIdentityCase(input: {
     let evidence: (typeof identityEvidenceMetadata.$inferSelect)[] = [];
     if (input.decision === "approve") {
       evidence = await tx.select().from(identityEvidenceMetadata).where(eq(identityEvidenceMetadata.caseId, identityCase.id)).orderBy(identityEvidenceMetadata.id);
-      const missing = missingIdentityEvidence(identityCase.caseType, evidence);
+      if (identityCase.reviewMethod === "manual") {
+        const checks = manualChecks(identityCase.caseType);
+        if (checks.some((kind) => !input.confirmedChecks?.includes(kind))) throw new TRPCError({ code: "BAD_REQUEST", message: "Please confirm every check before approving." });
+        const recorded = await tx.insert(identityEvidenceMetadata).values(checks.map((kind) => ({ caseId: identityCase.id, kind, provider: "manual-review", state: "passed" as const, qualityFlags: ["manual_review"], findings: { provider_outcome: "passed", review_code: kind } }))).returning();
+        evidence = [...evidence, ...recorded];
+      }
+      const missing = missingIdentityEvidence(identityCase, evidence);
       if (missing.length) throw new TRPCError({ code: "BAD_REQUEST", message: `Approval is blocked until all required evidence passes: ${missing.join(", ")}` });
       if (identityCase.providerMode === "live") {
         if (!identityReadiness().liveEligible) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Live identity approval is blocked until all provider, evaluation, privacy, legal and security gates pass" });
@@ -359,11 +380,29 @@ export async function getIdentityWorkspace(actor: typeof users.$inferSelect) {
   const evidence = caseIds.length ? await db.select().from(identityEvidenceMetadata).where(inArray(identityEvidenceMetadata.caseId, caseIds)).orderBy(identityEvidenceMetadata.id) : [];
   const reviews = privileged && caseIds.length ? await db.select().from(identityReviews).where(inArray(identityReviews.caseId, caseIds)).orderBy(desc(identityReviews.createdAt)).limit(200) : [];
   const consents = caseIds.length ? await db.select({ id: identityConsents.id, caseId: identityConsents.caseId, purpose: identityConsents.purpose, noticeVersion: identityConsents.noticeVersion, capturedAt: identityConsents.capturedAt, withdrawnAt: identityConsents.withdrawnAt }).from(identityConsents).where(inArray(identityConsents.caseId, caseIds)) : [];
+  const documents = caseIds.length ? await db.select({ id: identityDocuments.id, caseId: identityDocuments.caseId, kind: identityDocuments.kind, idType: identityDocuments.idType, contentType: identityDocuments.contentType, sizeBytes: identityDocuments.sizeBytes, uploadedAt: identityDocuments.uploadedAt }).from(identityDocuments).where(and(inArray(identityDocuments.caseId, caseIds), isNull(identityDocuments.purgedAt))).orderBy(identityDocuments.id) : [];
+  // A reviewer compares the documents with these details, so only reviewers receive them.
+  const subjects = new Map<number, { name: string; email: string | null; companyName?: string; cacNumber?: string | null }>();
+  if (privileged) {
+    for (const identityCase of cases) {
+      if (identityCase.subjectType === "vendor") {
+        const [vendor] = await db.select().from(vendors).where(eq(vendors.id, identityCase.subjectId)).limit(1);
+        const [owner] = vendor?.userId ? await db.select().from(users).where(eq(users.id, vendor.userId)).limit(1) : [];
+        if (vendor) subjects.set(identityCase.id, { name: owner?.name || vendor.companyName, email: vendor.contactEmail || owner?.email || null, companyName: vendor.companyName, cacNumber: vendor.cacNumber });
+      } else {
+        const [person] = await db.select().from(users).where(eq(users.id, identityCase.subjectId)).limit(1);
+        if (person) subjects.set(identityCase.id, { name: person.name, email: person.email });
+      }
+    }
+  }
   return {
+    documents,
     cases: cases.map((identityCase) => ({
       ...identityCase,
-      requiredEvidence: requiredEvidence(identityCase.caseType),
-      missingEvidence: missingIdentityEvidence(identityCase.caseType, evidence.filter((item) => item.caseId === identityCase.id)),
+      requiredEvidence: caseEvidence(identityCase),
+      requiredDocuments: identityCase.reviewMethod === "manual" ? requiredDocuments(identityCase.caseType) : [],
+      subject: subjects.get(identityCase.id) || null,
+      missingEvidence: missingIdentityEvidence(identityCase, evidence.filter((item) => item.caseId === identityCase.id)),
       approvalValid: identityApprovalValid(identityCase),
       reverificationDue: identityReverificationDue(identityCase),
     })),
@@ -374,7 +413,7 @@ export async function getIdentityWorkspace(actor: typeof users.$inferSelect) {
     readiness: identityReadiness(),
     boundaries: {
       customerKyc: "Vendor-regulated flow; no platform biometric or identity-document decision",
-      rawDataStored: false,
+      rawDataStored: documents.length > 0,
       automaticApproval: false,
       liveProviderVerified: false,
       liveExecutionConfigured: identityReadiness().liveEligible,
@@ -422,7 +461,8 @@ export async function withdrawIdentityConsent(caseId: number, actorUserId: numbe
     const withdrawn = await tx.update(identityConsents).set({ withdrawnAt: now }).where(and(eq(identityConsents.caseId, caseId), isNull(identityConsents.withdrawnAt))).returning({ id: identityConsents.id });
     if (!withdrawn.length) throw new TRPCError({ code: "BAD_REQUEST", message: "No active consent is recorded for this case" });
     const [updated] = await tx.update(identityCases).set({ state: "revoked", decidedAt: now, decidedByUserId: null, decisionReason: "Consent withdrawn; consent-dependent processing and eligibility stopped", validUntil: null, updatedAt: now }).where(eq(identityCases.id, caseId)).returning();
-    if (identityCase.subjectType === "user") await tx.update(users).set({ kycState: "unverified", bankNameMatch: false }).where(eq(users.id, identityCase.subjectId));
+    // Recomputed, so withdrawing from one check leaves another approved check standing.
+    if (identityCase.subjectType === "user") await syncUserIdentityEligibility(tx, identityCase.subjectId);
     if (identityCase.subjectType === "vendor") await tx.update(vendors).set({ status: "paused" }).where(eq(vendors.id, identityCase.subjectId));
     await appendIdentityEvent(tx, updated, "consent.withdrawn", { provider_outcome: "processing_stopped", review_code: "consent_withdrawn" });
     await tx.insert(auditLogs).values({ actorUserId, action: "identity.consent_withdrawn", entityType: "identity_case", entityId: String(caseId), metadataJson: { previousState: identityCase.state, withdrawnConsents: withdrawn.length, lakehouseTombstoneRequired: true } });
