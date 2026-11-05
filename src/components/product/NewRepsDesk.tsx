@@ -103,3 +103,44 @@ export function RepsToActivate({ onDecided }: { onDecided: (message: string) => 
     </Panel>}
   </>;
 }
+
+/** Sales campus reps recorded that the vendor hasn't reported: Operations checks the proof and approves or rejects. */
+export function SalesToVerify({ onDecided }: { onDecided?: (message: string) => void }) {
+  const { token, user } = useWorkspace();
+  const canDecide = ["ops", "admin"].includes(user.role);
+  const utils = trpc.useUtils();
+  const list = trpc.ops.salesToVerify.useQuery({ token });
+  const [reasons, setReasons] = useState<Record<number, string>>({});
+  const [notice, setNotice] = useState("");
+  const verify = trpc.ops.verifySale.useMutation({
+    onSuccess: (result) => {
+      const message = result.state === "verified" ? "Approved. The sale is now in the rep's earnings, in the vendor's normal waiting period. The vendor was told and can dispute it." : "Rejected. The rep has been told why.";
+      setNotice(message); onDecided?.(message); utils.ops.salesToVerify.invalidate();
+    },
+  });
+  if (list.isLoading) return <Loading />;
+  if (list.error) return <ErrorState message={list.error.message} retry={list.refetch} />;
+  const rows = list.data || [];
+  return <Panel title="Sales to verify" action={<span className="result-count">{rows.length} waiting</span>}>
+    <p className="panel-note">Campus reps recorded these sales, and the vendor hasn't reported them yet. If the vendor reports one, it's verified automatically and leaves this list. Approve only when the proof shows the customer did what the product pays for. Approving charges the vendor's wallet, and the vendor can dispute it.</p>
+    {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
+    {verify.error && <p className="form-error" role="alert">{verify.error.message}</p>}
+    {rows.length ? <div className="new-rep-list">{rows.map(({ sale, productName, vendorName, repName, repCode }) => {
+      const reason = (reasons[sale.id] || "").trim();
+      return <article key={sale.id} className="new-rep-card">
+        <header><div><strong>{productName} · {vendorName}</strong><small>Recorded by {repName} ({repCode}) · {shortDate(sale.createdAt)}</small></div><span className="new-rep-badge waiting"><Clock3 size={13} />To verify</span></header>
+        <dl><div><dt>Customer</dt><dd className="mono">•••• {sale.customerPhoneLast4}</dd></div>{sale.note && <div><dt>Rep's note</dt><dd>{sale.note}</dd></div>}</dl>
+        <DocumentPreview documentId={sale.proofDocumentId} label={`proof for the ${productName} sale`} />
+        {canDecide && <div className="new-rep-decision">
+          <label htmlFor={`sale-reason-${sale.id}`}>Reason for your decision</label>
+          <input id={`sale-reason-${sale.id}`} value={reasons[sale.id] || ""} onChange={(e) => setReasons({ ...reasons, [sale.id]: e.target.value })} maxLength={500} placeholder="e.g. Screenshot shows the account created on 5 Nov" />
+          <small>The rep sees it if you reject. Don't type phone or account numbers.</small>
+          <div className="decision-actions">
+            <button className="button secondary small" disabled={reason.length < 5 || verify.isPending} onClick={() => verify.mutate({ token, id: sale.id, approve: false, reason })}><X size={13} />Reject</button>
+            <button className="button primary small" disabled={reason.length < 5 || verify.isPending} onClick={() => verify.mutate({ token, id: sale.id, approve: true, reason })}><Check size={13} />Approve sale</button>
+          </div>
+        </div>}
+      </article>;
+    })}</div> : <EmptyState title="No sales waiting" detail="Sales reps record appear here until the vendor reports them or you decide." />}
+  </Panel>;
+}

@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, ClipboardCheck, LayoutDashboard, LifeBuoy, LogOut, Network, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UserCheck, UsersRound, Workflow, X } from "lucide-react";
+import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, HandCoins, ClipboardCheck, LayoutDashboard, LifeBuoy, LogOut, Network, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UserCheck, UsersRound, Workflow, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -16,6 +16,7 @@ const navByRole = {
     { to: "/rep/share", label: "Share a product", icon: QrCode },
     { to: "/rep/support", label: "Support", icon: LifeBuoy },
     { to: "/rep/team", label: "My team", icon: UsersRound },
+    { to: "/rep/record", label: "Record a sale", icon: HandCoins },
     { to: "/rep/earnings", label: "Earnings", icon: CircleDollarSign },
     { to: "/rep/assist", label: "Help a customer", icon: ClipboardCheck },
   ],

@@ -10,17 +10,17 @@ import { FraudDesk } from "@/components/product/FraudDesk";
 import { LaunchDesk } from "@/components/product/LaunchDesk";
 import { RolloutEvidenceDesk } from "@/components/product/RolloutEvidenceDesk";
 import { AssuranceDesk } from "@/components/product/AssuranceDesk";
-import { useNewRepCounts } from "@/components/product/NewRepsDesk";
+import { SalesToVerify, useNewRepCounts } from "@/components/product/NewRepsDesk";
 import { Link } from "react-router";
 
-type View = "control" | "incidents" | "fraud" | "assurance" | "privacy" | "support" | "leads" | "rollout" | "launch" | "evidence";
+type View = "control" | "verify" | "incidents" | "fraud" | "assurance" | "privacy" | "support" | "leads" | "rollout" | "launch" | "evidence";
 
 export default function Ops() {
   const system = useSystemStatus();
   const { token } = useWorkspace();
   const overview = trpc.ops.overview.useQuery({ token });
   const utils = trpc.useUtils();
-  const [view, setView] = useState<View>("control");
+  const [view, setView] = useState<View>(() => (new URLSearchParams(window.location.search).get("view") === "verify" ? "verify" : "control"));
   const [notice, setNotice] = useState("");
   const [caseId, setCaseId] = useState<number | null>(null);
   const [decision, setDecision] = useState("");
@@ -62,8 +62,8 @@ export default function Ops() {
   const data = overview.data!;
   return <WorkspaceLayout title="Operations" subtitle="Every sale, from confirmation to payment.">
     {system.testMode && <div className="sandbox-banner"><ShieldCheck size={18} /><p><strong>Test mode.</strong> Payouts here are practice, so no bank transfer happens. Vendor top-ups use Paystack's test system.</p></div>}
-    <WaitingForYou openChecks={() => setView("assurance")} />
-    <div className="workspace-tabs" role="tablist" aria-label="Operations sections"><button className={view === "control" ? "active" : ""} onClick={() => setView("control")}><ReceiptText size={16} />Payments</button><button className={view === "incidents" ? "active" : ""} onClick={() => setView("incidents")}><AlertTriangle size={16} />Problems <span>{data.metrics.openIncidents}</span></button><button className={view === "fraud" ? "active" : ""} onClick={() => setView("fraud")}><Gavel size={16} />Fraud reviews <span>{data.metrics.openFraudCases}</span></button><button className={view === "assurance" ? "active" : ""} onClick={() => setView("assurance")}><ShieldCheck size={16} />Rep & vendor checks</button><button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}><LockKeyhole size={16} />Privacy requests <span>{data.metrics.openDsars + data.metrics.openBreaches}</span></button><button className={view === "support" ? "active" : ""} onClick={() => setView("support")}><LifeBuoy size={16} />Support <span>{data.metrics.openSupport}</span></button><button className={view === "rollout" ? "active" : ""} onClick={() => setView("rollout")}><Building2 size={16} />Campuses</button><button className={view === "leads" ? "active" : ""} onClick={() => setView("leads")}><UsersRound size={16} />Campus leads</button><button className={view === "launch" ? "active" : ""} onClick={() => setView("launch")}><ShieldCheck size={16} />Go-live checklist</button><button className={view === "evidence" ? "active" : ""} onClick={() => setView("evidence")}><ClipboardCheck size={16} />Launch reports</button></div>
+    <WaitingForYou openChecks={() => setView("assurance")} openSales={() => setView("verify")} />
+    <div className="workspace-tabs" role="tablist" aria-label="Operations sections"><button className={view === "control" ? "active" : ""} onClick={() => setView("control")}><ReceiptText size={16} />Payments</button><button className={view === "verify" ? "active" : ""} onClick={() => setView("verify")}><ClipboardCheck size={16} />Sales to verify</button><button className={view === "incidents" ? "active" : ""} onClick={() => setView("incidents")}><AlertTriangle size={16} />Problems <span>{data.metrics.openIncidents}</span></button><button className={view === "fraud" ? "active" : ""} onClick={() => setView("fraud")}><Gavel size={16} />Fraud reviews <span>{data.metrics.openFraudCases}</span></button><button className={view === "assurance" ? "active" : ""} onClick={() => setView("assurance")}><ShieldCheck size={16} />Rep & vendor checks</button><button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}><LockKeyhole size={16} />Privacy requests <span>{data.metrics.openDsars + data.metrics.openBreaches}</span></button><button className={view === "support" ? "active" : ""} onClick={() => setView("support")}><LifeBuoy size={16} />Support <span>{data.metrics.openSupport}</span></button><button className={view === "rollout" ? "active" : ""} onClick={() => setView("rollout")}><Building2 size={16} />Campuses</button><button className={view === "leads" ? "active" : ""} onClick={() => setView("leads")}><UsersRound size={16} />Campus leads</button><button className={view === "launch" ? "active" : ""} onClick={() => setView("launch")}><ShieldCheck size={16} />Go-live checklist</button><button className={view === "evidence" ? "active" : ""} onClick={() => setView("evidence")}><ClipboardCheck size={16} />Launch reports</button></div>
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}{actionError && <p className="form-error" role="alert">{actionError.message}</p>}
     {view === "control" && <>
       <div className="metrics-grid ops-metrics"><Metric label="All sales" value={data.metrics.deals} note="Every vendor and rep" /><Metric label="Pending" value={data.metrics.pending} note="Waiting period or waiting for funds" tone="mustard" /><Metric label="Ready to pay" value={data.metrics.payable} note="Ready for the next payout" tone="teal" /><Metric label="Paid" value={data.metrics.paid} note="Payouts completed" /><Metric label="Payouts prepared" value={data.metrics.queuedPayouts} note="Not sent yet" tone="mustard" /><Metric label="Processing" value={data.metrics.processingPayouts} note="Waiting for a result" tone="teal" /><Metric label="Failed / held" value={data.metrics.failedPayouts} note="Finance needs to check" tone={data.metrics.failedPayouts ? "danger" : "default"} /><Metric label="Held sales" value={data.metrics.quarantined} note="Need checking" tone={data.metrics.quarantined ? "danger" : "default"} /><Metric label="Open support" value={data.metrics.openSupport} note={`${data.metrics.breachedSupport} overdue`} tone={data.metrics.breachedSupport ? "danger" : "default"} /></div>
@@ -104,6 +104,7 @@ export default function Ops() {
     </>}
     {view === "fraud" && <FraudDesk />}
     {view === "assurance" && <AssuranceDesk />}
+    {view === "verify" && <SalesToVerify />}
     {view === "privacy" && <PrivacyDesk />}
     {view === "launch" && <LaunchDesk />}
     {view === "evidence" && <RolloutEvidenceDesk />}
@@ -134,13 +135,16 @@ export default function Ops() {
 }
 
 /** What's waiting for Operations right now, each linking straight to the list where it's done. */
-function WaitingForYou({ openChecks }: { openChecks: () => void }) {
+function WaitingForYou({ openChecks, openSales }: { openChecks: () => void; openSales: () => void }) {
   const { token } = useWorkspace();
   const identity = trpc.identity.overview.useQuery({ token });
   const banks = trpc.ops.bankAccountReviews.useQuery({ token });
+  const sales = trpc.ops.salesToVerify.useQuery({ token });
   const { enrolments, toActivate } = useNewRepCounts();
   const idChecks = (identity.data?.cases || []).filter((c) => ["manual_review", "submitted", "processing"].includes(c.state)).length;
+  const recorded = sales.data?.length || 0;
   const items = [
+    { count: recorded, label: recorded === 1 ? "sale a rep recorded to verify" : "sales reps recorded to verify", onClick: openSales },
     { count: idChecks, label: idChecks === 1 ? "ID or business check to review" : "ID and business checks to review", to: "/identity" },
     { count: enrolments, label: enrolments === 1 ? "enrolment proof to check" : "enrolment proofs to check", to: "/identity?tab=enrolment" },
     { count: toActivate, label: toActivate === 1 ? "campus rep ready to activate" : "campus reps ready to activate", to: "/identity?tab=activate" },

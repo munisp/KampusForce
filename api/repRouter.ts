@@ -31,6 +31,7 @@ import { configurePayoutDestination, lookUpBankAccount, payoutDestinationStatus 
 import { listBanks } from "./services/bankAccounts";
 import { repOnboarding } from "./services/onboarding";
 import { pickUpHeldSales } from "./services/events";
+import { recordSale, repRecordedSales } from "./services/recordedSales";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -162,6 +163,21 @@ export const repRouter = createRouter({
     const qr = await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: "#102a43", light: "#fffdf7" } });
     const text = `I can help you activate ${product.name} at the vendor’s listed price. Use my KampusForce link: ${url}`;
     return { url, qr, text, whatsappUrl: `https://wa.me/?text=${encodeURIComponent(text)}`, attributed, pickedUpSales: pickedUp.filter((r) => r.status === "accepted").length };
+  }),
+  // A rep records a sale they made, with proof; it waits for the vendor's report or Operations to verify it.
+  recordSale: authedQuery.input(z.object({
+    productId: z.number().int().positive(),
+    customerPhone: z.string().trim().min(7).max(20),
+    proofBase64: z.string().min(4).max(14 * 1024 * 1024),
+    note: z.string().trim().max(500).optional(),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    return recordSale({ userId: ctx.user.id, ...input });
+  }),
+  recordedSales: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["rep"]);
+    const rep = await currentRep(ctx.user.id);
+    return repRecordedSales(rep.id);
   }),
   assistedStart: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);

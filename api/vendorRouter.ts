@@ -25,6 +25,7 @@ import { activeWebhookCredential, rotateVendorWebhookCredential } from "./servic
 import { calculateRuleDryRun, publishRuleDraft } from "./services/rules";
 import { escalateSupportTicket, isSlaBreached, resolveSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { vendorOnboarding } from "./services/onboarding";
+import { vendorDisputeRecordedSale, vendorOpsVerifiedSales } from "./services/recordedSales";
 
 async function currentVendor(userId: number) {
   const [vendor] = await getDb().select().from(vendors).where(eq(vendors.userId, userId)).limit(1);
@@ -47,6 +48,16 @@ const ruleInput = z.object({
 });
 
 export const vendorRouter = createRouter({
+  opsVerifiedSales: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["vendor"]);
+    const vendor = await currentVendor(ctx.user.id);
+    return vendorOpsVerifiedSales(vendor.id);
+  }),
+  disputeVerifiedSale: authedQuery.input(z.object({ id: z.number().int().positive(), reason: z.string().trim().min(10).max(1000) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["vendor"]);
+    const vendor = await currentVendor(ctx.user.id);
+    return vendorDisputeRecordedSale({ vendorId: vendor.id, actorUserId: ctx.user.id, id: input.id, reason: input.reason });
+  }),
   onboarding: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["vendor"]);
     return vendorOnboarding(ctx.user.id);
