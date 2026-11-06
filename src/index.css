@@ -43,7 +43,7 @@ body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--navy
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
-button:disabled { cursor: wait; opacity: .55; }
+button:disabled { cursor: not-allowed; opacity: .55; }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; }
 h1, h2, h3, p { margin-top: 0; }
@@ -1378,3 +1378,57 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .claim-result.taken { color: var(--muted); }
 .claim-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; }
 .new-rep-badge.no { background: var(--red-soft); color: var(--red); }
+
+/* Training: lessons for products and campaigns */
+.training-tabs { max-width: 420px; margin-bottom: 18px; }
+.training-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.training-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); padding: 2px 8px; color: var(--ink); font-size: 10px; font-weight: 600; line-height: 1.5; }
+.training-chip.lock { border-color: var(--mustard); background: var(--mustard-soft); }
+.training-chip.campaign { border-color: var(--teal); background: var(--teal-soft); color: var(--teal); }
+.training-chip.muted { color: var(--muted); }
+.training-lock-note { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; border: 1px solid var(--mustard); background: var(--mustard-soft); padding: 10px 12px; color: var(--ink); font-size: 12px; font-weight: 700; }
+.training-content p { margin: 0 0 12px; }
+.training-content p:last-child { margin-bottom: 18px; }
+.training-manager-actions { display: flex; align-items: center; gap: 10px; }
+.training-manager-actions .contract-check { padding: 6px 10px; font-size: 11px; }
+.training-admin-list { display: grid; }
+.training-admin-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; border-top: 1px solid var(--line); padding: 14px 0; }
+.training-admin-row:first-child { border-top: 0; }
+.training-admin-row > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.training-admin-row strong { color: var(--navy); font-size: 13px; }
+.training-admin-row small { color: var(--muted); font-size: 11px; }
+.training-admin-row.archived { opacity: .6; }
+.training-admin-count { display: grid; justify-items: center; color: var(--muted); font-size: 10px; }
+.training-admin-count strong { color: var(--navy); font: 600 18px "IBM Plex Mono", monospace; }
+.training-admin-buttons { display: flex; gap: 6px; }
+.training-editor { margin-bottom: 18px; }
+.training-audience, .training-quiz-builder, .campaign-lessons { display: grid; gap: 10px; margin: 0; border: 1px solid var(--line); padding: 14px; }
+.training-audience legend, .training-quiz-builder legend, .campaign-lessons legend { padding: 0 6px; color: var(--navy); font-size: 12px; font-weight: 800; }
+.training-targets { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.training-targets h3 { margin: 0 0 8px; font-size: 12px; }
+.training-targets > div { display: grid; align-content: start; gap: 6px; max-height: 320px; overflow-y: auto; }
+.training-target { display: grid; gap: 4px; }
+.training-target .contract-check { padding: 9px 11px; font-size: 12px; }
+.training-target .contract-check span { display: grid; }
+.training-target .contract-check small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.training-target .must-pass { margin-left: 22px; border-style: dashed; background: var(--mustard-soft); font-size: 11px; }
+.quiz-builder-question { display: grid; gap: 7px; border-top: 1px solid var(--line); padding-top: 12px; }
+.quiz-builder-question:first-of-type { border-top: 0; padding-top: 0; }
+.quiz-builder-head { display: flex; align-items: flex-end; gap: 8px; }
+.quiz-builder-head label { flex: 1; }
+.quiz-builder-option { display: flex; align-items: center; gap: 8px; padding-left: 12px; }
+.quiz-builder-option input[type="radio"] { width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--teal); }
+.quiz-builder-question > .text-link { justify-self: start; border: 0; background: none; padding: 2px 12px; }
+.training-quiz-builder > .button { justify-self: start; }
+.campaign-lesson-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+.campaign-lesson-list .contract-check { padding: 9px 11px; font-size: 12px; }
+.required-mark { color: var(--red); font-size: 10px; font-weight: 600; }
+.product-lock { display: flex; align-items: flex-start; gap: 8px; border: 1px solid var(--mustard); background: var(--mustard-soft); padding: 10px 12px; color: var(--ink); font-size: 12px; line-height: 1.5; }
+.product-lock svg { flex: 0 0 auto; margin-top: 2px; }
+.product-lock a { color: var(--teal); font-weight: 800; }
+@media (max-width: 760px) {
+  .training-admin-row { grid-template-columns: 1fr auto; }
+  .training-admin-buttons { grid-column: 1 / -1; }
+  .training-targets { grid-template-columns: 1fr; }
+  .training-manager-actions { flex-wrap: wrap; justify-content: flex-end; }
+}

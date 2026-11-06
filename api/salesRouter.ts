@@ -23,13 +23,26 @@ import {
   setOutreachState,
   updateOpportunityStage,
 } from "./services/crm";
-import { getTrainingWorkspace, startTraining, submitTrainingAttempt } from "./services/training";
+import { createTrainingModule, getTrainingAdmin, getTrainingWorkspace, setTrainingModuleActive, startTraining, submitTrainingAttempt, TRAINING_CATEGORIES, updateTrainingModule } from "./services/training";
 import { activateCampaign, createCampaign, listCampaignWorkspace, pauseCampaign, reviewCampaign, submitCampaignReview } from "./services/campaigns";
 import { createVendorService, listVendorServices, syncVendorService, testVendorService } from "./services/vendorServices";
 import { inviteSuggestedStudent, listGrowthWorkspace, refreshOpportunityTargets, scheduleRecruitmentFollowUp, setRecommendationState, suggestStudent } from "./services/growth";
 
 const id = z.number().int().positive();
 const filters = z.record(z.string(), z.unknown());
+const trainingModuleInput = z.object({
+  title: z.string().trim().min(3).max(180),
+  summary: z.string().trim().min(10).max(400),
+  content: z.string().trim().min(20).max(8000),
+  category: z.enum(TRAINING_CATEGORIES),
+  durationMinutes: z.number().int().min(1).max(240),
+  passingScore: z.number().int().min(50).max(100),
+  required: z.boolean(),
+  forEveryone: z.boolean(),
+  quiz: z.array(z.object({ question: z.string().trim().min(5).max(300), options: z.array(z.string().trim().min(1).max(200)).min(2).max(6), answerIndex: z.number().int().min(0).max(5) })).min(1).max(20),
+  products: z.array(z.object({ productId: id, required: z.boolean() })).max(100),
+  campaignIds: z.array(id).max(100),
+});
 
 export const salesRouter = createRouter({
   cases: authedQuery.query(async ({ ctx }) => listCaseWorkspace(await salesActorForUser(ctx.user))),
@@ -67,6 +80,15 @@ export const salesRouter = createRouter({
     saveCrmSegment({ ...input, actor: await salesActorForUser(ctx.user) })),
 
   training: authedQuery.query(async ({ ctx }) => getTrainingWorkspace(await salesActorForUser(ctx.user))),
+  trainingAdmin: authedQuery.query(async ({ ctx }) => getTrainingAdmin(await salesActorForUser(ctx.user))),
+  createTrainingModule: authedQuery.input(trainingModuleInput).mutation(async ({ ctx, input }) =>
+    createTrainingModule(await salesActorForUser(ctx.user), input)),
+  updateTrainingModule: authedQuery.input(trainingModuleInput.extend({ moduleId: id })).mutation(async ({ ctx, input }) => {
+    const { moduleId, ...rest } = input;
+    return updateTrainingModule(await salesActorForUser(ctx.user), moduleId, rest);
+  }),
+  setTrainingModuleActive: authedQuery.input(z.object({ moduleId: id, active: z.boolean() })).mutation(async ({ ctx, input }) =>
+    setTrainingModuleActive(await salesActorForUser(ctx.user), input.moduleId, input.active)),
   startTraining: authedQuery.input(z.object({ moduleId: id })).mutation(async ({ ctx, input }) =>
     startTraining(await salesActorForUser(ctx.user), input.moduleId)),
   submitTrainingAttempt: authedQuery.input(z.object({ moduleId: id, answers: z.array(z.number().int().min(0)).min(1).max(20) })).mutation(async ({ ctx, input }) =>
@@ -82,6 +104,7 @@ export const salesRouter = createRouter({
     startsAt: z.coerce.date(),
     endsAt: z.coerce.date(),
     audienceRules: z.object({ minQualityScore: z.number().int().min(0).max(100).optional(), requiredTrainingModuleKey: z.string().max(80).optional(), includeCampusLeads: z.boolean().optional() }),
+    trainingModuleIds: z.array(id).max(20).default([]),
   })).mutation(async ({ ctx, input }) => createCampaign({ ...input, actor: await salesActorForUser(ctx.user) })),
   submitCampaignReview: authedQuery.input(z.object({ campaignId: id, expectedVersion: z.number().int().positive() })).mutation(async ({ ctx, input }) =>
     submitCampaignReview({ ...input, actor: await salesActorForUser(ctx.user) })),

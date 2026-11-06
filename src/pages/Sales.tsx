@@ -35,7 +35,7 @@ const copy: Record<ViewKey, { title: string; subtitle: string }> = {
   intelligence: { title: "Insights", subtitle: "Reports on how sales and support are going." },
   cases: { title: "Customer requests", subtitle: "See who owns each request and when a reply is due." },
   pipeline: { title: "My contacts", subtitle: "Keep track of the people you're talking to and when to follow up." },
-  training: { title: "Training", subtitle: "Short lessons on selling honestly, privacy and helping customers." },
+  training: { title: "Training", subtitle: "Short lessons on selling honestly, privacy, and the products and campaigns you work on." },
   promotions: { title: "Promotions", subtitle: "Vendor offers you can promote on campus, and how they're doing." },
   campaigns: { title: "Campaigns", subtitle: "Choose who to reach, get approval, and see the results." },
   opportunities: { title: "Opportunities", subtitle: "Campus jobs, grants and programmes, from application to result." },
