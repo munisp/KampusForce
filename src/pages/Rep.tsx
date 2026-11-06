@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Check, CheckCircle2, Clock3, Clipboard, Copy, ExternalLink, FileQuestion, Filter, Link2, QrCode, Search, Send, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, Clock3, Clipboard, Copy, ExternalLink, FileQuestion, Filter, Link2, Lock, QrCode, Search, Send, ShieldCheck, WalletCards } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { EmptyState, Metric, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
@@ -55,6 +55,18 @@ export function RepOverview() {
   </RepFrame>;
 }
 
+/** Products this rep can't sell yet because a required lesson isn't passed. The server enforces it too. */
+function useProductLocks() {
+  const { token, user } = useWorkspace();
+  const query = trpc.rep.productTraining.useQuery({ token }, { enabled: user.role === "rep" });
+  return (productId: number) => [...new Set((query.data || []).filter((row) => row.productId === productId).map((row) => row.title))];
+}
+
+function ProductLock({ titles }: { titles: string[] }) {
+  if (!titles.length) return null;
+  return <p className="product-lock" role="status"><Lock size={15} /><span>Pass {titles.map((t) => `“${t}”`).join(", ")} in <Link to="/sales?view=training">Training</Link> to sell this product.</span></p>;
+}
+
 export function RepCatalog() {
   const { token } = useWorkspace();
   const query = trpc.rep.catalog.useQuery({ token });
@@ -69,6 +81,7 @@ export function RepCatalog() {
   const [category, setCategory] = useState("all");
   const products = useMemo(() => rows.filter(({ product }) => (category === "all" || product.category === category) && `${product.name} ${product.description}`.toLowerCase().includes(search.toLowerCase())), [rows, search, category]);
   const offline = Boolean(query.error && cached.length);
+  const locks = useProductLocks();
   return <RepFrame title="Products you can sell" subtitle="What each product pays and when.">
     {offline && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You're offline.</strong> Showing the last products saved on this device. Connect to the internet to share them.</p></div>}
     <div className="catalog-tools"><label className="search-field"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products" /></label><label className="select-field"><Filter size={16} /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="all">All categories</option>{Object.entries(productCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><span className="result-count">{products.length} offers</span></div>
@@ -78,7 +91,7 @@ export function RepCatalog() {
       <div className="commission-display"><small>Your 80% share</small><strong>{rule.basis === "flat" ? money(Math.round((rule.flatAmountKobo || 0) * 0.8)) : `${((rule.pctBps || 0) / 100 * 0.8).toFixed(1)}%`}</strong><span>{rule.basis === "flat" ? `of ${money(rule.flatAmountKobo || 0)} funded commission` : `of eligible transaction value`}</span></div>
       <dl className="product-terms"><div><dt>You earn when</dt><dd>{rule.triggerEvent.replaceAll("_", " ")}</dd></div><div><dt>Waiting period</dt><dd>{rule.confirmDays} days</dd></div><div><dt>Refund period</dt><dd>{rule.clawbackDays} days</dd></div><div><dt>Listed price</dt><dd>{product.priceKobo ? money(product.priceKobo) : "Vendor checkout"}</dd></div></dl>
       <div className="pitch"><Clipboard size={16} /><p>{product.pitchScript}</p></div>
-      {offline ? <button className="button primary" disabled>Connect to the internet to share</button> : <Link className="button primary" to={`/rep/share?product=${product.id}`}>Share this offer <ArrowRight size={16} /></Link>}
+      {locks(product.id).length ? <ProductLock titles={locks(product.id)} /> : offline ? <button className="button primary" disabled>Connect to the internet to share</button> : <Link className="button primary" to={`/rep/share?product=${product.id}`}>Share this offer <ArrowRight size={16} /></Link>}
     </article>)}</div> : <EmptyState title="No matching offers" detail="Try another search or category." />}
   </RepFrame>;
 }
@@ -93,6 +106,8 @@ export function RepShare() {
   const [copied, setCopied] = useState(false);
   const share = trpc.rep.share.useMutation({ onSuccess: () => setCopied(false) });
   const selectedId = productId || catalog.data?.[0]?.product.id || 0;
+  const locks = useProductLocks();
+  const locked = locks(selectedId);
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); setCopied(true); };
   return <RepFrame title="Share a product" subtitle="Send your link or QR code, and sales from it are credited to you.">
     <div className="share-layout">
@@ -101,7 +116,8 @@ export function RepShare() {
           <label>Customer phone <span className="optional">optional</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0800 000 0000" /></label>
           <fieldset><legend>How you're sharing it</legend><div className="segmented"><button type="button" className={source === "link" ? "active" : ""} onClick={() => setSource("link")}><Link2 size={16} />Link</button><button type="button" className={source === "qr" ? "active" : ""} onClick={() => setSource("qr")}><QrCode size={16} />QR code</button></div></fieldset>
           <p className="privacy-note"><ShieldCheck size={16} />Adding a number helps link the customer to you. We scramble it before saving it, and we never ask for a NIN or BVN.</p>
-          <button className="button primary" disabled={!selectedId || share.isPending} onClick={() => share.mutate({ token, productId: selectedId, customerPhone: phone || undefined, source })}>{share.isPending ? "Signing…" : "Generate signed kit"}<ArrowRight size={16} /></button>
+          <ProductLock titles={locked} />
+          <button className="button primary" disabled={!selectedId || share.isPending || locked.length > 0} onClick={() => share.mutate({ token, productId: selectedId, customerPhone: phone || undefined, source })}>{share.isPending ? "Signing…" : "Generate signed kit"}<ArrowRight size={16} /></button>
           {share.error && <p className="form-error">{share.error.message}</p>}</div>
       </Panel>
       <section className="share-preview">
@@ -131,14 +147,15 @@ export function RepAssist() {
   const start = trpc.rep.assistedStart.useMutation({ onSuccess: (d) => { setSessionId(d.sessionId); setStep(1); } });
   const advance = trpc.rep.assistedAdvance.useMutation({ onSuccess: (d) => setStep(d.currentStep) });
   const selectedId = productId || catalog.data?.[0]?.product.id || 0;
+  const locks = useProductLocks();
   const current = assistSteps[Math.max(0, step - 1)];
   const next = () => { if (!sessionId) start.mutate({ token, productId: selectedId, customerPhone: phone }); else if (step < 6) advance.mutate({ token, sessionId, step: step + 1 }); };
   return <RepFrame title="Help a customer sign up" subtitle="Six steps to guide a customer to the vendor's app.">
     <div className="assist-layout">
       <aside className="step-rail">{assistSteps.map((s, i) => <div className={`${step === i + 1 ? "current" : ""} ${step > i + 1 || step === 6 && i === 5 ? "done" : ""}`} key={s.title}><span>{step > i + 1 || step === 6 && i === 5 ? <Check size={15} /> : String(i + 1).padStart(2, "0")}</span><p>{s.title}</p></div>)}</aside>
       <Panel title={step ? `Step ${step} of 6` : "Start an assisted session"} className="assist-panel">
-        {!step ? <div className="form-stack"><label>Product<select value={selectedId} onChange={(e) => setProductId(Number(e.target.value))}>{(catalog.data || []).map(({ product }) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label>Customer phone<input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="We scramble this before saving it" required /></label><label className="consent-check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} required /><span>The customer has agreed to be linked to me and sent to the vendor.</span></label><div className="safety-callout"><ShieldCheck size={20} /><p><strong>Stop when the customer reaches the vendor's app.</strong> The customer verifies their identity with the vendor, not with you or KampusForce.</p></div></div> : <div className="step-content"><span className="step-kicker">{step === 6 ? "HANDOFF COMPLETE" : "CUSTOMER ASSISTANCE"}</span><h2>{current.title}</h2><p>{current.detail}</p>{step === 3 && <div className="safety-callout"><ShieldCheck size={20} /><p>Never ask for or write down a customer's OTP, NIN, BVN, card PIN or password.</p></div>}{step === 6 && <Link className="text-link" to="/rep/earnings">See my earnings <ArrowRight size={15} /></Link>}</div>}
-        <div className="assist-controls">{step > 0 && step < 6 && <span className="mono">SESSION #{sessionId}</span>}{step < 6 && <button className="button primary" disabled={!selectedId || !phone || (!step && !consent) || start.isPending || advance.isPending} onClick={next}>{!step ? "Record consent & start" : step === 5 ? "Complete handoff" : "Mark step complete"}<ArrowRight size={16} /></button>}{step === 6 && <button className="button secondary" onClick={() => { setStep(0); setSessionId(0); setPhone(""); setConsent(false); }}>Start another session</button>}</div>
+        {!step ? <div className="form-stack"><label>Product<select value={selectedId} onChange={(e) => setProductId(Number(e.target.value))}>{(catalog.data || []).map(({ product }) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label>Customer phone<input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="We scramble this before saving it" required /></label><ProductLock titles={locks(selectedId)} /><label className="consent-check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} required /><span>The customer has agreed to be linked to me and sent to the vendor.</span></label><div className="safety-callout"><ShieldCheck size={20} /><p><strong>Stop when the customer reaches the vendor's app.</strong> The customer verifies their identity with the vendor, not with you or KampusForce.</p></div></div> : <div className="step-content"><span className="step-kicker">{step === 6 ? "HANDOFF COMPLETE" : "CUSTOMER ASSISTANCE"}</span><h2>{current.title}</h2><p>{current.detail}</p>{step === 3 && <div className="safety-callout"><ShieldCheck size={20} /><p>Never ask for or write down a customer's OTP, NIN, BVN, card PIN or password.</p></div>}{step === 6 && <Link className="text-link" to="/rep/earnings">See my earnings <ArrowRight size={15} /></Link>}</div>}
+        <div className="assist-controls">{step > 0 && step < 6 && <span className="mono">SESSION #{sessionId}</span>}{step < 6 && <button className="button primary" disabled={!selectedId || !phone || (!step && !consent) || (!step && locks(selectedId).length > 0) || start.isPending || advance.isPending} onClick={next}>{!step ? "Record consent & start" : step === 5 ? "Complete handoff" : "Mark step complete"}<ArrowRight size={16} /></button>}{step === 6 && <button className="button secondary" onClick={() => { setStep(0); setSessionId(0); setPhone(""); setConsent(false); }}>Start another session</button>}</div>
         {(start.error || advance.error) && <p className="form-error">{start.error?.message || advance.error?.message}</p>}
       </Panel>
     </div>
@@ -267,6 +284,8 @@ export function RepRecordSale() {
   const [fileKey, setFileKey] = useState(0);
   const record = trpc.rep.recordSale.useMutation({ onSuccess: () => { setPhone(""); setNote(""); setProof(null); setFileKey((k) => k + 1); utils.rep.recordedSales.invalidate(); utils.rep.earnings.invalidate(); utils.rep.dashboard.invalidate(); utils.rep.onboarding.invalidate(); } });
   const active = me.data?.rep.status === "active";
+  const locks = useProductLocks();
+  const locked = productId ? locks(productId) : [];
   const result = record.data;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -286,7 +305,8 @@ export function RepRecordSale() {
           <label>Customer's phone number<input required inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); record.reset(); }} placeholder="0800 000 0000" disabled={!active} autoComplete="off" /><small>The number they used with the vendor.</small></label>
           <label>Proof<input key={fileKey} type="file" accept="image/jpeg,image/png,application/pdf" required disabled={!active} onChange={(e) => { setProof(e.target.files?.[0] || null); record.reset(); }} /><small>A screenshot or photo of the customer's confirmation, a receipt or a reference. JPG, PNG or PDF, up to 10 MB. Whoever verifies the sale sees it.</small></label>
           <label>Note <span className="optional">optional</span><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="e.g. Helped them sign up in the library on Tuesday" disabled={!active} /></label>
-          <button className="button primary" disabled={!active || record.isPending || !productId || !proof || phone.trim().length < 7}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
+          <ProductLock titles={locked} />
+          <button className="button primary" disabled={!active || record.isPending || locked.length > 0 || !productId || !proof || phone.trim().length < 7}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
           {status && !record.isPending && <p className="form-error">{status}</p>}
         </form>
         {record.error && <p className="form-error" role="alert">{record.error.message}</p>}

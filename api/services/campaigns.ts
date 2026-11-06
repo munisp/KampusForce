@@ -10,6 +10,7 @@ import {
   deals,
   products,
   reps,
+  trainingAssignments,
   trainingModules,
   trainingProgress,
   users,
@@ -56,9 +57,14 @@ async function syncCampaignConversions() {
       const [deal] = await db.select({ id: deals.id }).from(deals).where(and(...conditions)).limit(1);
       matched = Boolean(deal);
     } else if (row.campaign.goal === "training") {
-      const [progress] = await db.select({ id: trainingProgress.id }).from(trainingProgress).innerJoin(reps, eq(trainingProgress.userId, reps.userId))
-        .where(and(eq(reps.id, row.enrollment.repId), eq(trainingProgress.state, "completed"), gte(trainingProgress.completedAt, since))).limit(1);
-      matched = Boolean(progress);
+      const lessonIds = (await db.select({ moduleId: trainingAssignments.moduleId }).from(trainingAssignments).where(eq(trainingAssignments.campaignId, row.campaign.id))).map((r) => r.moduleId);
+      const done = await db.select({ moduleId: trainingProgress.moduleId, completedAt: trainingProgress.completedAt }).from(trainingProgress).innerJoin(reps, eq(trainingProgress.userId, reps.userId))
+        .where(and(eq(reps.id, row.enrollment.repId), eq(trainingProgress.state, "completed"), lessonIds.length ? inArray(trainingProgress.moduleId, lessonIds) : undefined));
+      // With lessons attached, the rep converts once every one of them is passed, at least one after joining.
+      // Older campaigns without lessons keep the old rule: any lesson passed after joining.
+      matched = lessonIds.length
+        ? lessonIds.every((lessonId) => done.some((r) => r.moduleId === lessonId)) && done.some((r) => r.completedAt && r.completedAt >= since)
+        : done.some((r) => r.completedAt && r.completedAt >= since);
     } else if (row.campaign.goal === "recruitment") {
       const [recruitment] = await db.select({ id: campusRecruitments.id }).from(campusRecruitments)
         .where(and(eq(campusRecruitments.leadRepId, row.enrollment.repId), gte(campusRecruitments.acceptedAt, since), inArray(campusRecruitments.status, ["accepted", "activated"]))).limit(1);
@@ -96,9 +102,11 @@ export async function listCampaignWorkspace(actor: SalesActor) {
     enrollments = own;
   }
   const campaignIds = campaignRows.map((row) => row.campaign.id);
+  const lessons = campaignIds.length ? await db.select({ campaignId: trainingAssignments.campaignId, moduleId: trainingModules.id, title: trainingModules.title, active: trainingModules.active })
+    .from(trainingAssignments).innerJoin(trainingModules, eq(trainingAssignments.moduleId, trainingModules.id)).where(inArray(trainingAssignments.campaignId, campaignIds)) : [];
   const events = campaignIds.length ? await db.select().from(campaignEvents).where(inArray(campaignEvents.campaignId, campaignIds)).orderBy(desc(campaignEvents.createdAt)).limit(250) : [];
   return {
-    campaigns: campaignRows,
+    campaigns: campaignRows.map((row) => ({ ...row, lessons: lessons.filter((lesson) => lesson.campaignId === row.campaign.id).map(({ moduleId, title, active }) => ({ moduleId, title, active })) })),
     enrollments,
     events,
     metrics: {
@@ -123,8 +131,11 @@ export async function createCampaign(input: {
   startsAt: Date;
   endsAt: Date;
   audienceRules: AudienceRules;
+  trainingModuleIds?: number[];
 }) {
   assertSalesRole(input.actor, ["ops", "admin"]);
+  const lessonIds = [...new Set(input.trainingModuleIds || [])];
+  if (input.goal === "training" && !lessonIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose at least one lesson for a training campaign." });
   validateCampaignWindow(input.startsAt, input.endsAt);
   const db = getDb();
   let vendorId: number | null = null;
@@ -136,6 +147,14 @@ export async function createCampaign(input: {
   if (input.campusId) {
     const [campus] = await db.select({ id: campuses.id }).from(campuses).where(eq(campuses.id, input.campusId)).limit(1);
     if (!campus) throw new TRPCError({ code: "NOT_FOUND", message: "Campaign campus not found" });
+  }
+  if (lessonIds.length) {
+    const found = await db.select({ id: trainingModules.id }).from(trainingModules).where(and(inArray(trainingModules.id, lessonIds), eq(trainingModules.active, true)));
+    if (found.length !== lessonIds.length) throw new TRPCError({ code: "NOT_FOUND", message: "One of the lessons is archived or no longer exists." });
+  }
+  if (input.audienceRules.requiredTrainingModuleKey) {
+    const [gate] = await db.select({ id: trainingModules.id }).from(trainingModules).where(and(eq(trainingModules.moduleKey, input.audienceRules.requiredTrainingModuleKey), eq(trainingModules.active, true))).limit(1);
+    if (!gate) throw new TRPCError({ code: "NOT_FOUND", message: "The lesson reps must already have passed is archived or no longer exists." });
   }
   const campaignKey = randomReference("KF-C").toUpperCase();
   return db.transaction(async (tx) => {
@@ -152,7 +171,8 @@ export async function createCampaign(input: {
       endsAt: input.endsAt,
       createdByUserId: input.actor.userId,
     }).returning({ id: campaigns.id });
-    await tx.insert(campaignEvents).values({ campaignId: id, actorUserId: input.actor.userId, eventType: "campaign_created", metadataJson: { goal: input.goal, delivery: "in_app_only" } });
+    if (lessonIds.length) await tx.insert(trainingAssignments).values(lessonIds.map((moduleId) => ({ moduleId, campaignId: id, productId: null, required: false, createdByUserId: input.actor.userId })));
+    await tx.insert(campaignEvents).values({ campaignId: id, actorUserId: input.actor.userId, eventType: "campaign_created", metadataJson: { goal: input.goal, delivery: "in_app_only", lessons: lessonIds.length } });
     await tx.insert(auditLogs).values({ actorUserId: input.actor.userId, action: "campaign.created", entityType: "campaign", entityId: String(id), metadataJson: { goal: input.goal, productId: input.productId || null, campusId: input.campusId || null } });
     return { campaignId: id, campaignKey, state: "draft" as const };
   });
@@ -219,9 +239,10 @@ export async function activateCampaign(input: { actor: SalesActor; campaignId: n
     }
     await tx.update(campaigns).set({ state: "active", version: campaign.version + 1, updatedAt: now }).where(eq(campaigns.id, campaign.id));
     await tx.insert(campaignEvents).values({ campaignId: campaign.id, actorUserId: input.actor.userId, eventType: "campaign_activated", metadataJson: { newEnrollments: inserted, eligible: eligibleReps.length, externalDelivery: false } });
-    return { campaignId: campaign.id, state: "active" as const, newEnrollments: inserted, recipients: eligibleReps.map((row) => ({ userId: row.user.id, repId: row.rep.id })) };
+    const [lesson] = await tx.select({ id: trainingAssignments.id }).from(trainingAssignments).where(eq(trainingAssignments.campaignId, campaign.id)).limit(1);
+    return { campaignId: campaign.id, state: "active" as const, newEnrollments: inserted, hasLessons: Boolean(lesson), recipients: eligibleReps.map((row) => ({ userId: row.user.id, repId: row.rep.id })) };
   });
-  await Promise.all(result.recipients.map((recipient) => notifyUser({ userId: recipient.userId, type: "campaign_enrolled", title: "New campaign assignment", body: "Open the campaign workspace to review the approved message and goal. No external message was sent.", href: "/sales?view=campaigns", entityType: "campaign", entityId: result.campaignId })));
+  await Promise.all(result.recipients.map((recipient) => notifyUser({ userId: recipient.userId, type: "campaign_enrolled", title: "New campaign assignment", body: result.hasLessons ? "This campaign comes with lessons. Open Training to take them." : "Open the campaign workspace to review the approved message and goal. No external message was sent.", href: result.hasLessons ? "/sales?view=training" : "/sales?view=campaigns", entityType: "campaign", entityId: result.campaignId })));
   return { campaignId: result.campaignId, state: result.state, newEnrollments: result.newEnrollments, externalDelivery: false };
 }
 

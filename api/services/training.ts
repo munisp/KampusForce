@@ -1,8 +1,8 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { trainingAttempts, trainingModules, trainingProgress } from "@db/schema";
+import { auditLogs, campaignEnrollments, campaigns, products, trainingAssignments, trainingAttempts, trainingModules, trainingProgress, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
-import type { SalesActor } from "./salesAccess";
+import { assertSalesRole, type SalesActor } from "./salesAccess";
 
 const moduleSeeds: Array<typeof trainingModules.$inferInsert> = [
   {
@@ -82,43 +82,251 @@ const moduleSeeds: Array<typeof trainingModules.$inferInsert> = [
   },
 ];
 
+let catalogSeeded = false;
+
+/** Adds the starter lessons once per process. Edits Operations make to them are kept. */
 export async function ensureTrainingCatalog() {
+  if (catalogSeeded) return;
   const db = getDb();
   for (const seed of moduleSeeds) {
     await db.insert(trainingModules).values(seed).onConflictDoNothing();
   }
+  catalogSeeded = true;
 }
+
+export const TRAINING_CATEGORIES = ["conduct", "privacy", "sales_skills", "service", "product"] as const;
+
+export type QuizQuestion = { question: string; options: string[]; answerIndex: number };
+
+export type TrainingModuleInput = {
+  title: string;
+  summary: string;
+  content: string;
+  category: (typeof TRAINING_CATEGORIES)[number];
+  durationMinutes: number;
+  passingScore: number;
+  required: boolean;
+  forEveryone: boolean;
+  quiz: QuizQuestion[];
+  products: Array<{ productId: number; required: boolean }>;
+  campaignIds: number[];
+};
+
+/** Rules a quiz must meet before it's saved. Exported for tests. */
+export function validateQuiz(quiz: QuizQuestion[]) {
+  if (!quiz.length) return "Add at least one quiz question.";
+  for (const [index, item] of quiz.entries()) {
+    const n = index + 1;
+    if (item.question.trim().length < 5) return `Question ${n} is too short.`;
+    const options = item.options.map((option) => option.trim());
+    if (options.length < 2) return `Question ${n} needs at least two answers.`;
+    if (options.some((option) => !option)) return `Question ${n} has an empty answer.`;
+    if (new Set(options.map((option) => option.toLowerCase())).size !== options.length) return `Question ${n} has the same answer twice.`;
+    if (!Number.isInteger(item.answerIndex) || item.answerIndex < 0 || item.answerIndex >= options.length) return `Choose the correct answer for question ${n}.`;
+  }
+  return null;
+}
+
+export function moduleKeyFromTitle(title: string) {
+  const slug = title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "lesson";
+  return `${slug}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function cleanQuiz(quiz: QuizQuestion[]) {
+  return quiz.map((item) => ({ question: item.question.trim(), options: item.options.map((option) => option.trim()), answerIndex: item.answerIndex }));
+}
+
+async function checkTargets(input: Pick<TrainingModuleInput, "products" | "campaignIds">) {
+  const db = getDb();
+  const productIds = [...new Set(input.products.map((row) => row.productId))];
+  if (productIds.length !== input.products.length) throw new TRPCError({ code: "BAD_REQUEST", message: "A product is listed twice." });
+  if (productIds.length) {
+    const found = await db.select({ id: products.id }).from(products).where(inArray(products.id, productIds));
+    if (found.length !== productIds.length) throw new TRPCError({ code: "NOT_FOUND", message: "One of the products no longer exists." });
+  }
+  const campaignIds = [...new Set(input.campaignIds)];
+  if (campaignIds.length) {
+    const found = await db.select({ id: campaigns.id, state: campaigns.state }).from(campaigns).where(inArray(campaigns.id, campaignIds));
+    if (found.length !== campaignIds.length) throw new TRPCError({ code: "NOT_FOUND", message: "One of the campaigns no longer exists." });
+    if (found.some((row) => ["completed", "rejected"].includes(row.state))) throw new TRPCError({ code: "BAD_REQUEST", message: "A finished or rejected campaign can't be given new lessons." });
+  }
+  return { products: input.products, campaignIds };
+}
+
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+async function replaceAssignments(tx: Tx, moduleId: number, actorUserId: number, targets: { products: TrainingModuleInput["products"]; campaignIds: number[] }) {
+  await tx.delete(trainingAssignments).where(eq(trainingAssignments.moduleId, moduleId));
+  const rows = [
+    ...targets.products.map((row) => ({ moduleId, productId: row.productId, campaignId: null, required: row.required, createdByUserId: actorUserId })),
+    ...targets.campaignIds.map((campaignId) => ({ moduleId, productId: null, campaignId, required: false, createdByUserId: actorUserId })),
+  ];
+  if (rows.length) await tx.insert(trainingAssignments).values(rows);
+}
+
+function checkModuleInput(input: TrainingModuleInput) {
+  const problem = validateQuiz(input.quiz);
+  if (problem) throw new TRPCError({ code: "BAD_REQUEST", message: problem });
+  if (!TRAINING_CATEGORIES.includes(input.category)) throw new TRPCError({ code: "BAD_REQUEST", message: "Choose a category." });
+}
+
+export async function createTrainingModule(actor: SalesActor, input: TrainingModuleInput) {
+  assertSalesRole(actor, ["ops", "admin"]);
+  await ensureTrainingCatalog();
+  checkModuleInput(input);
+  const targets = await checkTargets(input);
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [{ next }] = await tx.select({ next: sql<number>`coalesce(max(${trainingModules.sortOrder}), 0) + 1` }).from(trainingModules);
+    const [module] = await tx.insert(trainingModules).values({
+      moduleKey: moduleKeyFromTitle(input.title),
+      title: input.title.trim(), summary: input.summary.trim(), content: input.content.trim(), category: input.category,
+      durationMinutes: input.durationMinutes, passingScore: input.passingScore, required: input.forEveryone && input.required, forEveryone: input.forEveryone, sortOrder: Number(next),
+      quizJson: cleanQuiz(input.quiz),
+    }).returning();
+    await replaceAssignments(tx, module.id, actor.userId, targets);
+    await tx.insert(auditLogs).values({ actorUserId: actor.userId, action: "training.module_created", entityType: "training_module", entityId: String(module.id), metadataJson: { products: targets.products.length, campaigns: targets.campaignIds.length } });
+    return { moduleId: module.id, moduleKey: module.moduleKey };
+  });
+}
+
+export async function updateTrainingModule(actor: SalesActor, moduleId: number, input: TrainingModuleInput) {
+  assertSalesRole(actor, ["ops", "admin"]);
+  checkModuleInput(input);
+  const targets = await checkTargets(input);
+  return getDb().transaction(async (tx) => {
+    const [module] = await tx.select().from(trainingModules).where(eq(trainingModules.id, moduleId)).limit(1).for("update");
+    if (!module) throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found." });
+    await tx.update(trainingModules).set({
+      title: input.title.trim(), summary: input.summary.trim(), content: input.content.trim(), category: input.category,
+      durationMinutes: input.durationMinutes, passingScore: input.passingScore, required: input.forEveryone && input.required, forEveryone: input.forEveryone,
+      quizJson: cleanQuiz(input.quiz), updatedAt: new Date(),
+    }).where(eq(trainingModules.id, moduleId));
+    await replaceAssignments(tx, moduleId, actor.userId, targets);
+    await tx.insert(auditLogs).values({ actorUserId: actor.userId, action: "training.module_updated", entityType: "training_module", entityId: String(moduleId), metadataJson: { products: targets.products.length, campaigns: targets.campaignIds.length } });
+    return { moduleId };
+  });
+}
+
+export async function setTrainingModuleActive(actor: SalesActor, moduleId: number, active: boolean) {
+  assertSalesRole(actor, ["ops", "admin"]);
+  const updated = await getDb().update(trainingModules).set({ active, updatedAt: new Date() }).where(eq(trainingModules.id, moduleId)).returning({ id: trainingModules.id });
+  if (!updated.length) throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found." });
+  await getDb().insert(auditLogs).values({ actorUserId: actor.userId, action: active ? "training.module_restored" : "training.module_archived", entityType: "training_module", entityId: String(moduleId), metadataJson: {} });
+  return { moduleId, active };
+}
+
+async function assignmentRows(moduleIds?: number[]) {
+  return getDb().select({ assignment: trainingAssignments, productName: products.name, productStatus: products.status, vendorId: products.vendorId, campaignName: campaigns.name, campaignState: campaigns.state })
+    .from(trainingAssignments)
+    .leftJoin(products, eq(trainingAssignments.productId, products.id))
+    .leftJoin(campaigns, eq(trainingAssignments.campaignId, campaigns.id))
+    .where(moduleIds ? (moduleIds.length ? inArray(trainingAssignments.moduleId, moduleIds) : sql`false`) : undefined);
+}
+
+/** Everything Operations needs to manage lessons, with the correct answers. */
+export async function getTrainingAdmin(actor: SalesActor) {
+  assertSalesRole(actor, ["ops", "admin"]);
+  await ensureTrainingCatalog();
+  const db = getDb();
+  const [modules, assignments, completions, productList, campaignList] = await Promise.all([
+    db.select().from(trainingModules).orderBy(asc(trainingModules.sortOrder)),
+    assignmentRows(),
+    db.select({ moduleId: trainingProgress.moduleId, count: sql<number>`count(*)::int` }).from(trainingProgress).where(eq(trainingProgress.state, "completed")).groupBy(trainingProgress.moduleId),
+    db.select({ id: products.id, name: products.name, status: products.status, vendorName: vendors.companyName }).from(products).innerJoin(vendors, eq(products.vendorId, vendors.id)).orderBy(asc(products.name)),
+    db.select({ id: campaigns.id, name: campaigns.name, state: campaigns.state, goal: campaigns.goal }).from(campaigns).where(inArray(campaigns.state, ["draft", "pending_review", "approved", "scheduled", "active", "paused"])).orderBy(desc(campaigns.createdAt)).limit(100),
+  ]);
+  return {
+    modules: modules.map((module) => ({
+      ...module,
+      completions: completions.find((row) => row.moduleId === module.id)?.count ?? 0,
+      assignments: assignments.filter((row) => row.assignment.moduleId === module.id).map((row) => ({
+        id: row.assignment.id, productId: row.assignment.productId, campaignId: row.assignment.campaignId, required: row.assignment.required,
+        name: row.productName || row.campaignName || "", state: row.productStatus || row.campaignState || "",
+      })),
+    })),
+    products: productList,
+    campaigns: campaignList,
+    categories: TRAINING_CATEGORIES,
+  };
+}
+
+type Reason = { kind: "product"; id: number; name: string; required: boolean } | { kind: "campaign"; id: number; name: string };
 
 export async function getTrainingWorkspace(actor: SalesActor) {
   await ensureTrainingCatalog();
   const db = getDb();
-  const modules = await db.select().from(trainingModules).where(eq(trainingModules.active, true)).orderBy(asc(trainingModules.sortOrder));
-  for (const module of modules) {
-    await db.insert(trainingProgress).values({ userId: actor.userId, moduleId: module.id }).onConflictDoNothing();
-  }
+  const staff = ["ops", "admin", "finance"].includes(actor.role);
+  const allModules = await db.select().from(trainingModules).where(eq(trainingModules.active, true)).orderBy(asc(trainingModules.sortOrder));
+  const assignments = await assignmentRows(allModules.map((module) => module.id));
+  const enrolledCampaignIds = actor.repId
+    ? (await db.select({ campaignId: campaignEnrollments.campaignId }).from(campaignEnrollments).where(and(eq(campaignEnrollments.repId, actor.repId), ne(campaignEnrollments.state, "suppressed")))).map((row) => row.campaignId)
+    : [];
+  const modules = allModules.flatMap((module) => {
+    const rows = assignments.filter((row) => row.assignment.moduleId === module.id);
+    const reasons: Reason[] = [];
+    for (const row of rows) {
+      const a = row.assignment;
+      if (a.productId && row.productStatus === "active" && (staff || actor.role === "rep" || row.vendorId === actor.vendorId)) reasons.push({ kind: "product", id: a.productId, name: row.productName || "", required: a.required });
+      if (a.campaignId && (staff || enrolledCampaignIds.includes(a.campaignId))) reasons.push({ kind: "campaign", id: a.campaignId, name: row.campaignName || "" });
+    }
+    // A lesson for everyone is always shown. Any other lesson only where a product or campaign gives it to this person;
+    // staff see every lesson so they can preview them.
+    if (!module.forEveryone && !reasons.length && !staff) return [];
+    const blocksSelling = reasons.some((reason) => reason.kind === "product" && reason.required);
+    return [{
+      ...module,
+      quizJson: module.quizJson.map(({ question, options }) => ({ question, options })),
+      general: module.forEveryone,
+      reasons,
+      blocksSelling,
+      mustPass: module.required || blocksSelling,
+    }];
+  });
+  const moduleIds = modules.map((module) => module.id);
   const [progress, attempts] = await Promise.all([
-    db.select().from(trainingProgress).where(eq(trainingProgress.userId, actor.userId)),
+    moduleIds.length ? db.select().from(trainingProgress).where(and(eq(trainingProgress.userId, actor.userId), inArray(trainingProgress.moduleId, moduleIds))) : [],
     db.select().from(trainingAttempts).where(eq(trainingAttempts.userId, actor.userId)).orderBy(desc(trainingAttempts.createdAt)).limit(30),
   ]);
-  const safeModules = modules.map((module) => ({
-    ...module,
-    quizJson: module.quizJson.map(({ question, options }) => ({ question, options })),
-  }));
-  const completedRequired = modules.filter((module) => module.required && progress.some((row) => row.moduleId === module.id && row.state === "completed")).length;
-  const requiredCount = modules.filter((module) => module.required).length;
+  const passed = (moduleId: number) => progress.some((row) => row.moduleId === moduleId && row.state === "completed");
+  const mustPass = modules.filter((module) => module.mustPass);
+  const completedRequired = mustPass.filter((module) => passed(module.id)).length;
   return {
-    modules: safeModules,
+    modules,
     progress,
-    attempts,
+    attempts: attempts.filter((attempt) => moduleIds.includes(attempt.moduleId)),
     metrics: {
-      completed: progress.filter((row) => row.state === "completed").length,
-      requiredCount,
+      lessons: modules.length,
+      minutes: modules.reduce((sum, module) => sum + module.durationMinutes, 0),
+      completed: modules.filter((module) => passed(module.id)).length,
+      requiredCount: mustPass.length,
       completedRequired,
-      readinessPercent: requiredCount ? Math.round(completedRequired / requiredCount * 100) : 100,
+      readinessPercent: mustPass.length ? Math.round(completedRequired / mustPass.length * 100) : 100,
       averageBestScore: progress.length ? Math.round(progress.reduce((sum, row) => sum + row.bestScore, 0) / progress.length) : 0,
     },
     boundary: "Finishing a lesson is a record for KampusForce. It isn't a certificate, and it doesn't let you do ID checks.",
   };
+}
+
+/** Required lessons for a product that this user hasn't passed yet. */
+export async function missingProductTraining(userId: number, productId?: number) {
+  const db = getDb();
+  const rows = await db.select({ productId: trainingAssignments.productId, moduleId: trainingModules.id, title: trainingModules.title })
+    .from(trainingAssignments).innerJoin(trainingModules, eq(trainingAssignments.moduleId, trainingModules.id))
+    .where(and(eq(trainingAssignments.required, true), eq(trainingModules.active, true), isNotNull(trainingAssignments.productId), productId ? eq(trainingAssignments.productId, productId) : undefined));
+  if (!rows.length) return [] as Array<{ productId: number; moduleId: number; title: string }>;
+  const done = await db.select({ moduleId: trainingProgress.moduleId }).from(trainingProgress)
+    .where(and(eq(trainingProgress.userId, userId), eq(trainingProgress.state, "completed"), inArray(trainingProgress.moduleId, [...new Set(rows.map((row) => row.moduleId))])));
+  const passedIds = new Set(done.map((row) => row.moduleId));
+  return rows.filter((row) => !passedIds.has(row.moduleId)).map((row) => ({ productId: row.productId!, moduleId: row.moduleId, title: row.title }));
+}
+
+/** Server-side gate: a rep can't share or record a sale for a product until they pass its required lessons. */
+export async function assertProductTrainingPassed(userId: number, productId: number) {
+  const missing = await missingProductTraining(userId, productId);
+  if (!missing.length) return;
+  const names = missing.map((row) => `“${row.title}”`).join(", ");
+  throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Pass ${names} in Training before you sell this product.` });
 }
 
 export async function startTraining(actor: SalesActor, moduleId: number) {

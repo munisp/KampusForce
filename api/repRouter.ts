@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import QRCode from "qrcode";
 import { z } from "zod";
+import { assertProductTrainingPassed, missingProductTraining } from "./services/training";
 import { TRPCError } from "@trpc/server";
 import {
   assistedSessions,
@@ -148,6 +149,7 @@ export const repRouter = createRouter({
     if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations needs to activate your account before you can share products" });
     const [product] = await getDb().select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
     if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Active product not found" });
+    await assertProductTrainingPassed(ctx.user.id, product.id);
     let attributed = false;
     let pickedUp: Awaited<ReturnType<typeof pickUpHeldSales>> = [];
     if (input.customerPhone) {
@@ -174,6 +176,11 @@ export const repRouter = createRouter({
     requireRole(ctx.user, ["rep"]);
     return recordSale({ userId: ctx.user.id, ...input });
   }),
+  // Required lessons the rep still has to pass, per product, so the app can say why a product is locked.
+  productTraining: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["rep"]);
+    return missingProductTraining(ctx.user.id);
+  }),
   recordedSales: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
@@ -183,6 +190,7 @@ export const repRouter = createRouter({
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
     if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations must activate your rep profile before assisted onboarding" });
+    await assertProductTrainingPassed(ctx.user.id, input.productId);
     const { attribution, created, phoneHash } = await ensureAttribution({ repId: rep.id, productId: input.productId, customerPhone: input.customerPhone, source: "assisted", actorUserId: ctx.user.id });
     if (created) await pickUpHeldSales({ vendorId: attribution.vendorId, customerPhoneHash: phoneHash, repId: rep.id });
     const [{ id }] = await getDb().insert(assistedSessions).values({ repId: rep.id, productId: input.productId, customerPhoneHash: attribution.customerPhoneHash, currentStep: 1, consentAt: new Date() }).returning({ id: assistedSessions.id });
