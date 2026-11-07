@@ -2,7 +2,6 @@ import { and, asc, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import { attributionRecords, commissionRules, consentLogs, dealStateHistory, deals, products, promotionLinks, recordedSales, reps, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
-import { enforceActivationVelocity } from "./fraud";
 import { creditDealLocked, InsufficientEscrowError, payRepNow, reverseDeal } from "./ledger";
 import { log } from "../lib/logger";
 import { hashCustomerRef, hashPhone } from "./security";
@@ -196,32 +195,8 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
         return { status: "quarantined" as const, kf_event_id: eventId, reason, escrowDebited: false, ledgerEntriesCreated: 0 };
       }
     }
-    // Product sales have no daily limit: every sale is checked from its proof before it pays. The cap stays for
-    // products that pay on a customer event, where it guards against fake sign-ups.
-    const velocity = payload.type === "sale"
-      ? { blocked: false as const }
-      : await enforceActivationVelocity(tx, {
-        repId: attribution.repId,
-        productId: product.id,
-        triggerEvent: trigger,
-        eventId,
-        cap: rule.activationCapPerRepDay,
-      });
-    if (velocity.blocked) {
-      await tx.insert(vendorEvents).values({
-        ...baseEvent,
-        status: "quarantined",
-        quarantineReason: `Daily activation cap ${velocity.attemptCount}/${velocity.cap}; fraud case ${velocity.caseRef}`,
-      });
-      return {
-        status: "quarantined" as const,
-        kf_event_id: eventId,
-        reason: "Daily activation cap exceeded; payout hold opened for Operations review",
-        fraud_case_ref: velocity.caseRef,
-        attempt_count: velocity.attemptCount,
-        cap: velocity.cap,
-      };
-    }
+    // No daily limit on sales per rep: each sale is checked (by Operations from its proof, or reported by the
+    // vendor, who pays for it). Fraud reviews and payout holds are opened by Operations when needed.
     await tx.insert(vendorEvents).values(baseEvent);
     const [{ id: dealId }] = await tx.insert(deals).values({
       attributionId: attribution.id,
