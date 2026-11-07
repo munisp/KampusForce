@@ -5,7 +5,7 @@ export type RuleDraftInput = {
   basis: "flat" | "pct";
   pctBps?: number | null;
   flatAmountKobo?: number | null;
-  triggerEvent: "signup" | "kyc_complete" | "funded" | "first_transaction" | "renewal";
+  triggerEvent: "signup" | "kyc_complete" | "funded" | "first_transaction" | "renewal" | "sale";
   recurrenceMonths: number;
   recurrenceIntervalMonths?: number;
   confirmDays: number;

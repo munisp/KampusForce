@@ -324,10 +324,10 @@ export const opsRouter = createRouter({
     requireRole(ctx.user, ["ops", "admin", "finance"]);
     return salesToVerify();
   }),
-  verifySale: authedQuery.input(z.object({ id: z.number().int().positive(), approve: z.boolean(), reason: z.string().trim().min(5).max(500) })).mutation(async ({ ctx, input }) => {
+  verifySale: authedQuery.input(z.object({ id: z.number().int().positive(), approve: z.boolean(), reason: z.string().trim().min(5).max(500), amountKobo: z.number().int().positive().max(10_000_000_000).optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     return input.approve
-      ? approveRecordedSale({ id: input.id, reviewerUserId: ctx.user.id, reason: input.reason })
+      ? approveRecordedSale({ id: input.id, reviewerUserId: ctx.user.id, reason: input.reason, amountKobo: input.amountKobo })
       : rejectRecordedSale({ id: input.id, reviewerUserId: ctx.user.id, reason: input.reason });
   }),
   repsToActivate: authedQuery.query(async ({ ctx }) => {
@@ -490,9 +490,15 @@ export const opsRouter = createRouter({
       ? captureCampusCohortSnapshot(input.subjectId, ctx.user.id)
       : captureRolloutQuarterSnapshot(input.subjectId, ctx.user.id);
   }),
-  resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean(), correctionKobo: z.number().int().positive().max(100_000_000).optional() })).mutation(async ({ ctx, input }) => {
+  resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean(), correctionKobo: z.number().int().positive().max(100_000_000).optional(), reverseCommission: z.boolean().optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     const result = await resolveDealDispute({ ...input, actorUserId: ctx.user.id });
+    if (result.reversed && "dealRepId" in result && result.dealRepId && result.dealVendorId) {
+      const [rep] = await getDb().select({ userId: reps.userId }).from(reps).where(eq(reps.id, result.dealRepId)).limit(1);
+      const [vendor] = await getDb().select({ userId: vendors.userId }).from(vendors).where(eq(vendors.id, result.dealVendorId)).limit(1);
+      if (rep) await notifyUser({ userId: rep.userId, type: "commission_reversed", title: "A sale's commission was taken back", body: `Operations agreed with the vendor: ${input.decision}`, href: "/rep/earnings", entityType: "deal", entityId: result.disputeId });
+      if (vendor?.userId) await notifyUser({ userId: vendor.userId, type: "commission_reversed_vendor", title: "Commission returned to your wallet", body: `Operations agreed with your dispute, and the commission went back to your wallet.`, href: "/vendor", entityType: "deal", entityId: result.disputeId });
+    }
     if (result.state === "resolved" && result.correctionKobo) {
       const amount = `₦${(result.correctionKobo / 100).toLocaleString("en-NG")}`;
       const [rep] = await getDb().select({ userId: reps.userId }).from(reps).where(eq(reps.id, result.dealRepId)).limit(1);

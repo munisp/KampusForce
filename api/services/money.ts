@@ -4,10 +4,12 @@ export type CommissionRuleLike = {
   flatAmountKobo: number | null;
 };
 
-export function calculateVendorCommissionKobo(rule: CommissionRuleLike, eventAmountKobo: number | null): number {
+/** A flat commission is per unit sold (quantity is 1 for everything except product sales); a percentage is of the amount. */
+export function calculateVendorCommissionKobo(rule: CommissionRuleLike, eventAmountKobo: number | null, quantity = 1): number {
+  if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Quantity must be a whole number of at least 1");
   if (rule.basis === "flat") {
     if (!rule.flatAmountKobo || rule.flatAmountKobo <= 0) throw new Error("Flat commission rule has no valid amount");
-    return Math.round(rule.flatAmountKobo);
+    return Math.round(rule.flatAmountKobo) * quantity;
   }
   if (!rule.pctBps || rule.pctBps <= 0 || !eventAmountKobo || eventAmountKobo <= 0) {
     throw new Error("Percentage commission requires a positive event amount and rate");
