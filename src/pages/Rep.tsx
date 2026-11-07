@@ -37,16 +37,17 @@ export function RepOverview() {
       <Metric label="Paid out" value={money(data.metrics.paidKobo)} note={system.testMode ? "Test payouts: no real money sent" : "After tax"} />
     </div>
     <RepFraudCases />
+    <RecordedSalesList onlyWaiting />
     <div className="dashboard-grid">
       <Panel title="Recent sales" action={<Link className="text-link" to="/rep/earnings">All earnings <ArrowRight size={14} /></Link>}>
         {data.recent.length ? <div className="deal-list">{data.recent.map(({ deal, productName, vendorName }) => <div className="deal-row" key={deal.id}><span className="deal-marker" /><div><strong>{productName}</strong><small>{vendorName} · {shortDate(deal.createdAt)}</small></div><StateBadge state={deal.state} /><strong className="money-cell">{money(deal.repCommissionKobo)}</strong></div>)}</div> : <EmptyState title="No sales yet" detail="Share a product link. Your sale shows here once the vendor confirms it." />}
       </Panel>
       <Panel title="What to do next" className="action-panel">
-        <span className="action-number">01</span><h3>Make your first sale.</h3><p>Pick a product and share your link. You earn when the vendor confirms the customer completed it.</p>
-        <Link className="button primary" to="/rep/share">Get my link <ArrowRight size={16} /></Link>
-        <Link className="text-link claim-link" to="/rep/record">Onboarded someone? Record the sale <ArrowRight size={14} /></Link>
-        <div className="action-rule"><span>Trigger</span><strong>When the vendor confirms the sale, not at sign-up</strong></div>
-        <div className="action-rule"><span>Split</span><strong>80% to you, 20% to KampusForce</strong></div>
+        <span className="action-number">01</span><h3>{data.metrics.activations ? "Make your next sale." : "Make your first sale."}</h3><p>Pick a product, sell it, and record the sale with a photo of the receipt. Once it's approved, your share is sent to your bank.</p>
+        <Link className="button primary" to="/rep/catalog">Find a product to sell <ArrowRight size={16} /></Link>
+        <Link className="text-link claim-link" to="/rep/record">Sold something? Record the sale <ArrowRight size={14} /></Link>
+        <div className="action-rule"><span>You earn</span><strong>When your sale is approved</strong></div>
+        <div className="action-rule"><span>Split</span><strong>80% to you, 20% to KampusForce, paid to your bank</strong></div>
       </Panel>
     </div>
     <Panel title="Recent payouts">

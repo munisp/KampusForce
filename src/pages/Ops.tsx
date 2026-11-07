@@ -136,9 +136,10 @@ export default function Ops() {
 
 /** What's waiting for Operations right now, each linking straight to the list where it's done. */
 function WaitingForYou({ openChecks, openSales }: { openChecks: () => void; openSales: () => void }) {
-  const { token } = useWorkspace();
+  const { token, user } = useWorkspace();
   const identity = trpc.identity.overview.useQuery({ token });
-  const banks = trpc.ops.bankAccountReviews.useQuery({ token });
+  // Bank account names are confirmed by Operations; Finance doesn't get that queue.
+  const banks = trpc.ops.bankAccountReviews.useQuery({ token }, { enabled: ["ops", "admin"].includes(user.role) });
   const sales = trpc.ops.salesToVerify.useQuery({ token });
   const { enrolments, toActivate } = useNewRepCounts();
   const idChecks = (identity.data?.cases || []).filter((c) => ["manual_review", "submitted", "processing"].includes(c.state)).length;
