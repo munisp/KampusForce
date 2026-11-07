@@ -22,9 +22,9 @@ const navByRole = {
     { to: "/identity", label: "Verification", icon: ShieldCheck },
   ],
   vendor: [{ to: "/vendor", label: "Dashboard", icon: Store }, { to: "/identity", label: "Verification", icon: ShieldCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }],
-  ops: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
-  finance: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
-  admin: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
+  ops: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Reports", icon: Network }],
+  finance: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Reports", icon: Network }],
+  admin: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Reports", icon: Network }],
 };
 
 type SystemStatus = { status?: string; mode?: string; paymentsTest?: boolean; checks?: { database?: string; worker?: string } };

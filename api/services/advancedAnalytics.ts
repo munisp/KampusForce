@@ -30,11 +30,11 @@ export function analyticsAnomalies(input: {
   processedEvents: number;
 }) {
   const findings: { code: string; severity: "info" | "warning" | "critical"; detail: string }[] = [];
-  if (input.quarantineRate > 5) findings.push({ code: "event_quality", severity: "warning", detail: "More than 5% of vendor events are quarantined; investigate source schema and signature quality." });
-  if (input.failedPostings) findings.push({ code: "financial_outbox_failed", severity: "critical", detail: `${input.failedPostings} financial posting groups require reconciliation before any TigerBeetle cutover.` });
-  if (input.pendingPostings) findings.push({ code: "financial_outbox_backlog", severity: "info", detail: `${input.pendingPostings} posting groups await an external core; PostgreSQL remains the accountable sandbox ledger.` });
-  if (input.reconciliationVariances) findings.push({ code: "reconciliation_variance", severity: "critical", detail: `${input.reconciliationVariances} recent reconciliation runs contain unresolved variance.` });
-  if (input.processedEvents >= 10 && input.confirmedActivations === 0) findings.push({ code: "activation_conversion", severity: "warning", detail: "Processed events have not produced confirmed activations in this window." });
+  if (input.quarantineRate > 5) findings.push({ code: "event_quality", severity: "warning", detail: "More than 5% of sales sent in by vendors were held (for example an unknown product or no rep linked). See Operations › Problems." });
+  if (input.failedPostings) findings.push({ code: "financial_outbox_failed", severity: "critical", detail: `${input.failedPostings} payment records couldn't be copied to the external ledger and need checking.` });
+  if (input.pendingPostings) findings.push({ code: "financial_outbox_backlog", severity: "info", detail: `${input.pendingPostings} payment records are waiting to be copied to the external ledger.` });
+  if (input.reconciliationVariances) findings.push({ code: "reconciliation_variance", severity: "critical", detail: `${input.reconciliationVariances} recent bank checks have amounts that don't match.` });
+  if (input.processedEvents >= 10 && input.confirmedActivations === 0) findings.push({ code: "activation_conversion", severity: "warning", detail: "Vendors sent in sales, but none were confirmed in this period." });
   return findings;
 }
 
@@ -91,8 +91,10 @@ export async function buildAdvancedAnalytics(windowDays: AnalyticsWindow) {
   const processedEvents = eventRows.find((row) => row.status === "processed")?.count || 0;
   const quarantinedEvents = eventRows.find((row) => row.status === "quarantined")?.count || 0;
   const totalEvents = eventRows.reduce((sum, row) => sum + row.count, 0);
-  const pendingPostings = outboxRows.filter((row) => ["pending", "submitting", "submitted", "blocked"].includes(row.state)).reduce((sum, row) => sum + row.count, 0);
-  const failedPostings = outboxRows.find((row) => row.state === "failed")?.count || 0;
+  // Copies to the external ledger (TigerBeetle) only matter once it's connected; until then they wait by design.
+  const externalLedgerConnected = Boolean(process.env.KF_TIGERBEETLE_ADDRESSES?.trim());
+  const pendingPostings = externalLedgerConnected ? outboxRows.filter((row) => ["pending", "submitting", "submitted", "blocked"].includes(row.state)).reduce((sum, row) => sum + row.count, 0) : 0;
+  const failedPostings = externalLedgerConnected ? outboxRows.find((row) => row.state === "failed")?.count || 0 : 0;
   const reconciliationVariances = reconciliations.filter((row) => row.state === "variance").length;
   const quarantineRate = percent(quarantinedEvents, totalEvents);
 

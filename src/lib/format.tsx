@@ -26,3 +26,6 @@ export function StateBadge({ state }: { state: string }) {
 export const productCategories: Record<string, string> = {
   fintech: "Fintech", airtime_data: "Airtime & data", devices: "Devices", edtech: "Edtech", micro_insurance: "Micro-insurance", other: "Other products",
 };
+
+/** Why a fraud review was opened, in plain words. */
+export const fraudReasonLabel = (reason: string) => ({ activation_velocity: "Many sales in one day", operations_review: "Opened by Operations" } as Record<string, string>)[reason] || reason.replaceAll("_", " ");

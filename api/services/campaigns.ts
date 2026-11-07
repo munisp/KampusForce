@@ -117,7 +117,7 @@ export async function listCampaignWorkspace(actor: SalesActor) {
       converted: enrollments.filter((row) => row.enrollment.state === "converted").length,
       conversionRate: enrollments.length ? Math.round(enrollments.filter((row) => row.enrollment.state === "converted").length / enrollments.length * 100) : 0,
     },
-    boundary: "Campaigns only send notifications inside the app. Results come from sales recorded later.",
+    boundary: "Campaigns notify reps inside KampusForce only; no texts or emails are sent. Results count what reps do after the campaign starts.",
   };
 }
 

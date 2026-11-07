@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, CircleDollarSign, Clock3, Copy
 import { EmptyState, Metric, Panel, useSystemStatus, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
 import { GettingStarted } from "@/components/product/GettingStarted";
-import { VendorProducts, VendorRecordedSales, VendorWalletHistory } from "@/components/product/VendorSales";
+import { VendorDeals, VendorProducts, VendorRecordedSales, VendorWalletHistory } from "@/components/product/VendorSales";
 import { money, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
@@ -107,7 +107,7 @@ export default function Vendor() {
       <Panel title="Your sales so far" action={<span className="result-count">From referral to payment</span>}>
         <div className="funnel-track"><div><span>01</span><strong>{data.funnelMetrics.attributed}</strong><small>Referred</small></div><div><span>02</span><strong>{data.funnelMetrics.activated}</strong><small>Sold</small></div><div><span>03</span><strong>{data.funnelMetrics.confirmed}</strong><small>Confirmed</small></div><div><span>04</span><strong>{data.funnelMetrics.paid}</strong><small>Paid</small></div></div>
       </Panel>
-      <Panel title="Every sale and its commission" action={<span className="result-count">{data.funnel.length} records</span>}>{data.funnel.length ? <div className="table-wrap"><table><thead><tr><th>Sale</th><th>Event</th><th>Created</th><th>State</th><th>Commission</th><th>Rep / KampusForce</th></tr></thead><tbody>{data.funnel.map((deal) => <tr key={deal.id}><td className="mono">#{deal.id}</td><td>{deal.triggerEvent.replaceAll("_", " ")}</td><td>{shortDate(deal.createdAt)}</td><td><StateBadge state={deal.state} /></td><td><strong>{money(deal.vendorCommissionKobo)}</strong></td><td>{money(deal.repCommissionKobo)} / {money(deal.platformFeeKobo)}</td></tr>)}</tbody></table></div> : <EmptyState title="No sales yet" detail="Sales show here once a rep refers a customer and you confirm it." />}</Panel>
+      <VendorDeals deals={data.funnel} products={data.catalog.map((row) => row.product)} />
     </>}
     {view === "products" && <>
       <VendorProducts catalog={data.catalog} onChanged={refresh} />

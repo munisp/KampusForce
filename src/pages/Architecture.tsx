@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Check, CheckCircle2, CircleDashed, Database, FileClock, GitBranch, LockKeyhole, Network, Play, RefreshCw, ShieldCheck, } from "lucide-react";
+import { Activity, AlertTriangle, Check, FileClock, GitBranch } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { EmptyState, Metric, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
@@ -7,44 +7,24 @@ import { money, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 
-type View = "analytics" | "financial";
 type WindowDays = 7 | 30 | 90 | 365;
-
-function Blockers({ items }: { items: string[] }) {
-  return <ul className="architecture-blockers">{items.map((item) => <li key={item}><CircleDashed size={14} />{item}</li>)}</ul>;
-}
-
-function ReadinessChecks({ checks }: { checks: { key: string; ready: boolean; detail: string }[] }) {
-  return <div className="readiness-checks">{checks.map((check) => <div key={check.key}><span>{check.ready ? <Check size={14} /> : <CircleDashed size={14} />}</span><p><strong>{check.key.replaceAll("_", " ")}</strong><small>{check.detail}</small></p><StateBadge state={check.ready ? "verified" : "blocked"} /></div>)}</div>;
-}
 
 export default function Architecture() {
   const { token } = useWorkspace();
-  const [view, setView] = useState<View>("analytics");
   const [windowDays, setWindowDays] = useState<WindowDays>(30);
   const [notice, setNotice] = useState("");
-  const [payoutId, setPayoutId] = useState("");
-  const [partyRefHash, setPartyRefHash] = useState("");
   const utils = trpc.useUtils();
   const overview = trpc.architecture.overview.useQuery({ token, windowDays });
-  const snapshot = trpc.architecture.captureSnapshot.useMutation({ onSuccess: (result) => { setNotice(`Snapshot ${result.snapshotRef.slice(0, 24)}… captured with SHA-256 ${result.payloadHash.slice(0, 12)}….`); utils.architecture.overview.invalidate(); } });
-  const dispatch = trpc.architecture.dispatchTigerBeetle.useMutation({ onSuccess: (result) => { setNotice(result.blocked ? `TigerBeetle dispatch remains blocked: ${result.reason}.` : `TigerBeetle worker processed ${result.dispatched} posting groups.`); utils.architecture.overview.invalidate(); } });
-  const reconcile = trpc.architecture.reconcileTigerBeetle.useMutation({ onSuccess: (result) => { setNotice(result.blocked ? `TigerBeetle reconciliation remains blocked: ${result.reason}.` : `${result.reconciled} posting groups reconciled against posted account balances.`); utils.architecture.overview.invalidate(); } });
-  const preflight = trpc.architecture.mojaloopPreflight.useMutation({ onSuccess: (result) => { setNotice(`Mojaloop intent ${result.intent?.intentRef.slice(0, 24)}… recorded as ${result.intent?.state}; no external transfer or settlement was initiated.`); setPartyRefHash(""); utils.architecture.overview.invalidate(); } });
-  if (overview.isLoading) return <WorkspaceLayout title="Data & finance" subtitle="Reports on sales, money and support."><Loading /></WorkspaceLayout>;
-  if (overview.error) return <WorkspaceLayout title="Data & finance" subtitle="Reports on sales, money and support."><ErrorState message={overview.error.message} retry={overview.refetch} /></WorkspaceLayout>;
-  const { analytics: a, architecture: arch } = overview.data!;
-  const actionError = snapshot.error || dispatch.error || reconcile.error || preflight.error;
-  return <WorkspaceLayout title="Data & finance" subtitle="Reports on sales, money and support.">
-    <div className="sandbox-banner"><ShieldCheck size={18} /><p><strong>Reports use live data.</strong> The two "For engineers" tabs show plans for later systems. They aren't switched on.</p></div>
-    <div className="workspace-tabs architecture-tabs" role="tablist" aria-label="Sections">
-      <button className={view === "analytics" ? "active" : ""} onClick={() => setView("analytics")}><BarChart3 size={16} />Reports</button>
-      <button className={view === "financial" ? "active" : ""} onClick={() => setView("financial")}><Network size={16} />Ledger postings</button>
-    </div>
+  const snapshot = trpc.architecture.captureSnapshot.useMutation({ onSuccess: (result) => { setNotice(`Snapshot saved (${result.snapshotRef.slice(0, 18)}…). The figures for this period are kept as they are now.`); utils.architecture.overview.invalidate(); } });
+  if (overview.isLoading) return <WorkspaceLayout title="Reports" subtitle="Sales, money and support across KampusForce."><Loading /></WorkspaceLayout>;
+  if (overview.error) return <WorkspaceLayout title="Reports" subtitle="Sales, money and support across KampusForce."><ErrorState message={overview.error.message} retry={overview.refetch} /></WorkspaceLayout>;
+  const { analytics: a } = overview.data!;
+  const actionError = snapshot.error;
+  return <WorkspaceLayout title="Reports" subtitle="Sales, money and support across KampusForce.">
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {actionError && <p className="form-error" role="alert">{actionError.message}</p>}
 
-    {view === "analytics" && <>
+    <>
       <div className="architecture-toolbar"><div className="window-selector" aria-label="Time period">{([7, 30, 90, 365] as WindowDays[]).map((days) => <button key={days} className={windowDays === days ? "active" : ""} onClick={() => setWindowDays(days)}>{days} days</button>)}</div><button className="button secondary small" disabled={snapshot.isPending} onClick={() => snapshot.mutate({ token, windowDays })}><FileClock size={14} />Save a snapshot</button></div>
       <div className="metrics-grid ops-metrics"><Metric label="Activations" value={a.metrics.activations} note={`${a.metrics.confirmationRate}% confirmed`} /><Metric label="Vendor commission" value={money(a.metrics.vendorCommissionKobo)} note="Paid by vendors" tone="teal" /><Metric label="Rep commission" value={money(a.metrics.repCommissionKobo)} note="The 80% share, before lead bonuses" /><Metric label="Platform revenue" value={money(a.metrics.platformRevenueKobo)} note="Before lead bonuses; this isn't profit" /><Metric label="Paid net" value={money(a.metrics.payoutNetKobo)} note="Payouts completed" /><Metric label="Data quality" value={`${a.dataQuality.score}/100`} note="Health score" tone={a.dataQuality.score < 80 ? "danger" : "teal"} /><Metric label="Waiting to post" value={a.metrics.pendingPostings} note={`${a.metrics.failedPostings} failed groups`} tone={a.metrics.failedPostings ? "danger" : "mustard"} /><Metric label="Open cases" value={a.metrics.openCases} note="All support requests" /></div>
       <div className="architecture-analytics-grid">
@@ -68,19 +48,6 @@ export default function Architecture() {
         <Panel title="By vendor"><div className="table-wrap"><table><thead><tr><th>Vendor</th><th>Share confirmed</th><th>Rate</th><th>Commission</th></tr></thead><tbody>{a.vendorPerformance.map((row) => <tr key={row.vendorId}><td><strong>{row.vendor}</strong></td><td>{row.confirmed} / {row.activations}</td><td>{row.confirmationRate}%</td><td>{money(row.commissionKobo)}</td></tr>)}</tbody></table></div><p className="panel-note">{a.definitions.platformRevenue}</p></Panel>
       </div>
       <Panel title="Metric contracts & reproducibility" action={<GitBranch size={18} />}><div className="metric-contracts"><div><strong>Totals only</strong><p>These are totals, so no customer phone numbers, NINs, BVNs or bank details appear.</p></div><div><strong>Saved snapshots</strong><p>Each snapshot keeps its numbers, so you can compare them later.</p></div><div><strong>What the numbers mean</strong><p>{a.definitions.dataQuality}</p></div><div><strong>Recent snapshots</strong><p>{a.recentSnapshots.length ? a.recentSnapshots.map((item) => <span className="mono snapshot-line" key={item.snapshotRef}>{shortDate(item.createdAt)} · {item.windowDays}d · {item.payloadHash.slice(0, 12)}…</span>) : "No snapshot captured yet."}</p></div></div></Panel>
-    </>}
-
-    {view === "financial" && <>
-      <div className="trust-strip"><LockKeyhole size={18} /><span><strong>PostgreSQL remains the sandbox ledger.</strong> Outbox submission is not reconciliation; transfer preparation is not settlement. Existing 80/20, platform-funded 5% override, withholding and verified-outcome controls are preserved.</span></div>
-      <div className="architecture-lanes">
-        <Panel title="TigerBeetle accountable core" action={<Database size={20} />}><p className="architecture-lead">{arch.tigerbeetle.implementation}.</p><ReadinessChecks checks={arch.tigerbeetle.readiness.checks} /><div className="financial-outbox-summary">{arch.tigerbeetle.outbox.states.map((row) => <div key={row.state}><span>{row.state}</span><strong>{row.count}</strong></div>)}</div><div className="case-actions"><button className="button secondary small" disabled={dispatch.isPending} onClick={() => dispatch.mutate({ token, limit: 10 })}><Play size={14} />Run gated outbox worker</button><button className="button secondary small" disabled={reconcile.isPending} onClick={() => reconcile.mutate({ token })}><RefreshCw size={14} />Reconcile posted balances</button></div><p className="panel-note">{arch.tigerbeetle.readiness.boundary}</p><Blockers items={arch.tigerbeetle.blockers} /></Panel>
-        <Panel title="Mojaloop partner rail" action={<Network size={20} />}><p className="architecture-lead">{arch.mojaloop.implementation}.</p><ReadinessChecks checks={arch.mojaloop.readiness.checks} /><p className="panel-note">{arch.mojaloop.readiness.boundary}</p><Blockers items={arch.mojaloop.blockers} /></Panel>
-      </div>
-      <div className="architecture-analytics-grid">
-        <Panel title="Financial posting outbox" action={<RefreshCw size={18} />}>{arch.tigerbeetle.outbox.recent.length ? <div className="table-wrap"><table><thead><tr><th>Entry group</th><th>Operation</th><th>State</th><th>Attempts</th><th>Updated</th></tr></thead><tbody>{arch.tigerbeetle.outbox.recent.map((row) => <tr key={row.entryGroup}><td><span className="mono">{row.entryGroup}</span>{row.lastErrorCode && <small className="table-sub">{row.lastErrorCode}</small>}</td><td>{row.operation.replaceAll("_", " ")}</td><td><StateBadge state={row.state} /></td><td>{row.attemptCount}</td><td>{shortDate(row.updatedAt)}</td></tr>)}</tbody></table></div> : <EmptyState title="No posting groups yet" detail="Confirm or reverse an activation, or settle a sandbox payout, to create a durable external-core handoff." />}</Panel>
-        <Panel title="Mojaloop preflight intents" action={<ShieldCheck size={18} />}><p className="panel-note">A preflight stores only a 64-character party-reference hash. Use keyed HMAC-SHA256 for low-entropy identifiers. Raw bank accounts, NIN, BVN and MSISDN are prohibited; preflight cannot mark a payout settled.</p><div className="mojaloop-preflight"><label>Payout ID<input type="number" min="1" value={payoutId} onChange={(event) => setPayoutId(event.target.value)} placeholder="Queued payout" /></label><label>SHA-256 party reference<input className="mono" value={partyRefHash} onChange={(event) => setPartyRefHash(event.target.value.toLowerCase())} placeholder="64 lowercase hexadecimal characters" maxLength={64} /></label><button className="button secondary small" disabled={preflight.isPending || !/^[a-f0-9]{64}$/.test(partyRefHash) || !Number(payoutId)} onClick={() => preflight.mutate({ token, payoutId: Number(payoutId), partyRefHash })}>Record gated preflight</button></div>{arch.mojaloop.intents.length ? <div className="table-wrap"><table><thead><tr><th>Intent</th><th>Payout</th><th>Net</th><th>State</th><th>Gate</th></tr></thead><tbody>{arch.mojaloop.intents.map((row) => <tr key={row.intentRef}><td><span className="mono">{row.intentRef.slice(0, 20)}…</span></td><td>#{row.payoutId}</td><td>{money(row.amountNetKobo)}</td><td><StateBadge state={row.state} /></td><td>{row.lastErrorCode?.replaceAll("_", " ")}</td></tr>)}</tbody></table></div> : <EmptyState title="No rail preflights" detail="No Mojaloop launch dependency or live transfer is active." />}</Panel>
-      </div>
-      <div className="safety-callout"><CheckCircle2 size={20} /><p><strong>External production boundary:</strong> {arch.specificationBoundary}</p></div>
-    </>}
+    </>
   </WorkspaceLayout>;
 }

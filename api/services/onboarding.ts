@@ -99,8 +99,8 @@ export async function repOnboarding(userId: number): Promise<Onboarding> {
     activationStep,
     bankStep,
     customers > 0
-      ? { key: "share", title: "Share a product with your first customer", detail: "Done. You earn when the vendor confirms the sale.", state: "done" }
-      : { key: "share", title: "Share a product with your first customer", detail: active ? "Pick a product, add the customer's phone and send them your link." : "You can share products once you're activated.", state: active ? "current" : "todo", href: "/rep/share", action: "Get my link" },
+      ? { key: "share", title: "Make your first sale", detail: "Done. You're paid when a sale is approved.", state: "done" }
+      : { key: "share", title: "Make your first sale", detail: active ? "Pick a product, sell it, then record the sale with proof." : "You can sell once you're activated.", state: active ? "current" : "todo", href: "/rep/catalog", action: "Find a product" },
   ];
   return finish(steps);
 }
