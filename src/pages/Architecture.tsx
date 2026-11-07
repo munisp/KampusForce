@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity, AlertTriangle, BarChart3, Check, CheckCircle2, CircleDashed, Database, FileClock, GitBranch, Layers3, LockKeyhole, Network, Play, RefreshCw, ShieldCheck, Sparkles, Workflow } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Check, CheckCircle2, CircleDashed, Database, FileClock, GitBranch, LockKeyhole, Network, Play, RefreshCw, ShieldCheck, } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { EmptyState, Metric, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
@@ -7,7 +7,7 @@ import { money, shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 
-type View = "analytics" | "data" | "financial";
+type View = "analytics" | "financial";
 type WindowDays = 7 | 30 | 90 | 365;
 
 function Blockers({ items }: { items: string[] }) {
@@ -39,8 +39,7 @@ export default function Architecture() {
     <div className="sandbox-banner"><ShieldCheck size={18} /><p><strong>Reports use live data.</strong> The two "For engineers" tabs show plans for later systems. They aren't switched on.</p></div>
     <div className="workspace-tabs architecture-tabs" role="tablist" aria-label="Sections">
       <button className={view === "analytics" ? "active" : ""} onClick={() => setView("analytics")}><BarChart3 size={16} />Reports</button>
-      <button className={view === "data" ? "active" : ""} onClick={() => setView("data")}><Layers3 size={16} />For engineers: data</button>
-      <button className={view === "financial" ? "active" : ""} onClick={() => setView("financial")}><Network size={16} />For engineers: payments</button>
+      <button className={view === "financial" ? "active" : ""} onClick={() => setView("financial")}><Network size={16} />Ledger postings</button>
     </div>
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {actionError && <p className="form-error" role="alert">{actionError.message}</p>}
@@ -69,15 +68,6 @@ export default function Architecture() {
         <Panel title="By vendor"><div className="table-wrap"><table><thead><tr><th>Vendor</th><th>Share confirmed</th><th>Rate</th><th>Commission</th></tr></thead><tbody>{a.vendorPerformance.map((row) => <tr key={row.vendorId}><td><strong>{row.vendor}</strong></td><td>{row.confirmed} / {row.activations}</td><td>{row.confirmationRate}%</td><td>{money(row.commissionKobo)}</td></tr>)}</tbody></table></div><p className="panel-note">{a.definitions.platformRevenue}</p></Panel>
       </div>
       <Panel title="Metric contracts & reproducibility" action={<GitBranch size={18} />}><div className="metric-contracts"><div><strong>Totals only</strong><p>These are totals, so no customer phone numbers, NINs, BVNs or bank details appear.</p></div><div><strong>Saved snapshots</strong><p>Each snapshot keeps its numbers, so you can compare them later.</p></div><div><strong>What the numbers mean</strong><p>{a.definitions.dataQuality}</p></div><div><strong>Recent snapshots</strong><p>{a.recentSnapshots.length ? a.recentSnapshots.map((item) => <span className="mono snapshot-line" key={item.snapshotRef}>{shortDate(item.createdAt)} · {item.windowDays}d · {item.payloadHash.slice(0, 12)}…</span>) : "No snapshot captured yet."}</p></div></div></Panel>
-    </>}
-
-    {view === "data" && <>
-      <div className="metrics-grid"><Metric label="Delta reference" value={arch.lakehouse.localReferenceVerified ? "Verified" : "Not run"} note={`${arch.lakehouse.latestEvidence?.rowsProcessed || 0} accepted rows`} tone={arch.lakehouse.localReferenceVerified ? "teal" : "mustard"} /><Metric label="Quarantined" value={arch.lakehouse.latestEvidence?.quarantinedRows || 0} note="Invalid input rejected, not persisted raw" /><Metric label="Ray reference" value={arch.ray.localReferenceVerified ? "Verified" : "Not run"} note={`${arch.ray.latestEvidence?.rowsProcessed || 0} scored Gold rows`} tone={arch.ray.localReferenceVerified ? "teal" : "mustard"} /><Metric label="Lineage records" value={arch.lineage.length} note="Versioned dataset contracts" /></div>
-      <div className="architecture-lanes">
-        <Panel title="Delta Lake medallion" action={<Database size={20} />}><p className="architecture-lead">{arch.lakehouse.implementation}.</p><div className="evidence-stamp"><span>LOCAL REFERENCE</span><strong>{arch.lakehouse.localReferenceVerified ? "Execution evidence recorded" : "Awaiting verified local run"}</strong>{arch.lakehouse.latestEvidence && <small className="mono">{arch.lakehouse.latestEvidence.runRef}<br />{arch.lakehouse.latestEvidence.outputHash?.slice(0, 20)}…</small>}</div><p className="panel-note">{arch.lakehouse.boundary}</p><h3>Production gates</h3><Blockers items={arch.lakehouse.blockers} /></Panel>
-        <Panel title="Ray scoring & serving" action={<Sparkles size={20} />}><p className="architecture-lead">{arch.ray.implementation}.</p><div className="evidence-stamp"><span>LOCAL REFERENCE</span><strong>{arch.ray.localReferenceVerified ? "Distributed task evidence recorded" : "Awaiting verified local run"}</strong>{arch.ray.latestEvidence && <small className="mono">{arch.ray.latestEvidence.runRef}<br />{arch.ray.latestEvidence.outputHash?.slice(0, 20)}…</small>}</div>{arch.ray.modelEvidence && <div className="metric-contracts"><div><strong>Temporal holdout</strong><p>{arch.ray.modelEvidence.trainingRows} training / {arch.ray.modelEvidence.testRows} test samples{arch.ray.modelEvidence.temporalTestStart ? ` · test from ${arch.ray.modelEvidence.temporalTestStart}` : ""}</p></div><div><strong>Diagnostic AUC</strong><p>{arch.ray.modelEvidence.testAuc ?? "Not defined"} versus {arch.ray.modelEvidence.baselineAuc ?? 0.5} baseline; never an approval trigger.</p></div><div><strong>Ranking & calibration</strong><p>Average precision {arch.ray.modelEvidence.testAveragePrecision ?? "Not defined"} versus prevalence {arch.ray.modelEvidence.baselineAveragePrecision ?? "Not defined"}. Brier {arch.ray.modelEvidence.testBrierScore ?? "Not defined"} versus {arch.ray.modelEvidence.baselineBrierScore ?? "Not defined"} baseline.</p></div><div><strong>Class evidence</strong><p>{arch.ray.modelEvidence.trainPositiveRows ?? 0} train / {arch.ray.modelEvidence.testPositiveRows ?? 0} test positive rows. {arch.ray.modelEvidence.evaluationWarning}</p></div><div><strong>Serving approval</strong><p>{arch.ray.modelEvidence.approved ? "Approved evidence recorded" : "Locked — local models remain unapproved"}</p></div></div>}<p className="panel-note">{arch.ray.boundary}</p><h3>Production gates</h3><Blockers items={arch.ray.blockers} /></Panel>
-      </div>
-      <Panel title="Medallion flow & dataset lineage" action={<Workflow size={18} />}><div className="medallion-flow"><div><span>BRONZE</span><strong>Validated events</strong><small>Deduplicated pseudonymous history</small></div><div><span>SILVER</span><strong>Consented & tokenized</strong><small>Conformed records; DSAR propagation</small></div><div><span>GOLD</span><strong>Serving marts</strong><small>Campus, vendor, rep and coarse geo</small></div><div><span>RAY</span><strong>Baseline scoring</strong><small>Model version and task evidence</small></div></div>{arch.lineage.length ? <div className="table-wrap"><table><thead><tr><th>Dataset</th><th>Version</th><th>Sources</th><th>Consent policy</th><th>Access scope</th></tr></thead><tbody>{arch.lineage.map((row) => <tr key={`${row.datasetKey}-${row.version}`}><td><strong>{row.datasetKey}</strong><small className="table-sub">{row.transform}</small></td><td>v{row.version}</td><td>{row.sourceDatasets.join(" → ")}</td><td>{row.consentPolicy}</td><td>{row.accessScope.replaceAll("_", " ")}</td></tr>)}</tbody></table></div> : <EmptyState title="No external lineage evidence yet" detail="The executable local acceptance run records four dataset contracts here." />}</Panel>
     </>}
 
     {view === "financial" && <>

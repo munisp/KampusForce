@@ -313,6 +313,8 @@ export const vendorRouter = createRouter({
   }),
   simulateEvent: authedQuery.input(z.object({ productRef: z.string(), type: z.enum(["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund", "sale"]), customerPhone: z.string(), amountKobo: z.number().int().positive().optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["vendor"]);
+    // A practice sale is for trying the platform in test mode; on a live platform sales come from the vendor's system or reps.
+    if (integrationConfiguration().requestedMode === "live") throw new TRPCError({ code: "FORBIDDEN", message: "Test sales are only available in test mode." });
     const vendor = await currentVendor(ctx.user.id);
     return ingestWithDurableRetry(vendor.webhookKey, { event_id: crypto.randomUUID(), type: input.type, occurred_at: new Date().toISOString(), customer: { phone: input.customerPhone, customer_ref: `sandbox-${input.customerPhone}` }, product_ref: input.productRef, amount_kobo: input.amountKobo, meta: { channel: "vendor_portal_sandbox" } });
   }),

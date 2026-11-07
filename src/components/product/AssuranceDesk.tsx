@@ -1,14 +1,14 @@
-import { DocumentPreview } from "./IdentityDocuments";
 import { BankAccountChecks } from "./BankAccountChecks";
 import { useState } from "react";
-import { Check, Clock3, FileCheck2, Fingerprint, GraduationCap, Link2, Play, ShieldAlert, ShieldCheck, Store, X } from "lucide-react";
+import { Check, Clock3, FileCheck2, Fingerprint, Link2, Play, ShieldAlert, ShieldCheck, Store } from "lucide-react";
 import { EmptyState, Metric, Panel } from "./WorkspaceLayout";
 import { ErrorState, Loading } from "./Loading";
 import { shortDate, StateBadge } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 
-type Section = "enrollment" | "duplicates" | "quality" | "vendors" | "biometric";
+// Proof of enrolment is reviewed on the ID checks page, with the rest of a new rep's checks.
+type Section = "duplicates" | "quality" | "vendors" | "biometric";
 const dateValue = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 const endOfDay = (value: string) => new Date(`${value}T23:59:59.000Z`);
 
@@ -16,7 +16,7 @@ export function AssuranceDesk() {
   const { token, user } = useWorkspace();
   const utils = trpc.useUtils();
   const overview = trpc.assurance.overview.useQuery({ token });
-  const [section, setSection] = useState<Section>("enrollment");
+  const [section, setSection] = useState<Section>("duplicates");
   const [reason, setReason] = useState("I reviewed this and agree with the decision.");
   const [notice, setNotice] = useState("");
   const [linkUser, setLinkUser] = useState(0);
@@ -42,7 +42,6 @@ export function AssuranceDesk() {
   const [biometricValidUntil, setBiometricValidUntil] = useState(dateValue(180));
   const canReview = ["ops", "admin"].includes(user.role);
   const refresh = (message: string) => { setNotice(message); utils.assurance.overview.invalidate(); utils.ops.overview.invalidate(); utils.rep.fraudCases.invalidate(); };
-  const reviewEnrollment = trpc.assurance.reviewEnrollment.useMutation({ onSuccess: (item) => refresh(`${item.caseRef} changed to ${item.state}.`) });
   const reviewDuplicate = trpc.assurance.reviewDuplicate.useMutation({ onSuccess: (item) => refresh(`${item.caseRef} changed to ${item.state}.`) });
   const reviewActivation = trpc.assurance.reviewActivation.useMutation({ onSuccess: (item) => refresh(`${item.caseRef} changed to ${item.state}.`) });
   const registerLinkage = trpc.assurance.registerLinkage.useMutation({ onSuccess: (result) => { setLinkToken(""); refresh(result.duplicateCase ? `${result.duplicateCase.caseRef} opened for collision review.` : "Provider linkage recorded without a collision."); } });
@@ -50,30 +49,22 @@ export function AssuranceDesk() {
   const sweep = trpc.assurance.sweepActivationQuality.useMutation({ onSuccess: (result) => refresh(`Checked ${result.scannedDeals} sales: ${result.earlyRefunds} early refunds and ${result.repeatedCustomers} repeat customers to review.`) });
   const vendorAudit = trpc.assurance.recordVendorAudit.useMutation({ onSuccess: (result) => { setVendorReference(""); refresh(`${result.audit.auditRef} ${result.audit.state}; vendor ${result.vendorStatus}; ${result.suspendedCredentialIds.length} credentials suspended.`); } });
   const biometricEvaluation = trpc.assurance.recordBiometricEvaluation.useMutation({ onSuccess: (result) => { setBiometricReference(""); refresh(`${result.evaluationRef} recorded as ${result.state}.`); } });
-  const expireEnrollments = trpc.assurance.expireEnrollments.useMutation({ onSuccess: (result) => refresh(`${result.expired} enrolment checks expired.`) });
   const expireBiometrics = trpc.assurance.expireBiometricEvaluations.useMutation({ onSuccess: (result) => refresh(`${result.expired} ID service reviews expired.`) });
   if (overview.isLoading) return <Loading />;
   if (overview.error) return <ErrorState message={overview.error.message} retry={overview.refetch} />;
   const data = overview.data!;
   if (data.scope !== "operations") return <ErrorState message="Operations assurance scope is required" retry={overview.refetch} />;
-  const actionError = reviewEnrollment.error || reviewDuplicate.error || reviewActivation.error || registerLinkage.error || recordRisk.error || sweep.error || vendorAudit.error || biometricEvaluation.error || expireEnrollments.error || expireBiometrics.error;
-  const selectedCaseType = section === "enrollment" ? "enrollment" : section === "duplicates" ? "duplicate_identity" : section === "quality" ? "activation_risk" : section === "vendors" ? "vendor_assurance" : "biometric_evaluation";
+  const actionError = reviewDuplicate.error || reviewActivation.error || registerLinkage.error || recordRisk.error || sweep.error || vendorAudit.error || biometricEvaluation.error || expireBiometrics.error;
+  const selectedCaseType = section === "duplicates" ? "duplicate_identity" : section === "quality" ? "activation_risk" : section === "vendors" ? "vendor_assurance" : "biometric_evaluation";
   const events = data.events.filter((event) => event.caseType === selectedCaseType).slice(0, 20);
   return <>
     <div className="trust-strip"><ShieldAlert size={18} /><span><strong>A person decides all of these.</strong> A duplicate or warning here isn't proof of fraud. Serious reviews pause payouts but don't change earnings.</span></div>
-    <div className="metrics-grid ops-metrics"><Metric label="Enrolment status" value={data.metrics.pendingEnrollment} note="Waiting for you" tone={data.metrics.pendingEnrollment ? "mustard" : "teal"} /><Metric label="Possible duplicates" value={data.metrics.duplicateOpen} note="To review" tone={data.metrics.duplicateOpen ? "danger" : "teal"} /><Metric label="Sale reviews" value={data.metrics.activationOpen} note="Open" tone={data.metrics.activationOpen ? "mustard" : "teal"} /><Metric label="Delaying payouts" value={data.metrics.payoutDelaySignals} note="Paused now" tone={data.metrics.payoutDelaySignals ? "danger" : "teal"} /><Metric label="Failed vendor checks" value={data.metrics.failedVendors} note="Vendor paused" tone={data.metrics.failedVendors ? "danger" : "teal"} /><Metric label="ID service reviews" value={data.metrics.currentBiometricEvaluations} note="Still valid" /></div>
-    <div className="workspace-tabs" role="tablist" aria-label="Check types"><button className={section === "enrollment" ? "active" : ""} onClick={() => setSection("enrollment")}><GraduationCap size={16} />Enrolment status <span>{data.metrics.pendingEnrollment}</span></button><button className={section === "duplicates" ? "active" : ""} onClick={() => setSection("duplicates")}><Link2 size={16} />Duplicate accounts <span>{data.metrics.duplicateOpen}</span></button><button className={section === "quality" ? "active" : ""} onClick={() => setSection("quality")}><ShieldAlert size={16} />Sale quality <span>{data.metrics.activationOpen}</span></button><button className={section === "vendors" ? "active" : ""} onClick={() => setSection("vendors")}><Store size={16} />Vendor checks</button><button className={section === "biometric" ? "active" : ""} onClick={() => setSection("biometric")}><Fingerprint size={16} />ID service checks</button></div>
+    <div className="metrics-grid ops-metrics"><Metric label="Possible duplicates" value={data.metrics.duplicateOpen} note="To review" tone={data.metrics.duplicateOpen ? "danger" : "teal"} /><Metric label="Sale reviews" value={data.metrics.activationOpen} note="Open" tone={data.metrics.activationOpen ? "mustard" : "teal"} /><Metric label="Delaying payouts" value={data.metrics.payoutDelaySignals} note="Paused now" tone={data.metrics.payoutDelaySignals ? "danger" : "teal"} /><Metric label="Failed vendor checks" value={data.metrics.failedVendors} note="Vendor paused" tone={data.metrics.failedVendors ? "danger" : "teal"} /><Metric label="ID service reviews" value={data.metrics.currentBiometricEvaluations} note="Still valid" /></div>
+    <div className="workspace-tabs" role="tablist" aria-label="Check types"><button className={section === "duplicates" ? "active" : ""} onClick={() => setSection("duplicates")}><Link2 size={16} />Duplicate accounts <span>{data.metrics.duplicateOpen}</span></button><button className={section === "quality" ? "active" : ""} onClick={() => setSection("quality")}><ShieldAlert size={16} />Sale quality <span>{data.metrics.activationOpen}</span></button><button className={section === "vendors" ? "active" : ""} onClick={() => setSection("vendors")}><Store size={16} />Vendor checks</button><button className={section === "biometric" ? "active" : ""} onClick={() => setSection("biometric")}><Fingerprint size={16} />ID service checks</button></div>
     <BankAccountChecks />
     {!canReview && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>Finance can view only.</strong> Operations makes these decisions.</p></div>}
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}{actionError && <p className="form-error" role="alert">{actionError.message}</p>}
-    {canReview && ["enrollment", "duplicates", "quality"].includes(section) && <div className="resolution-form assurance-review-reason"><label>Reason for your decision<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} /><small>Don't include a NIN, BVN, bank details, matric number or customer phone number.</small></label></div>}
-
-    {section === "enrollment" && <>
-      {canReview && <div className="architecture-toolbar"><button className="button secondary small" disabled={expireEnrollments.isPending} onClick={() => expireEnrollments.mutate({ token })}><Clock3 size={14} />Expire overdue checks</button></div>}
-      <Panel title="Enrolments to check" action={<span className="result-count">Lasts up to 240 days</span>}>
-        {data.enrollments.length ? <div className="table-wrap"><table><thead><tr><th>Check / person</th><th>Campus</th><th>School / how confirmed</th><th>Term</th><th>Valid until</th><th>State</th>{canReview && <th>Review</th>}</tr></thead><tbody>{data.enrollments.map(({ attestation, user: student, campusName, proofDocumentId, proofUsedByAnotherAccount }) => <tr key={attestation.id}><td><strong>{attestation.caseRef}</strong><small className="table-sub">{student.name}</small>{canReview && proofDocumentId && <DocumentPreview documentId={proofDocumentId} label="proof" />}{canReview && proofUsedByAnotherAccount && <small className="identity-overdue">The same file was uploaded by another account.</small>}</td><td>{campusName}</td><td>{attestation.providerName}<small className="table-sub">{attestation.verificationMethod.replaceAll("_", " ")} · {attestation.providerMode}</small></td><td>{attestation.academicTerm}</td><td>{attestation.validUntil ? shortDate(attestation.validUntil) : shortDate(attestation.requestedValidUntil)}</td><td><StateBadge state={attestation.state} /></td>{canReview && <td><div className="case-actions">{attestation.state === "submitted" && <><button className="button primary small" disabled={reason.trim().length < 10 || reviewEnrollment.isPending} onClick={() => reviewEnrollment.mutate({ token, caseId: attestation.id, decision: "verify", reason: reason.trim() })}><Check size={13} />Verify</button><button className="button secondary small" disabled={reason.trim().length < 10 || reviewEnrollment.isPending} onClick={() => reviewEnrollment.mutate({ token, caseId: attestation.id, decision: "reject", reason: reason.trim() })}><X size={13} />Reject</button></>}{attestation.state === "verified" && <button className="button danger small" disabled={reason.trim().length < 10 || reviewEnrollment.isPending} onClick={() => reviewEnrollment.mutate({ token, caseId: attestation.id, decision: "revoke", reason: reason.trim() })}>Revoke</button>}</div></td>}</tr>)}</tbody></table></div> : <EmptyState title="No one waiting" detail="Submissions will appear here." />}
-      </Panel>
-    </>}
+    {canReview && ["duplicates", "quality"].includes(section) && <div className="resolution-form assurance-review-reason"><label>Reason for your decision<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} /><small>Don't include a NIN, BVN, bank details, matric number or customer phone number.</small></label></div>}
 
     {section === "duplicates" && <>
       {canReview && <Panel title="Check for a duplicate account" action={<Link2 size={18} />}><form className="privacy-form assurance-intake" onSubmit={(event) => { event.preventDefault(); registerLinkage.mutate({ token, userId: linkUser, providerName: linkProvider, providerMode: "sandbox", providerSubjectToken: linkToken }); }}><div className="form-grid"><label>Rep<select value={linkUser} onChange={(event) => setLinkUser(Number(event.target.value))} required><option value={0}>Choose a rep</option>{data.repOptions.map(({ rep, user: student, campusName }) => <option key={rep.id} value={student.id}>{student.name} · {rep.code} · {campusName}</option>)}</select></label><label>Provider<input value={linkProvider} onChange={(event) => setLinkProvider(event.target.value)} minLength={2} maxLength={80} required /></label><label>ID service reference<input type="password" value={linkToken} onChange={(event) => setLinkToken(event.target.value)} minLength={8} maxLength={256} autoComplete="off" required /><small>Never enter a NIN or BVN. We scramble this before saving it.</small></label></div><button className="button primary" disabled={!linkUser || linkToken.trim().length < 8 || registerLinkage.isPending}><Link2 size={14} />Check for duplicates</button></form></Panel>}
