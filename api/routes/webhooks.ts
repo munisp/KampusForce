@@ -20,11 +20,12 @@ const connectorProgressSchema = z.object({
 
 const eventSchema = z.object({
   event_id: z.string().min(8).max(160),
-  type: z.enum(["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund"]),
+  type: z.enum(["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund", "sale"]),
   occurred_at: z.string().datetime(),
   customer: z.object({ phone: z.string(), customer_ref: z.string().optional() }),
   product_ref: z.string(),
   amount_kobo: z.number().int().positive().optional(),
+  quantity: z.number().int().min(1).max(1000).optional(),
   meta: z.record(z.string(), z.unknown()).optional(),
 });
 

@@ -246,6 +246,13 @@
       "when": 1793917284049,
       "tag": "0034_training_for_everyone",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794018652028,
+      "tag": "0035_product_sales",
+      "breakpoints": true
     }
   ]
 }

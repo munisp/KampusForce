@@ -1,9 +1,10 @@
-import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
 import { attributionRecords, commissionRules, consentLogs, dealStateHistory, deals, products, promotionLinks, recordedSales, reps, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { calculateVendorCommissionKobo, splitCommission } from "./money";
 import { enforceActivationVelocity } from "./fraud";
-import { reverseDeal } from "./ledger";
+import { creditDealLocked, InsufficientEscrowError, payRepNow, reverseDeal } from "./ledger";
+import { log } from "../lib/logger";
 import { hashCustomerRef, hashPhone } from "./security";
 import { redactVendorEventPayload, VENDOR_PAYLOAD_RETENTION_MS } from "./ingestionPolicy";
 import { promotionCapacityForNewDeal, resolvePromotionLink, resolvePromotionLinkById } from "./promotions";
@@ -13,11 +14,13 @@ import { resolveAttributionToken } from "./attribution";
 
 export type VendorEventInput = {
   event_id: string;
-  type: "account_created" | "kyc_complete" | "funded" | "first_transaction" | "renewal" | "refund";
+  type: "account_created" | "kyc_complete" | "funded" | "first_transaction" | "renewal" | "refund" | "sale";
   occurred_at: string;
   customer: { phone: string; customer_ref?: string };
   product_ref: string;
   amount_kobo?: number;
+  /** Units sold, for "sale" events. A flat commission is paid per unit. */
+  quantity?: number;
   meta?: Record<string, unknown>;
 };
 
@@ -25,10 +28,16 @@ export type VendorEventInput = {
 export const NO_REP_YET = "No rep linked to this customer yet; the first rep to link them within 24 hours picks it up";
 const PICK_UP_WINDOW_MS = 24 * 3_600_000;
 
+type IngestTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
 export type IngestVendorEventOptions = {
   credentialId?: number | null;
   identifiers?: { customerPhoneHash: string; customerRefHash: string };
   promotionLinkId?: number | null;
+  /** Runs in the same transaction once the deal exists; throwing undoes the whole event, deal and all. */
+  afterDeal?: (tx: IngestTransaction, dealId: number) => Promise<void>;
+  /** Credit the rep now instead of after the waiting period. Throws InsufficientEscrowError (undoing everything) if the vendor's wallet is short. */
+  creditNow?: { actor: string; reason: string; actorUserId?: number };
 };
 
 export async function ingestVendorEvent(vendorKey: string, payload: VendorEventInput, options: IngestVendorEventOptions = {}) {
@@ -89,7 +98,8 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     return { status: "processed" as const, kf_event_id: eventId, ...result };
   }
 
-  return db.transaction(async (tx) => {
+  let creditedRepId: number | null = null;
+  const outcome = await db.transaction(async (tx) => {
     // Serializing the vendor's ingestion transaction makes the dedupe recheck authoritative.
     await tx.select({ id: vendors.id }).from(vendors).where(eq(vendors.id, vendor.id)).limit(1).for("update");
     const [concurrentDuplicate] = await tx.select().from(vendorEvents).where(eq(vendorEvents.dedupeKey, dedupeKey)).limit(1);
@@ -147,12 +157,13 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
       : await tx.select().from(commissionRules).where(and(eq(commissionRules.productId, product.id), eq(commissionRules.triggerEvent, trigger), isNull(commissionRules.supersededAt))).orderBy(desc(commissionRules.version)).limit(1);
     if (!rule) {
       await tx.insert(vendorEvents).values({ ...baseEvent, status: "ignored", quarantineReason: "Event does not trigger the active commission rule" });
-      return { status: "ignored" as const, kf_event_id: eventId };
+      return { status: "ignored" as const, kf_event_id: eventId, reason: "This event doesn't trigger the product's active commission rule" };
     }
     // A one-time activation commission is earned once per customer: a later event of the same kind (a second
     // deposit, or a vendor retry with a new event_id) must not pay again. Renewals are paid per cycle above. The
     // attribution row is locked so two concurrent events cannot both pass.
-    if (payload.type !== "renewal") {
+    // Product sales are paid per sale, so a customer buying again earns again.
+    if (payload.type !== "renewal" && payload.type !== "sale") {
       await tx.select({ id: attributionRecords.id }).from(attributionRecords).where(eq(attributionRecords.id, attribution.id)).for("update");
       const [earned] = await tx.select({ id: deals.id }).from(deals)
         .where(and(eq(deals.attributionId, attribution.id), eq(deals.productId, product.id), eq(deals.triggerEvent, trigger))).limit(1);
@@ -168,10 +179,11 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     }
     let commission: ReturnType<typeof splitCommission>;
     try {
-      commission = splitCommission(calculateVendorCommissionKobo(rule, payload.amount_kobo || null));
+      commission = splitCommission(calculateVendorCommissionKobo(rule, payload.amount_kobo || null, payload.type === "sale" ? payload.quantity || 1 : 1));
     } catch (error) {
-      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: error instanceof Error ? error.message : "Commission calculation failed" });
-      return { status: "quarantined" as const, kf_event_id: eventId };
+      const reason = error instanceof Error ? error.message : "Commission calculation failed";
+      await tx.insert(vendorEvents).values({ ...baseEvent, status: "quarantined", quarantineReason: reason });
+      return { status: "quarantined" as const, kf_event_id: eventId, reason };
     }
     if (attribution.promotionId) {
       const capacity = await promotionCapacityForNewDeal(tx, attribution.promotionId, commission.vendorCommissionKobo);
@@ -184,13 +196,17 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
         return { status: "quarantined" as const, kf_event_id: eventId, reason, escrowDebited: false, ledgerEntriesCreated: 0 };
       }
     }
-    const velocity = await enforceActivationVelocity(tx, {
-      repId: attribution.repId,
-      productId: product.id,
-      triggerEvent: trigger,
-      eventId,
-      cap: rule.activationCapPerRepDay,
-    });
+    // Product sales have no daily limit: every sale is checked from its proof before it pays. The cap stays for
+    // products that pay on a customer event, where it guards against fake sign-ups.
+    const velocity = payload.type === "sale"
+      ? { blocked: false as const }
+      : await enforceActivationVelocity(tx, {
+        repId: attribution.repId,
+        productId: product.id,
+        triggerEvent: trigger,
+        eventId,
+        cap: rule.activationCapPerRepDay,
+      });
     if (velocity.blocked) {
       await tx.insert(vendorEvents).values({
         ...baseEvent,
@@ -239,12 +255,39 @@ export async function ingestVendorEvent(vendorKey: string, payload: VendorEventI
     }
     // A rep who recorded this sale themselves sees it verified by the vendor's report (an Operations approval
     // records itself in services/recordedSales.ts).
-    if ((payload.meta as { verified_by?: string } | undefined)?.verified_by !== "operations") {
-      await tx.update(recordedSales).set({ state: "verified", verifiedBy: "vendor", dealId, decidedAt: new Date() })
-        .where(and(eq(recordedSales.vendorId, vendor.id), eq(recordedSales.customerPhoneHash, phoneHash), eq(recordedSales.repId, attribution.repId), eq(recordedSales.state, "waiting")));
+    const vendorReported = (payload.meta as { verified_by?: string } | undefined)?.verified_by !== "operations";
+    if (vendorReported) {
+      const matched = await tx.update(recordedSales).set({ state: "verified", verifiedBy: "vendor", dealId, decidedAt: new Date() })
+        .where(and(
+          eq(recordedSales.vendorId, vendor.id), eq(recordedSales.customerPhoneHash, phoneHash), eq(recordedSales.repId, attribution.repId), eq(recordedSales.state, "waiting"),
+          ...(payload.type === "sale" ? [eq(recordedSales.productId, product.id)] : []),
+        )).returning({ id: recordedSales.id });
+      // A product sale the vendor reports comes off their stock (never below zero: the vendor's own system is the record).
+      if (payload.type === "sale") {
+        await tx.update(products).set({ stockQuantity: sql`greatest(${products.stockQuantity} - ${payload.quantity || 1}, 0)`, updatedAt: new Date() })
+          .where(and(eq(products.id, product.id), isNotNull(products.stockQuantity)));
+      }
+      // The vendor confirming a sale a rep recorded is a verification: credit the rep now if the wallet covers it
+      // (otherwise the confirmation job credits it once the vendor adds funds).
+      if (matched.length && !options.creditNow) {
+        const credit = await creditDealLocked(tx, dealId, { actor: `vendor:${vendor.id}`, reason: "Vendor reported the sale the rep recorded; commission credited" });
+        if (credit.credited) creditedRepId = attribution.repId;
+      }
     }
-    return { status: "accepted" as const, kf_event_id: eventId, deal_id: dealId, promotion_id: attribution.promotionId || null };
+    if (options.afterDeal) await options.afterDeal(tx, dealId);
+    if (options.creditNow) {
+      const credit = await creditDealLocked(tx, dealId, options.creditNow);
+      if (!credit.credited) throw new InsufficientEscrowError(("balanceKobo" in credit && credit.balanceKobo) || 0, ("neededKobo" in credit && credit.neededKobo) || commission.vendorCommissionKobo);
+      creditedRepId = attribution.repId;
+    }
+    return { status: "accepted" as const, kf_event_id: eventId, deal_id: dealId, promotion_id: attribution.promotionId || null, credited: creditedRepId !== null };
   });
+  // A verified sale is paid out straight away, once the credit is committed. A payout that can't go yet (no confirmed
+  // bank account, an ID check, a fraud hold) leaves the money in the wallet for the daily run; it never undoes the sale.
+  if (creditedRepId !== null) {
+    await payRepNow(creditedRepId, options.creditNow?.actorUserId).catch((error) => log.warn("instant payout not queued", { repId: creditedRepId, error: error instanceof Error ? error.message : String(error) }));
+  }
+  return outcome;
 }
 
 /**

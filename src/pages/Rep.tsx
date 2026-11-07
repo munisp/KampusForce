@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Check, CheckCircle2, Clock3, Clipboard, Copy, ExternalLink, FileQuestion, Filter, Link2, Lock, QrCode, Search, Send, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, Clock3, Clipboard, Copy, ExternalLink, FileQuestion, Filter, Link2, Lock, Plus, QrCode, Search, Send, ShieldCheck, Star, WalletCards } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { EmptyState, Metric, Panel, WorkspaceLayout } from "@/components/product/WorkspaceLayout";
 import { ErrorState, Loading } from "@/components/product/Loading";
@@ -31,9 +31,9 @@ export function RepOverview() {
     {onboarding.data && <GettingStarted steps={onboarding.data.steps} intro="Finish these and you can earn on your campus. Operations checks each document by eye." />}
     <div className="trust-strip"><ShieldCheck size={18} /><span><strong>{me.rep.status === "active" ? "You're active" : me.user.kycState === "verified" ? "ID approved" : "Not active yet"}</strong> · {me.rep.status === "active" ? "You can share products, earn and get paid" : onboarding.data?.steps.find((step) => step.key === "activation")?.state === "waiting" ? "Your checks are done. Operations activates you next" : "Finish the steps above so Operations can activate you"}</span><span className="quality-score">Quality score {me.rep.qualityScore}/100</span>{me.rep.tier === "campus_lead" && <Link className="text-link" to="/rep/team">Team & bonuses <ArrowRight size={14} /></Link>}</div>
     <div className="metrics-grid">
-      <Metric label="Verified sales" value={data.metrics.activations} note="Sales vendors have confirmed for you" />
+      <Metric label="Your wallet" value={money(data.walletKobo)} note="Sent to your bank as soon as a sale is approved" tone="teal" />
+      <Metric label="Verified sales" value={data.metrics.activations} note="Sales that were approved for you" />
       <Metric label="Waiting period" value={money(data.metrics.pendingKobo)} note="Commission that isn't ready to pay yet" tone="mustard" />
-      <Metric label="Ready to pay" value={money(data.metrics.payableKobo)} note="Before tax" tone="teal" />
       <Metric label="Paid out" value={money(data.metrics.paidKobo)} note={system.testMode ? "Test payouts: no real money sent" : "After tax"} />
     </div>
     <RepFraudCases />
@@ -79,20 +79,39 @@ export function RepCatalog() {
   const rows = useMemo(() => query.data || (query.error ? cached : []), [query.data, query.error, cached]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const products = useMemo(() => rows.filter(({ product }) => (category === "all" || product.category === category) && `${product.name} ${product.description}`.toLowerCase().includes(search.toLowerCase())), [rows, search, category]);
+  const [mine, setMine] = useState(false);
+  const utils = trpc.useUtils();
+  const pick = trpc.rep.pickProduct.useMutation({ onSuccess: () => utils.rep.catalog.invalidate() });
+  const products = useMemo(() => rows.filter(({ product, picked }) => (!mine || picked) && (category === "all" || product.category === category) && `${product.name} ${product.description}`.toLowerCase().includes(search.toLowerCase())), [rows, search, category, mine]);
   const offline = Boolean(query.error && cached.length);
   const locks = useProductLocks();
   return <RepFrame title="Products you can sell" subtitle="What each product pays and when.">
     {offline && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You're offline.</strong> Showing the last products saved on this device. Connect to the internet to share them.</p></div>}
-    <div className="catalog-tools"><label className="search-field"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products" /></label><label className="select-field"><Filter size={16} /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="all">All categories</option>{Object.entries(productCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><span className="result-count">{products.length} offers</span></div>
-    {query.isLoading ? <Loading label="Loading products…" /> : query.error && !cached.length ? <ErrorState message={query.error.message} retry={query.refetch} /> : products.length ? <div className="product-grid">{products.map(({ product, rule, vendorName, vendorQualityScore }) => <article className="product-card" key={product.id}>
-      <div className="product-card-top"><span className="category-tag">{productCategories[product.category]}</span><span className="rule-version">RULE V{rule.version}</span></div>
+    <div className="catalog-tools"><label className="search-field"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products" /></label><label className="select-field"><Filter size={16} /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="all">All categories</option>{Object.entries(productCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><div className="segmented"><button type="button" className={!mine ? "active" : ""} onClick={() => setMine(false)}>All products</button><button type="button" className={mine ? "active" : ""} onClick={() => setMine(true)}><Star size={14} />My products</button></div><span className="result-count">{products.length} offers</span></div>
+    {pick.error && <p className="form-error" role="alert">{pick.error.message}</p>}
+    {query.isLoading ? <Loading label="Loading products…" /> : query.error && !cached.length ? <ErrorState message={query.error.message} retry={query.refetch} /> : products.length ? <div className="product-grid">{products.map(({ product, rule, vendorName, vendorQualityScore, images, picked, soldOut }) => {
+      const isProductSale = rule.triggerEvent === "sale";
+      // The rep's share after KampusForce's 20%: per unit for a flat commission, a share of the sale for a percentage.
+      const share = rule.basis === "flat" ? money((rule.flatAmountKobo || 0) - Math.round((rule.flatAmountKobo || 0) * 0.2)) : `${((rule.pctBps || 0) / 100 * 0.8).toFixed(1)}%`;
+      const shareOnPrice = isProductSale && rule.basis === "pct" && product.priceKobo ? Math.round(product.priceKobo * (rule.pctBps || 0) / 10_000) : 0;
+      return <article className="product-card" key={product.id}>
+      {images?.[0] && <img className="product-card-photo" src={images[0]} alt={product.name} loading="lazy" />}
+      <div className="product-card-top"><span className="category-tag">{productCategories[product.category] || product.category}</span>{!offline && <button type="button" className={`pick-toggle ${picked ? "picked" : ""}`} aria-pressed={picked} disabled={pick.isPending} onClick={() => pick.mutate({ token, productId: product.id, picked: !picked })}>{picked ? <><Check size={13} />In my products</> : <><Plus size={13} />Add to my products</>}</button>}</div>
       <p className="vendor-name">{vendorName} · Quality {vendorQualityScore}/100</p><h2>{product.name}</h2><p>{product.description}</p>
-      <div className="commission-display"><small>Your 80% share</small><strong>{rule.basis === "flat" ? money(Math.round((rule.flatAmountKobo || 0) * 0.8)) : `${((rule.pctBps || 0) / 100 * 0.8).toFixed(1)}%`}</strong><span>{rule.basis === "flat" ? `of ${money(rule.flatAmountKobo || 0)} funded commission` : `of eligible transaction value`}</span></div>
-      <dl className="product-terms"><div><dt>You earn when</dt><dd>{rule.triggerEvent.replaceAll("_", " ")}</dd></div><div><dt>Waiting period</dt><dd>{rule.confirmDays} days</dd></div><div><dt>Refund period</dt><dd>{rule.clawbackDays} days</dd></div><div><dt>Listed price</dt><dd>{product.priceKobo ? money(product.priceKobo) : "Vendor checkout"}</dd></div></dl>
+      <div className="commission-display"><small>You earn</small><strong>{share}</strong><span>{isProductSale ? (rule.basis === "flat" ? "per unit sold" : `of each sale${shareOnPrice ? ` (${money(shareOnPrice - Math.round(shareOnPrice * 0.2))} per unit)` : ""}`) : rule.basis === "flat" ? `of ${money(rule.flatAmountKobo || 0)} funded commission` : "of eligible transaction value"}</span></div>
+      <dl className="product-terms">
+        <div><dt>{isProductSale ? "Price" : "Listed price"}</dt><dd>{product.priceKobo ? money(product.priceKobo) : "Vendor checkout"}</dd></div>
+        {isProductSale && <div><dt>In stock</dt><dd>{soldOut ? "Sold out" : product.stockQuantity === null ? "Available" : product.stockQuantity}</dd></div>}
+        <div><dt>You earn when</dt><dd>{isProductSale ? "your sale is approved" : rule.triggerEvent.replaceAll("_", " ")}</dd></div>
+        <div><dt>{isProductSale ? "Paid to your bank" : "Waiting period"}</dt><dd>{isProductSale ? "as soon as it's approved" : `${rule.confirmDays} days`}</dd></div>
+        <div><dt>Refund period</dt><dd>{rule.clawbackDays} days</dd></div>
+      </dl>
       <div className="pitch"><Clipboard size={16} /><p>{product.pitchScript}</p></div>
-      {locks(product.id).length ? <ProductLock titles={locks(product.id)} /> : offline ? <button className="button primary" disabled>Connect to the internet to share</button> : <Link className="button primary" to={`/rep/share?product=${product.id}`}>Share this offer <ArrowRight size={16} /></Link>}
-    </article>)}</div> : <EmptyState title="No matching offers" detail="Try another search or category." />}
+      {locks(product.id).length ? <ProductLock titles={locks(product.id)} /> : offline ? <button className="button primary" disabled>Connect to the internet to {isProductSale ? "record sales" : "share"}</button>
+        : isProductSale ? (soldOut ? <button className="button primary" disabled>Sold out</button> : <Link className="button primary" to={`/rep/record?product=${product.id}`}>Record a sale <ArrowRight size={16} /></Link>)
+        : <Link className="button primary" to={`/rep/share?product=${product.id}`}>Share this offer <ArrowRight size={16} /></Link>}
+    </article>;
+    })}</div> : <EmptyState title="No matching offers" detail="Try another search or category." />}
   </RepFrame>;
 }
 
@@ -194,7 +213,7 @@ export function RepEarnings() {
   for (const correction of query.data?.corrections || []) if (correction.state !== "reversed") totals[correction.state === "paid" ? "paid" : "payable"] = (totals[correction.state === "paid" ? "paid" : "payable"] || 0) + correction.amountKobo;
   return <RepFrame title="Your earnings" subtitle="Every sale, payment and refund, with its status.">
     {offline && cached && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You're offline, so this may be out of date.</strong> Read-only records saved {new Date(cached.savedAt).toLocaleString()} on this device. Disputes and all financial actions require a connection.</p></div>}
-    <div className="metrics-grid three"><Metric label="Ready to pay" value={money(totals.payable || 0)} note="Goes out in the next payout" tone="teal" /><Metric label="Paid" value={money(totals.paid || 0)} note="Before tax" /><Metric label="Disputed" value={money(totals.disputed || 0)} note="On hold while Operations looks into it" tone="mustard" /></div>
+    <div className="metrics-grid three"><Metric label="Your wallet" value={money(query.data?.walletKobo || 0)} note="Paid to your bank automatically" tone="teal" /><Metric label="Paid" value={money(totals.paid || 0)} note="Before tax" /><Metric label="Disputed" value={money(totals.disputed || 0)} note="On hold while Operations looks into it" tone="mustard" /></div>
     <Panel title="Your bank account" action={<ShieldCheck size={18} />}>
       <p className="panel-note">Choose your bank and type your account number. We ask the bank whose account it is, and it must be in the name on your ID check. The account number is stored encrypted.</p>
       {data?.destination.configured && <BankAccountStatus destination={data.destination} />}
@@ -276,17 +295,28 @@ export function RepRecordSale() {
   const utils = trpc.useUtils();
   const catalog = trpc.rep.catalog.useQuery({ token });
   const me = trpc.rep.me.useQuery({ token });
-  const [productId, setProductId] = useState(0);
+  const [params] = useSearchParams();
+  const [productId, setProductId] = useState(() => Number(params.get("product")) || 0);
+  const [quantity, setQuantity] = useState("1");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [proof, setProof] = useState<File | null>(null);
   const [status, setStatus] = useState("");
   const [fileKey, setFileKey] = useState(0);
-  const record = trpc.rep.recordSale.useMutation({ onSuccess: () => { setPhone(""); setNote(""); setProof(null); setFileKey((k) => k + 1); utils.rep.recordedSales.invalidate(); utils.rep.earnings.invalidate(); utils.rep.dashboard.invalidate(); utils.rep.onboarding.invalidate(); } });
+  const record = trpc.rep.recordSale.useMutation({ onSuccess: () => { setPhone(""); setNote(""); setProof(null); setQuantity("1"); setFileKey((k) => k + 1); utils.rep.recordedSales.invalidate(); utils.rep.earnings.invalidate(); utils.rep.dashboard.invalidate(); utils.rep.onboarding.invalidate(); } });
   const active = me.data?.rep.status === "active";
   const locks = useProductLocks();
   const locked = productId ? locks(productId) : [];
   const result = record.data;
+  // My products first, then the rest; sold-out products can't be recorded.
+  const options = [...(catalog.data || [])].filter((row) => !row.soldOut).sort((a, b) => Number(b.picked) - Number(a.picked));
+  const chosen = (catalog.data || []).find((row) => row.product.id === productId);
+  const isProductSale = chosen?.rule.triggerEvent === "sale";
+  const units = Math.max(0, Math.floor(Number(quantity) || 0));
+  const total = isProductSale && chosen ? chosen.product.priceKobo * units : 0;
+  const commission = !chosen || !units ? 0 : chosen.rule.basis === "flat" ? (chosen.rule.flatAmountKobo || 0) * (isProductSale ? units : 1) : isProductSale ? Math.round(total * (chosen.rule.pctBps || 0) / 10_000) : 0;
+  const repShare = commission - Math.round(commission * 0.2);
+  const tooMany = Boolean(isProductSale && chosen?.product.stockQuantity !== null && chosen && units > (chosen.product.stockQuantity ?? 0));
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!proof) return;
@@ -294,33 +324,38 @@ export function RepRecordSale() {
     setStatus("Preparing your proof…");
     const ready = await shrinkPhoto(proof);
     setStatus(`Sending ${formatBytes(ready.size)}…`);
-    record.mutate({ token, productId, customerPhone: phone, note: note.trim() || undefined, proofBase64: await fileToBase64(ready) }, { onSettled: () => setStatus("") });
+    record.mutate({ token, productId, customerPhone: phone, note: note.trim() || undefined, proofBase64: await fileToBase64(ready), ...(isProductSale ? { quantity: units } : {}) }, { onSettled: () => setStatus("") });
   };
   return <RepFrame title="Record a sale" subtitle="Onboarded someone? Record it here. It shows in your earnings straight away, waiting for verification.">
     <div className="share-layout">
       <Panel title="Who did you onboard?" className="share-builder">
         {!active && me.data && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You can record sales once you're active.</strong> Finish the steps on your Overview first.</p></div>}
         <form className="form-stack" onSubmit={submit}>
-          <label>Product<select value={productId} onChange={(e) => { setProductId(Number(e.target.value)); record.reset(); }} disabled={!active} required><option value={0}>Choose the product</option>{(catalog.data || []).map(({ product, vendorName }) => <option key={product.id} value={product.id}>{product.name} · {vendorName}</option>)}</select></label>
+          <label>Product<select value={productId} onChange={(e) => { setProductId(Number(e.target.value)); record.reset(); }} disabled={!active} required><option value={0}>Choose the product</option>{options.map(({ product, vendorName, picked }) => <option key={product.id} value={product.id}>{picked ? "★ " : ""}{product.name} · {vendorName}</option>)}</select></label>
+          {isProductSale && chosen && <div className="form-row">
+            <label>How many did you sell?<input type="number" min="1" max={Math.min(100, chosen.product.stockQuantity ?? 100)} step="1" value={quantity} onChange={(e) => { setQuantity(e.target.value); record.reset(); }} disabled={!active} required /><small>{chosen.product.stockQuantity === null ? `${money(chosen.product.priceKobo)} each` : `${money(chosen.product.priceKobo)} each · ${chosen.product.stockQuantity} in stock`}</small></label>
+            <div className="sale-summary" aria-live="polite"><span>Sale total</span><strong>{money(total)}</strong>{commission > 0 && <small>You'll earn {money(repShare)} (KampusForce keeps {money(commission - repShare)} of the {money(commission)} commission)</small>}</div>
+          </div>}
+          {tooMany && <p className="form-error" role="alert">Only {chosen?.product.stockQuantity} left in stock.</p>}
           <label>Customer's phone number<input required inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); record.reset(); }} placeholder="0800 000 0000" disabled={!active} autoComplete="off" /><small>The number they used with the vendor.</small></label>
           <label>Proof<input key={fileKey} type="file" accept="image/jpeg,image/png,application/pdf" required disabled={!active} onChange={(e) => { setProof(e.target.files?.[0] || null); record.reset(); }} /><small>A screenshot or photo of the customer's confirmation, a receipt or a reference. JPG, PNG or PDF, up to 10 MB. Whoever verifies the sale sees it.</small></label>
           <label>Note <span className="optional">optional</span><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="e.g. Helped them sign up in the library on Tuesday" disabled={!active} /></label>
           <ProductLock titles={locked} />
-          <button className="button primary" disabled={!active || record.isPending || locked.length > 0 || !productId || !proof || phone.trim().length < 7}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
+          <button className="button primary" disabled={!active || record.isPending || locked.length > 0 || !productId || !proof || phone.trim().length < 7 || (isProductSale && (units < 1 || tooMany))}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
           {status && !record.isPending && <p className="form-error">{status}</p>}
         </form>
         {record.error && <p className="form-error" role="alert">{record.error.message}</p>}
         {result && <div className={`claim-result ${result.state === "verified" ? "credited" : "waiting"}`} role="status">
           {result.state === "verified"
             ? <><CheckCircle2 size={20} /><div><strong>Recorded and already verified.</strong><p>The vendor had already reported this customer, so the sale is in your Earnings now.</p><Link className="text-link" to="/rep/earnings">See your earnings <ArrowRight size={14} /></Link></div></>
-            : <><Clock3 size={20} /><div><strong>Recorded. Waiting for verification.</strong><p>{result.expectedRepCommissionKobo ? `You'll earn ${money(result.expectedRepCommissionKobo)} once it's verified. ` : ""}It's verified when the vendor reports this customer, or when Operations checks your proof. You'll get a notification.</p></div></>}
+            : <><Clock3 size={20} /><div><strong>Recorded. Waiting for verification.</strong><p>{result.expectedRepCommissionKobo ? `You'll earn ${money(result.expectedRepCommissionKobo)} the moment it's approved. ` : ""}The vendor can see it now. Operations checks your proof; you'll get a notification.</p></div></>}
         </div>}
       </Panel>
       <Panel title="How it works">
         <div className="fraud-boundaries">
           <p><strong>1. You record it</strong><span>It shows in your earnings straight away as waiting for verification.</span></p>
-          <p><strong>2. It's verified</strong><span>Automatically when the vendor reports this customer, or by Operations, who look at your proof.</span></p>
-          <p><strong>3. You're paid</strong><span>After the vendor's waiting period, it's paid out with your other earnings.</span></p>
+          <p><strong>2. It's verified</strong><span>The vendor sees it at once. Operations checks your proof (or the vendor's own system confirms it).</span></p>
+          <p><strong>3. You're paid</strong><span>The moment the sale is approved, your share (after KampusForce's 20% fee and any tax withheld) is sent to your bank account. If your bank account isn't confirmed yet, it waits in your wallet. The vendor can still dispute it during the refund period.</span></p>
           <p><strong>Once per customer</strong><span>Each customer belongs to the first rep who links them. Honest records only: a false one can lead to a strike or suspension.</span></p>
         </div>
       </Panel>
@@ -341,11 +376,13 @@ export function RecordedSalesList({ onlyWaiting = false }: { onlyWaiting?: boole
   const rows = (list.data || []).filter((row) => !onlyWaiting || row.sale.state === "waiting");
   if (onlyWaiting && !rows.length) return null;
   return <Panel title={onlyWaiting ? "Waiting for verification" : "Sales you recorded"} action={<Link className="text-link" to="/rep/record">Record a sale <ArrowRight size={14} /></Link>}>
-    {list.isLoading ? <Loading /> : rows.length ? <div className="table-wrap"><table><thead><tr><th>Product</th><th>Customer</th><th>Recorded</th><th>Status</th></tr></thead><tbody>{rows.map(({ sale, productName, vendorName }) => <tr key={sale.id}>
+    {list.isLoading ? <Loading /> : rows.length ? <div className="table-wrap"><table><thead><tr><th>Product</th><th>Sale</th><th>Customer</th><th>Recorded</th><th>Status</th><th>You earn</th></tr></thead><tbody>{rows.map(({ sale, productName, vendorName, split, dealState, payoutId }) => <tr key={sale.id}>
       <td><strong>{productName}</strong><small className="table-sub">{vendorName}</small></td>
+      <td>{sale.amountKobo ? <>{sale.quantity} × {money(sale.unitPriceKobo || 0)}<small className="table-sub">{money(sale.amountKobo)}</small></> : "—"}</td>
       <td className="mono">•••• {sale.customerPhoneLast4}</td>
       <td>{shortDate(sale.createdAt)}</td>
       <td><span className={`new-rep-badge ${RECORDED_STATE[sale.state]?.cls || "waiting"}`}>{RECORDED_STATE[sale.state]?.label || sale.state}</span>{sale.state === "verified" && <small className="table-sub">{sale.verifiedBy === "vendor" ? "The vendor reported it" : "Checked by Operations"}</small>}{sale.state === "rejected" && sale.reviewReason && <small className="table-sub">{sale.reviewReason}</small>}</td>
+      <td>{split && sale.state !== "rejected" ? <>{money(split.repCommissionKobo)}<small className="table-sub">{split.final ? (dealState === "paid" ? "Paid to your bank" : dealState === "payable" ? (payoutId ? "Being paid to your bank" : "In your wallet") : dealState === "disputed" ? "On hold: disputed" : dealState === "void" || dealState === "clawed_back" ? "Taken back" : "Waiting period") : "When approved"} · fee {money(split.platformFeeKobo)}</small></> : "—"}</td>
     </tr>)}</tbody></table></div> : <EmptyState title="No recorded sales yet" detail="When you onboard someone, record it here so it's credited to you." />}
   </Panel>;
 }
