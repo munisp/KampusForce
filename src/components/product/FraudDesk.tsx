@@ -28,7 +28,7 @@ export function FraudDesk() {
   const review = trpc.ops.reviewFraudCase.useMutation({
     onSuccess: (result) => {
       setNotice(result.state === "released"
-        ? `${result.caseRef} released. Its payout hold is off; the case history remains append-only.`
+        ? `${result.caseRef} released. The rep's payouts can go out again, and the case stays on record.`
         : `${result.caseRef} upheld with a ${result.conductAction}. No automatic financial reversal was applied.`);
       setReviewNote("");
       refresh();

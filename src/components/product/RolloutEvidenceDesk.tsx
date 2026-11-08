@@ -46,8 +46,8 @@ export function RolloutEvidenceDesk() {
   } });
   const createCohort = trpc.ops.createCampusCohort.useMutation({ onSuccess: (row) => { setNotice(`Campus cohort #${row.id} created. `); chooseSubject("campus_cohort", row.id); refresh(); } });
   const createQuarter = trpc.ops.createRolloutQuarter.useMutation({ onSuccess: (row) => { setNotice(`Phase ${row.phase} quarter #${row.id} created. `); chooseSubject("phase_quarter", row.id); refresh(); } });
-  const submit = trpc.ops.submitRolloutEvidence.useMutation(completed("External evidence submitted for independent review. No campus or national launch state changed."));
-  const review = trpc.ops.reviewRolloutEvidence.useMutation(completed("Independent evidence decision recorded with append-only history."));
+  const submit = trpc.ops.submitRolloutEvidence.useMutation(completed("Figure sent. Someone else in Operations needs to approve it; no campus changes status until then."));
+  const review = trpc.ops.reviewRolloutEvidence.useMutation(completed("Decision saved. Earlier decisions stay on record."));
   const snapshot = trpc.ops.captureRolloutSnapshot.useMutation({ onSuccess: (result) => { setNotice(`${result.evidenceIds.length} system snapshots recorded. They don't count as real-world proof.`); refresh(); } });
   const error = createCohort.error || createQuarter.error || submit.error || review.error || snapshot.error;
 

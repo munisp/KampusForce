@@ -29,9 +29,9 @@ export function LaunchDesk() {
       refresh();
     },
   });
-  const submit = trpc.ops.submitLaunchEvidence.useMutation(submitted("Evidence reference submitted for independent review."));
-  const approve = trpc.ops.approveLaunchEvidence.useMutation(submitted("External approval attestation recorded. This does not certify the external system."));
-  const reject = trpc.ops.rejectLaunchEvidence.useMutation(submitted("Evidence rejected with an append-only review record."));
+  const submit = trpc.ops.submitLaunchEvidence.useMutation(submitted("Proof sent. Someone else in Operations needs to approve it."));
+  const approve = trpc.ops.approveLaunchEvidence.useMutation(submitted("Approval recorded. This only notes that it was given; it doesn't check the outside system."));
+  const reject = trpc.ops.rejectLaunchEvidence.useMutation(submitted("Evidence rejected. Your decision is on record."));
   const error = submit.error || approve.error || reject.error;
   const gates = useMemo(() => readiness.data?.gates.filter((gate) => track === "all" || gate.track === track) || [], [readiness.data, track]);
   const selected = readiness.data?.gates.find((gate) => gate.id === gateId);
