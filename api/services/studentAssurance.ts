@@ -1,11 +1,10 @@
-import { and, desc, eq, gt, inArray, lte, or } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 import {
   duplicateIdentityCases,
   enrollmentAttestations,
   identityLinkages,
   reps,
-  users,
-} from "@db/schema";
+  users, campuses } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { randomReference } from "./security";
 import { createAssuranceFraudCase } from "./fraud";
@@ -57,6 +56,9 @@ export async function submitEnrollmentAttestation(input: {
     const [user] = await tx.select().from(users).where(eq(users.id, input.userId)).limit(1).for("update");
     const [rep] = await tx.select().from(reps).where(eq(reps.userId, input.userId)).limit(1);
     if (!user || user.role !== "rep" || !rep?.campusId) throw new Error("A representative campus profile is required");
+    // The school comes from the campus list on the form; refuse anything that isn't one of our campuses.
+    const [school] = await tx.select({ id: campuses.id }).from(campuses).where(sql`lower(${campuses.name}) = lower(${input.providerName.trim()})`).limit(1);
+    if (!school) throw new Error("Choose your school from the list.");
     const [pending] = await tx.select({ id: enrollmentAttestations.id }).from(enrollmentAttestations)
       .where(and(eq(enrollmentAttestations.userId, input.userId), eq(enrollmentAttestations.state, "submitted"))).limit(1);
     if (pending) throw new Error("Your proof is already waiting for review.");

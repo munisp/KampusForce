@@ -169,7 +169,7 @@ async function main() {
   const enrollmentReference = opaqueReference("enrollment");
   const submitted = await submitEnrollmentAttestation({
     userId: activationRep.user.id,
-    providerName: "institution-synthetic",
+    providerName: campus.name,
     providerMode: "sandbox",
     attestationReference: enrollmentReference,
     academicTerm: "sandbox-current-term",
@@ -178,7 +178,7 @@ async function main() {
   });
   await assert.rejects(() => submitEnrollmentAttestation({
     userId: activationRep.user.id,
-    providerName: "institution-synthetic",
+    providerName: campus.name,
     providerMode: "sandbox",
     attestationReference: opaqueReference("second-pending"),
     academicTerm: "sandbox-current-term",
@@ -208,7 +208,7 @@ async function main() {
   assert.equal((await studentAssurancePreflight(activationRep.user.id)).eligible, false);
   const revalidation = await submitEnrollmentAttestation({
     userId: activationRep.user.id,
-    providerName: "institution-synthetic",
+    providerName: campus.name,
     providerMode: "sandbox",
     attestationReference: opaqueReference("revalidation"),
     academicTerm: "sandbox-next-term",
