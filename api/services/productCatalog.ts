@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { auditLogs, productImages, products, repProducts } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { deleteObject, getObject, putObject } from "../lib/objectStore";
@@ -32,6 +32,9 @@ export async function updateProduct(input: {
   name: string; description: string; category: typeof products.$inferInsert.category; priceKobo: number; landingUrl: string | null; stockQuantity: number | null;
 }) {
   const product = await ownedProduct(input.vendorId, input.productId);
+  const [sameName] = await getDb().select({ id: products.id }).from(products)
+    .where(and(eq(products.vendorId, input.vendorId), ne(products.id, product.id), sql`lower(${products.name}) = lower(${input.name})`)).limit(1);
+  if (sameName) throw new TRPCError({ code: "CONFLICT", message: `You already have a product called "${input.name}". Use a different name.` });
   const [updated] = await getDb().update(products).set({
     name: input.name, description: input.description, pitchScript: input.description, category: input.category, priceKobo: input.priceKobo,
     landingUrl: input.landingUrl ?? "", stockQuantity: input.stockQuantity, updatedAt: new Date(),

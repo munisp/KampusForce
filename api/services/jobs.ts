@@ -12,6 +12,7 @@ import { log } from "../lib/logger";
 import { monitorOperationalSignals } from "./incidents";
 import { monitoringSlotKey } from "./incidentPolicy";
 import { processDueIngestionRetries, purgeExpiredVendorEventPayloads } from "./ingestionRetries";
+import { expireEnrollmentAttestations } from "./studentAssurance";
 import { expireIdentityApprovals } from "./identity";
 import { runPromotionScheduleSweep } from "./promotions";
 import { processDueNotificationDeliveries } from "./notificationDelivery";
@@ -74,8 +75,11 @@ export async function runDurableJob(jobKey: JobKey, trigger: "manual" | "schedul
       result = retention;
       processedCount = retention.purged;
     } else if (jobKey === "identity_expiry") {
-      result = await expireIdentityApprovals();
-      processedCount = Number(result.expired || 0);
+      // ID approvals and proofs of enrolment that ran out (eligibility already ignores them; this updates their state).
+      const identity = await expireIdentityApprovals();
+      const enrolment = await expireEnrollmentAttestations();
+      result = { ...identity, enrollmentsExpired: enrolment.expired };
+      processedCount = Number(identity.expired || 0) + enrolment.expired;
     } else if (jobKey === "identity_document_purge") {
       const purge = await purgeExpiredIdentityDocuments();
       result = purge;

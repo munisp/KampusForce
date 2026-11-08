@@ -162,6 +162,7 @@ export const repRouter = createRouter({
     if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations needs to activate your account before you can share products" });
     const [product] = await getDb().select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
     if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Active product not found" });
+    if (!product.landingUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This product is sold in person, so there's no link to share. Record the sale when you make it." });
     await assertProductTrainingPassed(ctx.user.id, product.id);
     let attributed = false;
     let pickedUp: Awaited<ReturnType<typeof pickUpHeldSales>> = [];

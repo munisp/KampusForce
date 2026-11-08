@@ -1458,3 +1458,8 @@ td.numeric, th.numeric { text-align: right; white-space: nowrap; }
 td.numeric.negative { color: var(--red); }
 td.numeric.positive { color: var(--teal); }
 @media (max-width: 900px) { .vendor-product-list { grid-template-columns: 1fr; } }
+
+/* A page's main action (e.g. New campaign), above its list. */
+.panel-toolbar { display: flex; justify-content: flex-end; margin: 0 0 16px; }
+@media (max-width: 680px) { .panel-toolbar .button { width: 100%; justify-content: center; } }
+.show-all { display: block; margin: 12px auto 0; }

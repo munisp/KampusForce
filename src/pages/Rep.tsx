@@ -37,20 +37,21 @@ export function RepOverview() {
       <Metric label="Paid out" value={money(data.metrics.paidKobo)} note={system.testMode ? "Test payouts: no real money sent" : "After tax"} />
     </div>
     <RepFraudCases />
+    <RecordedSalesList onlyWaiting />
     <div className="dashboard-grid">
       <Panel title="Recent sales" action={<Link className="text-link" to="/rep/earnings">All earnings <ArrowRight size={14} /></Link>}>
         {data.recent.length ? <div className="deal-list">{data.recent.map(({ deal, productName, vendorName }) => <div className="deal-row" key={deal.id}><span className="deal-marker" /><div><strong>{productName}</strong><small>{vendorName} · {shortDate(deal.createdAt)}</small></div><StateBadge state={deal.state} /><strong className="money-cell">{money(deal.repCommissionKobo)}</strong></div>)}</div> : <EmptyState title="No sales yet" detail="Share a product link. Your sale shows here once the vendor confirms it." />}
       </Panel>
       <Panel title="What to do next" className="action-panel">
-        <span className="action-number">01</span><h3>Make your first sale.</h3><p>Pick a product and share your link. You earn when the vendor confirms the customer completed it.</p>
-        <Link className="button primary" to="/rep/share">Get my link <ArrowRight size={16} /></Link>
-        <Link className="text-link claim-link" to="/rep/record">Onboarded someone? Record the sale <ArrowRight size={14} /></Link>
-        <div className="action-rule"><span>Trigger</span><strong>When the vendor confirms the sale, not at sign-up</strong></div>
-        <div className="action-rule"><span>Split</span><strong>80% to you, 20% to KampusForce</strong></div>
+        <span className="action-number">01</span><h3>{data.metrics.activations ? "Make your next sale." : "Make your first sale."}</h3><p>Pick a product, sell it, and record the sale with a photo of the receipt. Once it's approved, your share is sent to your bank.</p>
+        <Link className="button primary" to="/rep/catalog">Find a product to sell <ArrowRight size={16} /></Link>
+        <Link className="text-link claim-link" to="/rep/record">Sold something? Record the sale <ArrowRight size={14} /></Link>
+        <div className="action-rule"><span>You earn</span><strong>When your sale is approved</strong></div>
+        <div className="action-rule"><span>Split</span><strong>80% to you, 20% to KampusForce, paid to your bank</strong></div>
       </Panel>
     </div>
     <Panel title="Recent payouts">
-      {data.payouts.length ? <div className="table-wrap"><table><thead><tr><th>Ref</th><th>Created</th><th>Before tax</th><th>Tax held back</th><th>You received</th><th>Status</th></tr></thead><tbody>{data.payouts.map((p) => <tr key={p.id}><td className="mono">{p.providerRef}</td><td>{shortDate(p.createdAt)}</td><td>{money(p.amountGrossKobo)}</td><td>{money(p.withholdingKobo)}</td><td><strong>{money(p.amountNetKobo)}</strong></td><td><StateBadge state={p.state} /></td></tr>)}</tbody></table></div> : <EmptyState title="No payouts yet" detail="You're paid once your identity and bank name are verified and you've earned at least ₦500." />}
+      {data.payouts.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>You received</th><th>Status</th><th>Before tax</th><th>Tax held back</th></tr></thead><tbody>{data.payouts.map((p) => <tr key={p.id}><td>{shortDate(p.createdAt)}</td><td><strong>{money(p.amountNetKobo)}</strong></td><td><StateBadge state={p.state} /></td><td>{money(p.amountGrossKobo)}</td><td>{money(p.withholdingKobo)}</td></tr>)}</tbody></table></div> : <EmptyState title="No payouts yet" detail="Once your ID and bank account are confirmed, each approved sale is sent to your bank straight away." />}
     </Panel>
   </RepFrame>;
 }
@@ -124,14 +125,15 @@ export function RepShare() {
   const [source, setSource] = useState<"link" | "qr">("link");
   const [copied, setCopied] = useState(false);
   const share = trpc.rep.share.useMutation({ onSuccess: () => setCopied(false) });
-  const selectedId = productId || catalog.data?.[0]?.product.id || 0;
+  const linkable = (catalog.data || []).filter((row) => row.product.landingUrl && row.rule.triggerEvent !== "sale");
+  const selectedId = productId || linkable[0]?.product.id || 0;
   const locks = useProductLocks();
   const locked = locks(selectedId);
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); setCopied(true); };
   return <RepFrame title="Share a product" subtitle="Send your link or QR code, and sales from it are credited to you.">
     <div className="share-layout">
       <Panel title="Create your link" className="share-builder">
-        <div className="form-stack"><label>Product<select value={selectedId} onChange={(e) => { setProductId(Number(e.target.value)); share.reset(); }}>{(catalog.data || []).map(({ product, vendorName }) => <option key={product.id} value={product.id}>{product.name} · {vendorName}</option>)}</select></label>
+        <div className="form-stack"><label>Product<select value={selectedId} onChange={(e) => { setProductId(Number(e.target.value)); share.reset(); }}>{linkable.map(({ product, vendorName }) => <option key={product.id} value={product.id}>{product.name} · {vendorName}</option>)}</select></label>
           <label>Customer phone <span className="optional">optional</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0800 000 0000" /></label>
           <fieldset><legend>How you're sharing it</legend><div className="segmented"><button type="button" className={source === "link" ? "active" : ""} onClick={() => setSource("link")}><Link2 size={16} />Link</button><button type="button" className={source === "qr" ? "active" : ""} onClick={() => setSource("qr")}><QrCode size={16} />QR code</button></div></fieldset>
           <p className="privacy-note"><ShieldCheck size={16} />Adding a number helps link the customer to you. We scramble it before saving it, and we never ask for a NIN or BVN.</p>
@@ -165,7 +167,8 @@ export function RepAssist() {
   const [consent, setConsent] = useState(false);
   const start = trpc.rep.assistedStart.useMutation({ onSuccess: (d) => { setSessionId(d.sessionId); setStep(1); } });
   const advance = trpc.rep.assistedAdvance.useMutation({ onSuccess: (d) => setStep(d.currentStep) });
-  const selectedId = productId || catalog.data?.[0]?.product.id || 0;
+  const linkable = (catalog.data || []).filter((row) => row.product.landingUrl && row.rule.triggerEvent !== "sale");
+  const selectedId = productId || linkable[0]?.product.id || 0;
   const locks = useProductLocks();
   const current = assistSteps[Math.max(0, step - 1)];
   const next = () => { if (!sessionId) start.mutate({ token, productId: selectedId, customerPhone: phone }); else if (step < 6) advance.mutate({ token, sessionId, step: step + 1 }); };
@@ -173,7 +176,7 @@ export function RepAssist() {
     <div className="assist-layout">
       <aside className="step-rail">{assistSteps.map((s, i) => <div className={`${step === i + 1 ? "current" : ""} ${step > i + 1 || step === 6 && i === 5 ? "done" : ""}`} key={s.title}><span>{step > i + 1 || step === 6 && i === 5 ? <Check size={15} /> : String(i + 1).padStart(2, "0")}</span><p>{s.title}</p></div>)}</aside>
       <Panel title={step ? `Step ${step} of 6` : "Start an assisted session"} className="assist-panel">
-        {!step ? <div className="form-stack"><label>Product<select value={selectedId} onChange={(e) => setProductId(Number(e.target.value))}>{(catalog.data || []).map(({ product }) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label>Customer phone<input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="We scramble this before saving it" required /></label><ProductLock titles={locks(selectedId)} /><label className="consent-check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} required /><span>The customer has agreed to be linked to me and sent to the vendor.</span></label><div className="safety-callout"><ShieldCheck size={20} /><p><strong>Stop when the customer reaches the vendor's app.</strong> The customer verifies their identity with the vendor, not with you or KampusForce.</p></div></div> : <div className="step-content"><span className="step-kicker">{step === 6 ? "HANDOFF COMPLETE" : "CUSTOMER ASSISTANCE"}</span><h2>{current.title}</h2><p>{current.detail}</p>{step === 3 && <div className="safety-callout"><ShieldCheck size={20} /><p>Never ask for or write down a customer's OTP, NIN, BVN, card PIN or password.</p></div>}{step === 6 && <Link className="text-link" to="/rep/earnings">See my earnings <ArrowRight size={15} /></Link>}</div>}
+        {!step ? <div className="form-stack"><label>Product<select value={selectedId} onChange={(e) => setProductId(Number(e.target.value))}>{linkable.map(({ product }) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label><label>Customer phone<input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="We scramble this before saving it" required /></label><ProductLock titles={locks(selectedId)} /><label className="consent-check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} required /><span>The customer has agreed to be linked to me and sent to the vendor.</span></label><div className="safety-callout"><ShieldCheck size={20} /><p><strong>Stop when the customer reaches the vendor's app.</strong> The customer verifies their identity with the vendor, not with you or KampusForce.</p></div></div> : <div className="step-content"><span className="step-kicker">{step === 6 ? "HANDOFF COMPLETE" : "CUSTOMER ASSISTANCE"}</span><h2>{current.title}</h2><p>{current.detail}</p>{step === 3 && <div className="safety-callout"><ShieldCheck size={20} /><p>Never ask for or write down a customer's OTP, NIN, BVN, card PIN or password.</p></div>}{step === 6 && <Link className="text-link" to="/rep/earnings">See my earnings <ArrowRight size={15} /></Link>}</div>}
         <div className="assist-controls">{step > 0 && step < 6 && <span className="mono">SESSION #{sessionId}</span>}{step < 6 && <button className="button primary" disabled={!selectedId || !phone || (!step && !consent) || (!step && locks(selectedId).length > 0) || start.isPending || advance.isPending} onClick={next}>{!step ? "Record consent & start" : step === 5 ? "Complete handoff" : "Mark step complete"}<ArrowRight size={16} /></button>}{step === 6 && <button className="button secondary" onClick={() => { setStep(0); setSessionId(0); setPhone(""); setConsent(false); }}>Start another session</button>}</div>
         {(start.error || advance.error) && <p className="form-error">{start.error?.message || advance.error?.message}</p>}
       </Panel>
@@ -317,18 +320,22 @@ export function RepRecordSale() {
   const commission = !chosen || !units ? 0 : chosen.rule.basis === "flat" ? (chosen.rule.flatAmountKobo || 0) * (isProductSale ? units : 1) : isProductSale ? Math.round(total * (chosen.rule.pctBps || 0) / 10_000) : 0;
   const repShare = commission - Math.round(commission * 0.2);
   const tooMany = Boolean(isProductSale && chosen?.product.stockQuantity !== null && chosen && units > (chosen.product.stockQuantity ?? 0));
+  // Set on the first click, before the photo is prepared, so a double-click can't send the sale twice.
+  const sending = useRef(false);
+  const [preparing, setPreparing] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!proof) return;
+    if (!proof || sending.current) return;
     if (proof.size > MAX_DOCUMENT_BYTES) { setStatus("That file is too big. The limit is 10 MB."); return; }
+    sending.current = true; setPreparing(true);
     setStatus("Preparing your proof…");
     const ready = await shrinkPhoto(proof);
     setStatus(`Sending ${formatBytes(ready.size)}…`);
-    record.mutate({ token, productId, customerPhone: phone, note: note.trim() || undefined, proofBase64: await fileToBase64(ready), ...(isProductSale ? { quantity: units } : {}) }, { onSettled: () => setStatus("") });
+    record.mutate({ token, productId, customerPhone: phone, note: note.trim() || undefined, proofBase64: await fileToBase64(ready), ...(isProductSale ? { quantity: units } : {}) }, { onSettled: () => { sending.current = false; setPreparing(false); setStatus(""); } });
   };
-  return <RepFrame title="Record a sale" subtitle="Onboarded someone? Record it here. It shows in your earnings straight away, waiting for verification.">
+  return <RepFrame title="Record a sale" subtitle="Sold something? Record it here with your proof. It shows in your earnings straight away, waiting for verification.">
     <div className="share-layout">
-      <Panel title="Who did you onboard?" className="share-builder">
+      <Panel title="What did you sell?" className="share-builder">
         {!active && me.data && <div className="sandbox-banner"><ShieldCheck size={17} /><p><strong>You can record sales once you're active.</strong> Finish the steps on your Overview first.</p></div>}
         <form className="form-stack" onSubmit={submit}>
           <label>Product<select value={productId} onChange={(e) => { setProductId(Number(e.target.value)); record.reset(); }} disabled={!active} required><option value={0}>Choose the product</option>{options.map(({ product, vendorName, picked }) => <option key={product.id} value={product.id}>{picked ? "★ " : ""}{product.name} · {vendorName}</option>)}</select></label>
@@ -341,7 +348,7 @@ export function RepRecordSale() {
           <label>Proof<input key={fileKey} type="file" accept="image/jpeg,image/png,application/pdf" required disabled={!active} onChange={(e) => { setProof(e.target.files?.[0] || null); record.reset(); }} /><small>A screenshot or photo of the customer's confirmation, a receipt or a reference. JPG, PNG or PDF, up to 10 MB. Whoever verifies the sale sees it.</small></label>
           <label>Note <span className="optional">optional</span><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="e.g. Helped them sign up in the library on Tuesday" disabled={!active} /></label>
           <ProductLock titles={locked} />
-          <button className="button primary" disabled={!active || record.isPending || locked.length > 0 || !productId || !proof || phone.trim().length < 7 || (isProductSale && (units < 1 || tooMany))}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
+          <button className="button primary" disabled={!active || record.isPending || preparing || locked.length > 0 || !productId || !proof || phone.trim().length < 7 || (isProductSale && (units < 1 || tooMany))}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
           {status && !record.isPending && <p className="form-error">{status}</p>}
         </form>
         {record.error && <p className="form-error" role="alert">{record.error.message}</p>}
@@ -374,15 +381,17 @@ export function RecordedSalesList({ onlyWaiting = false }: { onlyWaiting?: boole
   const { token } = useWorkspace();
   const list = trpc.rep.recordedSales.useQuery({ token });
   const rows = (list.data || []).filter((row) => !onlyWaiting || row.sale.state === "waiting");
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? rows : rows.slice(0, 10);
   if (onlyWaiting && !rows.length) return null;
   return <Panel title={onlyWaiting ? "Waiting for verification" : "Sales you recorded"} action={<Link className="text-link" to="/rep/record">Record a sale <ArrowRight size={14} /></Link>}>
-    {list.isLoading ? <Loading /> : rows.length ? <div className="table-wrap"><table><thead><tr><th>Product</th><th>Sale</th><th>Customer</th><th>Recorded</th><th>Status</th><th>You earn</th></tr></thead><tbody>{rows.map(({ sale, productName, vendorName, split, dealState, payoutId }) => <tr key={sale.id}>
+    {list.isLoading ? <Loading /> : rows.length ? <div className="table-wrap"><table><thead><tr><th>Product</th><th>Status</th><th>You earn</th><th>Sale</th><th>Customer</th><th>Recorded</th></tr></thead><tbody>{shown.map(({ sale, productName, vendorName, split, dealState, payoutId }) => <tr key={sale.id}>
       <td><strong>{productName}</strong><small className="table-sub">{vendorName}</small></td>
+      <td><span className={`new-rep-badge ${RECORDED_STATE[sale.state]?.cls || "waiting"}`}>{RECORDED_STATE[sale.state]?.label || sale.state}</span>{sale.state === "verified" && <small className="table-sub">{sale.verifiedBy === "vendor" ? "The vendor reported it" : "Checked by Operations"}</small>}{sale.state === "rejected" && sale.reviewReason && <small className="table-sub">{sale.reviewReason}</small>}</td>
+      <td>{split && sale.state !== "rejected" ? <>{money(split.repCommissionKobo)}<small className="table-sub">{split.final ? (dealState === "paid" ? "Paid to your bank" : dealState === "payable" ? (payoutId ? "Being paid to your bank" : "In your wallet") : dealState === "disputed" ? "On hold: disputed" : dealState === "void" || dealState === "clawed_back" ? "Taken back" : "Waiting period") : "When approved"} · fee {money(split.platformFeeKobo)}</small></> : "—"}</td>
       <td>{sale.amountKobo ? <>{sale.quantity} × {money(sale.unitPriceKobo || 0)}<small className="table-sub">{money(sale.amountKobo)}</small></> : "—"}</td>
       <td className="mono">•••• {sale.customerPhoneLast4}</td>
       <td>{shortDate(sale.createdAt)}</td>
-      <td><span className={`new-rep-badge ${RECORDED_STATE[sale.state]?.cls || "waiting"}`}>{RECORDED_STATE[sale.state]?.label || sale.state}</span>{sale.state === "verified" && <small className="table-sub">{sale.verifiedBy === "vendor" ? "The vendor reported it" : "Checked by Operations"}</small>}{sale.state === "rejected" && sale.reviewReason && <small className="table-sub">{sale.reviewReason}</small>}</td>
-      <td>{split && sale.state !== "rejected" ? <>{money(split.repCommissionKobo)}<small className="table-sub">{split.final ? (dealState === "paid" ? "Paid to your bank" : dealState === "payable" ? (payoutId ? "Being paid to your bank" : "In your wallet") : dealState === "disputed" ? "On hold: disputed" : dealState === "void" || dealState === "clawed_back" ? "Taken back" : "Waiting period") : "When approved"} · fee {money(split.platformFeeKobo)}</small></> : "—"}</td>
-    </tr>)}</tbody></table></div> : <EmptyState title="No recorded sales yet" detail="When you onboard someone, record it here so it's credited to you." />}
+    </tr>)}</tbody></table>{rows.length > 10 && <button type="button" className="text-link show-all" onClick={() => setShowAll(!showAll)}>{showAll ? "Show the latest 10" : `Show all ${rows.length}`}</button>}</div> : <EmptyState title="No recorded sales yet" detail="When you sell something, record it here so you're paid for it." />}
   </Panel>;
 }

@@ -10,6 +10,27 @@ import { useWorkspace } from "@/providers/workspace";
 // The vendor's side of the sales flow: every sale campus reps record (from the moment it's recorded), what each one
 // cost and paid, the wallet's history, and managing the products reps sell.
 
+const PAGE = 10;
+
+function ShowAll({ shown, total, onToggle }: { shown: boolean; total: number; onToggle: () => void }) {
+  return <button type="button" className="text-link show-all" onClick={onToggle}>{shown ? "Show the latest 10" : `Show all ${total}`}</button>;
+}
+
+const EVENT_LABEL: Record<string, string> = { sale: "Product sale", signup: "Sign-up", kyc_complete: "ID check done", funded: "Money added", first_transaction: "First transaction", renewal: "Renewal" };
+
+/** Every commission this vendor has paid or owes: rep-recorded sales and sales the vendor's own system sent in. */
+export function VendorDeals({ deals, products }: { deals: { id: number; productId: number; triggerEvent: string; createdAt: string | Date; state: string; vendorCommissionKobo: number; repCommissionKobo: number; platformFeeKobo: number }[]; products: { id: number; name: string }[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const name = (id: number) => products.find((p) => p.id === id)?.name || "Product";
+  return <Panel title="Every sale and its commission" action={<span className="result-count">{deals.length} in all</span>}>
+    {deals.length ? <div className="table-wrap"><table><thead><tr><th>Product</th><th>Status</th><th>Commission</th><th>Rep / KampusForce</th><th>Paid for</th><th>Date</th></tr></thead><tbody>{deals.slice(0, showAll ? deals.length : PAGE).map((deal) => <tr key={deal.id}>
+      <td><strong>{name(deal.productId)}</strong><small className="table-sub">Sale #{deal.id}</small></td><td><StateBadge state={deal.state} /></td><td><strong>{money(deal.vendorCommissionKobo)}</strong></td>
+      <td>{money(deal.repCommissionKobo)} / {money(deal.platformFeeKobo)}</td><td>{EVENT_LABEL[deal.triggerEvent] || deal.triggerEvent.replaceAll("_", " ")}</td><td>{shortDate(deal.createdAt)}</td>
+    </tr>)}</tbody></table>{deals.length > PAGE && <ShowAll shown={showAll} total={deals.length} onToggle={() => setShowAll(!showAll)} />}</div>
+      : <EmptyState title="No sales yet" detail="Sales show here once a campus rep's sale is approved, or your own system sends one in." />}
+  </Panel>;
+}
+
 const SALE_STATE: Record<string, { label: string; cls: string }> = {
   waiting: { label: "KampusForce is checking", cls: "waiting" },
   verified: { label: "Verified", cls: "ok" },
@@ -24,6 +45,7 @@ export function VendorRecordedSales() {
   const [open, setOpen] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [notice, setNotice] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const dispute = trpc.vendor.disputeVerifiedSale.useMutation({ onSuccess: () => { setOpen(null); setReason(""); setNotice("Disputed. The commission is on hold while KampusForce reviews it. If they agree, it goes back to your wallet."); utils.vendor.recordedSales.invalidate(); utils.vendor.overview.invalidate(); } });
   if (list.isLoading) return <Loading />;
   if (list.error) return <ErrorState message={list.error.message} retry={list.refetch} />;
@@ -33,14 +55,10 @@ export function VendorRecordedSales() {
     <p className="panel-note">Campus reps record each sale with proof. It shows here straight away. KampusForce checks the proof; once it's approved, the commission comes out of your wallet and the rep is paid. If a sale didn't happen or was refunded, dispute it before its refund period ends.</p>
     {notice && <p className="success-message" role="status"><CheckCircle2 size={16} />{notice}</p>}
     {dispute.error && <p className="form-error" role="alert">{dispute.error.message}</p>}
-    {rows.length ? <div className="table-wrap"><table><thead><tr><th>Recorded</th><th>Product</th><th>Sale</th><th>Rep</th><th>Customer</th><th>Status</th><th>Commission</th><th></th></tr></thead><tbody>{rows.map((row) => {
+    {rows.length ? <div className="table-wrap"><table><thead><tr><th>Product</th><th>Status</th><th>Commission</th><th></th><th>Sale</th><th>Rep</th><th>Customer</th><th>Recorded</th></tr></thead><tbody>{rows.slice(0, showAll ? rows.length : PAGE).map((row) => {
       const { sale, productName, repCode, dealState, split, refundUntil, canDispute } = row;
       return <tr key={sale.id}>
-        <td>{shortDate(sale.createdAt)}</td>
         <td><strong>{productName}</strong></td>
-        <td>{sale.amountKobo ? <>{sale.quantity} × {money(sale.unitPriceKobo || 0)}<small className="table-sub">{money(sale.amountKobo)}</small></> : "—"}</td>
-        <td className="mono">{repCode}</td>
-        <td className="mono">•••• {sale.customerPhoneLast4}</td>
         <td><span className={`new-rep-badge ${SALE_STATE[sale.state]?.cls || "waiting"}`}>{SALE_STATE[sale.state]?.label || sale.state}</span>
           {sale.state === "verified" && <small className="table-sub">{sale.verifiedBy === "vendor" ? "You reported it" : "Approved by KampusForce"}{dealState && dealState !== "payable" ? ` · ${dealState === "disputed" ? "disputed" : dealState.replaceAll("_", " ")}` : ""}</small>}
           {sale.state === "rejected" && sale.reviewReason && <small className="table-sub">{sale.reviewReason}</small>}</td>
@@ -51,8 +69,12 @@ export function VendorRecordedSales() {
             <div className="decision-actions"><button type="button" className="button secondary small" onClick={() => setOpen(null)}><X size={13} />Cancel</button><button className="button primary small" disabled={reason.trim().length < 10 || dispute.isPending}>Send dispute</button></div>
           </form>
           : <><button className="button secondary small" onClick={() => { setOpen(sale.id); setReason(""); }}>Dispute</button>{refundUntil && <small className="table-sub">until {shortDate(refundUntil)}</small>}</>)}</td>
+        <td>{sale.amountKobo ? <>{sale.quantity} × {money(sale.unitPriceKobo || 0)}<small className="table-sub">{money(sale.amountKobo)}</small></> : "—"}</td>
+        <td className="mono">{repCode}</td>
+        <td className="mono">•••• {sale.customerPhoneLast4}</td>
+        <td>{shortDate(sale.createdAt)}</td>
       </tr>;
-    })}</tbody></table></div> : <EmptyState title="No sales recorded yet" detail="When a campus rep records a sale of one of your products, it shows here." />}
+    })}</tbody></table>{rows.length > PAGE && <ShowAll shown={showAll} total={rows.length} onToggle={() => setShowAll(!showAll)} />}</div> : <EmptyState title="No sales recorded yet" detail="When a campus rep records a sale of one of your products, it shows here." />}
   </Panel>;
 }
 

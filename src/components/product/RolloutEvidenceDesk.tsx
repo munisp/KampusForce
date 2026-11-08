@@ -70,7 +70,7 @@ export function RolloutEvidenceDesk() {
   const data = readiness.data!;
   const formatValue = (value: number | null, unit: string) => value === null ? "—" : unit === "percent" ? `${value.toLocaleString("en-NG")}%` : unit === "naira" ? `₦${value.toLocaleString("en-NG")}` : unit === "kobo" ? `₦${(value / 100).toLocaleString("en-NG")}` : unit === "months" ? `${value} months` : value.toLocaleString("en-NG");
   return <>
-    <div className="trust-strip"><ClipboardCheck size={18} /><span><strong>Proof from real launches.</strong> System snapshots are operational context only. Only the latest external submission with a real-world attestation and independent approval can satisfy a metric; this desk never marks a campus live or certifies a national launch.</span></div>
+    <div className="trust-strip"><ClipboardCheck size={18} /><span><strong>Proof from real launches.</strong> Figures this app records are for context only. A target is met only by the latest real-world figure, approved by a second person. This page never marks a campus as live on its own.</span></div>
     <div className="metrics-grid">
       <Metric label="Campus months" value={data.summary.campusCohorts} note={`${data.summary.campusEvidenceComplete} evidence-complete`} />
       <Metric label="Quarters" value={data.summary.phaseQuarters} note={`${data.summary.phaseEvidenceComplete} evidence-complete`} tone="teal" />
@@ -120,7 +120,7 @@ export function RolloutEvidenceDesk() {
         <label>Where the proof is<input value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} placeholder="Signed report or bank statement reference" /></label>
         <label>What it covers, and any limits<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Who it covers, how it was collected, who owns it, and any limits" /></label>
         <label className="checkbox-label"><input type="checkbox" checked={realWorldAttested} onChange={(event) => setRealWorldAttested(event.target.checked)} />This is real-world proof, not test data.</label>
-        <p className="panel-note">A new external submission supersedes earlier submissions for that metric and remains pending until another authorized user reviews it. Do not paste credentials, raw NIN/BVN, bank-account numbers or evidence files.</p>
+        <p className="panel-note">A new figure replaces the earlier one for that measure and waits until someone else in Operations approves it. Don't paste passwords, NIN/BVN, bank account numbers or files here.</p>
         <button className="button primary" disabled={submit.isPending || !selectedMetric || metricValue === "" || !realWorldAttested || evidenceReference.trim().length < 3 || note.trim().length < 10} onClick={() => submit.mutate({ token, subjectType, subjectId: selected.id, metricKey: selectedMetric, metricValue: Number(metricValue), periodStartDate: selectedPeriodStart, periodEndDate: selectedPeriodEnd, evidenceReference: evidenceReference.trim(), note: note.trim(), realWorldAttested: true })}><FileCheck2 size={15} />Send for review</button>
       </div>
     </Panel>}

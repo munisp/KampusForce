@@ -6,8 +6,8 @@ import { integrationConfiguration, requireProviderModeLive } from "./integration
 const catalog = [
   ["legal.vendor_commission_agreement", "legal", "Vendor commission agreement", "The signed template covers when commission is earned, time limits, wallets and ending the deal.", "Executed agreement and legal review reference."],
   ["legal.rep_contractor_agreement", "legal", "Rep contractor agreement", "Commission-only, non-exclusive contractor terms and dispute rights are approved.", "Approved template and in-app version reference."],
-  ["legal.campus_endorsements_five", "legal", "Five campus endorsements", "Five campuses' Student Affairs offices have signed their support.", "Five signed letter references; no document contents in this console."],
-  ["legal.ndpc_registration", "legal", "NDPC registration filed", "Registration has been filed by the responsible legal owner.", "External filing receipt and owner attestation."],
+  ["legal.campus_endorsements_five", "legal", "Five campus endorsements", "Five campuses' administrations have signed their support.", "Five signed letter references; no document contents in this console."],
+  ["legal.ndpc_registration", "legal", "NDPC registration filed", "Registration has been filed by the responsible legal owner.", "The filing receipt, confirmed by the legal owner."],
   ["legal.processor_dpas", "legal", "Supplier data agreements signed", "Data processing agreements are signed with our payment, cloud and messaging suppliers.", "A reference for each signed agreement."],
   ["finance.escrow_accounts_live", "finance", "Vendor wallets funded with real money", "Vendor wallets hold real money, and KampusForce doesn't cover for any vendor.", "Provider/account evidence reviewed by Finance."],
   ["finance.payout_runbook", "finance", "Payout runbook approved", "Someone is assigned to run daily payouts, holds, retries and recovery.", "Approved runbook and on-call ownership reference."],
@@ -27,7 +27,7 @@ const catalog = [
   ["product.catalog_pricing_verified", "product", "Catalog pricing verified", "Prices and commission match what vendors approved.", "Vendor sign-off references."],
   ["product.kpi_instrumentation", "product", "Launch numbers tracked", "We can measure the launch numbers with real data.", "Dashboard details and a data-quality review."],
   ["product.pilot_campus_dry_run", "product", "Pilot campus trial accepted", "A pilot campus finished a supervised trial.", "Campus Operations and Product acceptance reference."],
-  ["product.production_cutover_authorization", "product", "Go-live approved", "Named owners approved going live, after everything else was done.", "External signed authorization; this console only records the attestation."],
+  ["product.production_cutover_authorization", "product", "Go-live approved", "Named owners approved going live, after everything else was done.", "A signed approval kept outside KampusForce; this page only records that it exists."],
   ["engineering.local_load_evidence", "engineering", "Optional load test", "Extra load test results for engineers. This doesn't count towards launch.", "Local report identifier and measurement boundary."],
 ] as const;
 

@@ -199,6 +199,10 @@ export const vendorRouter = createRouter({
       throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Invalid commission rule" });
     }
     return getDb().transaction(async (tx) => {
+      // One product per name for a vendor; the lock makes a double-click or two tabs wait for each other.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`vendor-product:${vendor.id}`}))`);
+      const [sameName] = await tx.select({ id: products.id }).from(products).where(and(eq(products.vendorId, vendor.id), sql`lower(${products.name}) = lower(${input.name})`)).limit(1);
+      if (sameName) throw new TRPCError({ code: "CONFLICT", message: `You already have a product called "${input.name}". Edit that one, or use a different name.` });
       const [product] = await tx.insert(products).values({
         vendorId: vendor.id, vendorRef: `v${vendor.id}-${crypto.randomUUID().slice(0, 8)}`, name: input.name, category: input.category, description: input.description,
         priceKobo: input.priceKobo, landingUrl: input.landingUrl || "", pitchScript: input.description, status: "active",
@@ -313,6 +317,8 @@ export const vendorRouter = createRouter({
   }),
   simulateEvent: authedQuery.input(z.object({ productRef: z.string(), type: z.enum(["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund", "sale"]), customerPhone: z.string(), amountKobo: z.number().int().positive().optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["vendor"]);
+    // A practice sale is for trying the platform in test mode; on a live platform sales come from the vendor's system or reps.
+    if (integrationConfiguration().requestedMode === "live") throw new TRPCError({ code: "FORBIDDEN", message: "Test sales are only available in test mode." });
     const vendor = await currentVendor(ctx.user.id);
     return ingestWithDurableRetry(vendor.webhookKey, { event_id: crypto.randomUUID(), type: input.type, occurred_at: new Date().toISOString(), customer: { phone: input.customerPhone, customer_ref: `sandbox-${input.customerPhone}` }, product_ref: input.productRef, amount_kobo: input.amountKobo, meta: { channel: "vendor_portal_sandbox" } });
   }),

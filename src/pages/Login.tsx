@@ -15,7 +15,7 @@ const roles = [
   { role: "finance" as const, title: "Finance", detail: "Complete onboarding and review financial-core readiness.", icon: Landmark, path: "/ops" },
 ];
 
-const workspacePath = (role: string) => role === "rep" ? "/rep" : role === "vendor" ? "/vendor" : "/ops";
+import { workspacePath } from "@/lib/roles";
 
 export default function Login() {
   const navigate = useNavigate();

@@ -146,7 +146,7 @@ export function SalesToVerify({ onDecided }: { onDecided?: (message: string) => 
           {split && <div><dt>Commission</dt><dd>{money(split.vendorCommissionKobo)} from the vendor: rep gets {money(split.repCommissionKobo)}, KampusForce {money(split.platformFeeKobo)}</dd></div>}
           <div><dt>Vendor's wallet</dt><dd>{money(vendorWalletKobo)}</dd></div>
           {isProductSale && stockQuantity !== null && <div><dt>In stock</dt><dd>{stockQuantity}</dd></div>}
-          {sale.note && <div><dt>Rep's note</dt><dd>{sale.note}</dd></div>}</dl>
+          {sale.note && <div><dt>Rep's note</dt><dd className="user-text">{sale.note}</dd></div>}</dl>
         {walletShort && <p className="form-error" role="status"><AlertTriangle size={14} /> The vendor's wallet can't cover this commission yet. Approving will ask them to add funds; the sale stays waiting.</p>}
         {stockShort && <p className="form-error" role="status"><AlertTriangle size={14} /> The vendor has only {stockQuantity} in stock. Ask them to update their stock, or reject the sale.</p>}
         <DocumentPreview documentId={sale.proofDocumentId} label={`proof for the ${productName} sale`} />

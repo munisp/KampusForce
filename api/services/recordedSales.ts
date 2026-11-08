@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { auditLogs, commissionRules, deals, escrowTopups, escrowWallets, identityDocuments, ledgerEntries, products, recordedSales, reps, users, vendorEvents, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
@@ -77,30 +77,37 @@ export async function recordSale(input: { userId: number; productId: number; cus
   const link = await ensureAttribution({ repId: rep.id, productId: product.id, customerPhone: phone, source: "claim", actorUserId: input.userId })
     .catch(() => { throw new TRPCError({ code: "BAD_REQUEST", message: "Check the customer's phone number and try again." }); });
   if (link.attribution.repId !== rep.id) throw new TRPCError({ code: "CONFLICT", message: "Another rep already has this customer. The first rep to link a customer gets their sales." });
-  if (isProductSale) {
-    // A customer can buy again, but the same sale can't be waiting twice.
-    const [waiting] = await db.select({ id: recordedSales.id }).from(recordedSales)
-      .where(and(eq(recordedSales.productId, product.id), eq(recordedSales.customerPhoneHash, link.phoneHash), eq(recordedSales.repId, rep.id), eq(recordedSales.state, "waiting"))).limit(1);
-    if (waiting) throw new TRPCError({ code: "CONFLICT", message: "You've already recorded a sale of this product to this customer that's waiting for verification." });
-  } else {
-    const [existing] = await db.select({ id: recordedSales.id, state: recordedSales.state }).from(recordedSales)
-      .where(and(eq(recordedSales.vendorId, product.vendorId), eq(recordedSales.customerPhoneHash, link.phoneHash), eq(recordedSales.repId, rep.id))).orderBy(desc(recordedSales.id)).limit(1);
-    if (existing && existing.state !== "rejected") throw new TRPCError({ code: "CONFLICT", message: existing.state === "waiting" ? "You've already recorded this customer. It's waiting for verification." : "This sale is already verified. It's in your Earnings." });
-  }
-
-  // The same receipt can't back two sales.
   const proofHash = createHash("sha256").update(Buffer.from(input.proofBase64, "base64")).digest("hex");
-  const [reused] = await db.select({ id: recordedSales.id }).from(recordedSales).innerJoin(identityDocuments, eq(identityDocuments.id, recordedSales.proofDocumentId))
-    .where(and(eq(identityDocuments.sha256, proofHash), inArray(recordedSales.state, ["waiting", "verified"]))).limit(1);
-  if (reused) throw new TRPCError({ code: "CONFLICT", message: "This proof was already used for another sale. Upload the proof for this sale." });
+  // The checks and the insert run under two locks (this rep and customer, and this receipt), so a double-click or two
+  // tabs can't both pass the checks before either sale is saved.
+  const sale = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`recorded-sale:${rep.id}:${link.phoneHash}`}))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`sale-proof:${proofHash}`}))`);
+    if (isProductSale) {
+      // A customer can buy again, but the same sale can't be waiting twice.
+      const [waiting] = await tx.select({ id: recordedSales.id }).from(recordedSales)
+        .where(and(eq(recordedSales.productId, product.id), eq(recordedSales.customerPhoneHash, link.phoneHash), eq(recordedSales.repId, rep.id), eq(recordedSales.state, "waiting"))).limit(1);
+      if (waiting) throw new TRPCError({ code: "CONFLICT", message: "You've already recorded a sale of this product to this customer that's waiting for verification." });
+    } else {
+      const [existing] = await tx.select({ id: recordedSales.id, state: recordedSales.state }).from(recordedSales)
+        .where(and(eq(recordedSales.vendorId, product.vendorId), eq(recordedSales.customerPhoneHash, link.phoneHash), eq(recordedSales.repId, rep.id))).orderBy(desc(recordedSales.id)).limit(1);
+      if (existing && existing.state !== "rejected") throw new TRPCError({ code: "CONFLICT", message: existing.state === "waiting" ? "You've already recorded this customer. It's waiting for verification." : "This sale is already verified. It's in your Earnings." });
+    }
 
-  const proof = await storeSaleProof({ actorUserId: input.userId, contentBase64: input.proofBase64 });
-  const [sale] = await db.insert(recordedSales).values({
-    repId: rep.id, productId: product.id, vendorId: product.vendorId,
-    customerPhoneHash: link.phoneHash, customerPhoneLast4: phone.slice(-4),
-    proofDocumentId: proof.id, note: input.note?.trim() || null,
-    quantity, unitPriceKobo, amountKobo,
-  }).returning();
+    // The same receipt can't back two sales.
+    const [reused] = await tx.select({ id: recordedSales.id }).from(recordedSales).innerJoin(identityDocuments, eq(identityDocuments.id, recordedSales.proofDocumentId))
+      .where(and(eq(identityDocuments.sha256, proofHash), inArray(recordedSales.state, ["waiting", "verified"]))).limit(1);
+    if (reused) throw new TRPCError({ code: "CONFLICT", message: "This proof was already used for another sale. Upload the proof for this sale." });
+
+    const proof = await storeSaleProof({ actorUserId: input.userId, contentBase64: input.proofBase64 });
+    const [created] = await tx.insert(recordedSales).values({
+      repId: rep.id, productId: product.id, vendorId: product.vendorId,
+      customerPhoneHash: link.phoneHash, customerPhoneLast4: phone.slice(-4),
+      proofDocumentId: proof.id, note: input.note?.trim() || null,
+      quantity, unitPriceKobo, amountKobo,
+    }).returning();
+    return created;
+  });
   await db.insert(auditLogs).values({ actorUserId: input.userId, action: "recorded_sale.created", entityType: "recorded_sale", entityId: String(sale.id), metadataJson: { productId: product.id, vendorId: product.vendorId, quantity, amountKobo } });
   if (row.vendorUserId) {
     await notifyUser({ userId: row.vendorUserId, type: "recorded_sale_created", title: "A campus rep recorded a sale", body: `${isProductSale ? `${quantity} × ${product.name} (${naira(amountKobo || 0)})` : product.name}. KampusForce is checking the proof. You'll see it on your dashboard.`, href: "/vendor", entityType: "recorded_sale", entityId: sale.id });

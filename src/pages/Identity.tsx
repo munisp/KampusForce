@@ -10,6 +10,17 @@ import { DocumentPreview, DocumentUploads } from "@/components/product/IdentityD
 import { idTypeLabel } from "@/lib/files";
 import { EnrolmentProofs, RepsToActivate, useNewRepCounts } from "@/components/product/NewRepsDesk";
 
+// What has to be in place before ID checks can run automatically, in plain words.
+const READINESS: Record<string, [string, string]> = {
+  document_processor: ["Automatic document reading", "A service that reads ID documents is connected."],
+  liveness_provider: ["Live selfie check", "A service that checks the selfie is of a real, present person."],
+  deepfake_provider: ["Fake photo detection", "A service that spots edited or computer-made photos."],
+  provider_evaluation: ["Services tested and approved", "Security has approved how well these services work."],
+  privacy_tokenization: ["Private ID references", "ID numbers are kept as scrambled references, not the real numbers."],
+  legal_security_approval: ["Legal and security sign-off", "Privacy notices, how long records are kept, and contracts are approved."],
+  live_execution: ["Switched on", "Someone in charge has approved running real ID checks."],
+};
+
 const caseLabels: Record<string, string> = { representative_kyc: "Campus rep ID check", campus_lead_kyc: "Campus lead ID check", vendor_kyb: "Business check", operations_kyc: "Staff ID check", customer_handoff: "Customer handoff" };
 const evidenceLabels: Record<string, string> = { document_ocr: "Reading your ID document", document_structure: "Checking the document's layout", vlm_extraction: "Cross-checking the document's details", capture_integrity: "Checking the photo is genuine", liveness: "Confirming you're a live person", deepfake: "Checking for fake images", face_match: "Matching your face to your ID", bank_name_match: "Matching your bank account name", registry_kyb: "Checking the business registry", reviewer_attestation: "Staff declaration", manual_document_check: "The document is genuine, in date, and has the right name", manual_face_check: "The selfie shows the same person as the ID", manual_business_check: "The CAC certificate matches the business name and number" };
 const nextStep: Record<string, string> = { draft: "Follow the three steps below.", submitted: "Operations has your request. You don't need to do anything for now.", processing: "Your checks are running. You don't need to do anything for now.", manual_review: "Operations is checking your documents. You'll get a notification when they decide.", needs_more_info: "Operations needs more from you. Read their note, upload what they asked for, then submit again.", approved: "You're approved.", rejected: "This check wasn't approved. Read the note above, or contact Operations.", revoked: "This check has stopped.", expired: "This check has expired. Start a new one to continue." };
@@ -124,8 +135,7 @@ export default function Identity() {
           <div className="identity-case-summary"><div><span>Policy</span><strong>{selected.policyVersion}</strong></div><div><span>Mode</span><strong>{selected.providerMode === "sandbox" ? "test" : selected.providerMode}</strong></div><div><span>Reviewed by</span><strong>{selected.reviewMethod === "manual" ? "a person" : "test data"}</strong></div></div>
           {selectedEvidence.length ? <div className="table-wrap"><table><thead><tr><th>Check</th><th>Service</th><th>Score</th><th>State</th></tr></thead><tbody>{selectedEvidence.map((item) => <tr key={item.id}><td><strong>{evidenceLabels[item.kind] || item.kind.replaceAll("_", " ")}</strong></td><td>{item.provider}<small className="table-subtitle">{item.modelVersion || "version unavailable"}</small></td><td>{item.score === null ? "—" : Number(item.score).toFixed(3)}</td><td><StateBadge state={item.state} /></td></tr>)}</tbody></table></div> : <EmptyState title="No results yet" detail="Results will appear here after the checks run." />}
         </Panel>}
-        <Panel title="What's needed before real ID checks" action={<ShieldCheck size={18} />}><div className="readiness-checks">{data.readiness.checks.map((check) => <div key={check.key}><span>{check.ready ? <Check size={14} /> : <KeyRound size={14} />}</span><p><strong>{check.key.replaceAll("_", " ")}</strong><small>{check.detail}</small></p><StateBadge state={check.ready ? "verified" : "blocked"} /></div>)}</div></Panel>
-        <Panel title="What starts a check" action={<Workflow size={18} />}><div className="identity-trigger-list">{data.triggers.map((trigger) => <div key={`${trigger.event}-${trigger.caseType}`}><strong>{trigger.event}</strong><span>{trigger.action.replaceAll("_", " ")}</span><small>{trigger.downstream.replaceAll("_", " ")}</small></div>)}</div></Panel>
+        <Panel title="What's needed before real ID checks" action={<ShieldCheck size={18} />}><div className="readiness-checks">{data.readiness.checks.map((check) => <div key={check.key}><span>{check.ready ? <Check size={14} /> : <KeyRound size={14} />}</span><p><strong>{READINESS[check.key]?.[0] || check.key.replaceAll("_", " ")}</strong><small>{READINESS[check.key]?.[1] || check.detail}</small></p><StateBadge state={check.ready ? "verified" : "blocked"} /></div>)}</div></Panel>
       </div>
     </details>
   </WorkspaceLayout>;
