@@ -1,7 +1,9 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   bigserial,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -1071,7 +1073,10 @@ export const trainingModules = pgTable("training_modules", {
   sortOrder: integer("sort_order").notNull().default(0),
   quizJson: json("quiz_json").$type<Array<{ question: string; options: string[]; answerIndex: number }>>().notNull(),
   active: boolean("active").notNull().default(true),
+  // true: every rep gets it. false: only reps it's assigned to through a product or a campaign.
+  forEveryone: boolean("for_everyone").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const trainingProgress = pgTable("training_progress", {
@@ -1117,6 +1122,24 @@ export const campaigns = pgTable("campaigns", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("campaign_state_schedule_idx").on(t.state, t.startsAt, t.endsAt), index("campaign_audience_idx").on(t.campusId, t.productId, t.goal)]);
+
+// Which lessons belong to a product or a campaign. A lesson with no rows here is general and every rep gets it.
+// A required product lesson must be passed before a rep can share or record a sale for that product.
+export const trainingAssignments = pgTable("training_assignments", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id),
+  productId: integer("product_id").references(() => products.id),
+  campaignId: integer("campaign_id").references(() => campaigns.id),
+  required: boolean("required").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("training_assignment_product_unique").on(t.moduleId, t.productId),
+  uniqueIndex("training_assignment_campaign_unique").on(t.moduleId, t.campaignId),
+  index("training_assignment_product_idx").on(t.productId),
+  index("training_assignment_campaign_idx").on(t.campaignId),
+  check("training_assignment_one_target", sql`(${t.productId} is null) <> (${t.campaignId} is null)`),
+]);
 
 export const campaignEnrollments = pgTable("campaign_enrollments", {
   id: serial("id").primaryKey(),

@@ -9,6 +9,7 @@ import { splitCommission } from "./money";
 import { notifyUser } from "./notifications";
 import { hashCustomerRef, normalizePhone } from "./security";
 import { openDealDispute } from "./ledger";
+import { assertProductTrainingPassed } from "./training";
 
 // A rep records a sale they made, with proof. It shows as waiting for verification straight away, and is verified when
 // the vendor reports that customer or approved by Operations. Either way the sale goes through the normal sale process
@@ -35,6 +36,7 @@ export async function recordSale(input: { userId: number; productId: number; cus
   if (!rep || rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations needs to activate you before you can record sales." });
   const [product] = await db.select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
   if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Choose a product from the list." });
+  await assertProductTrainingPassed(input.userId, product.id);
   let phone: string;
   try { phone = normalizePhone(input.customerPhone); } catch { throw new TRPCError({ code: "BAD_REQUEST", message: "Check the customer's phone number and try again." }); }
 
@@ -97,7 +99,7 @@ export async function rejectRecordedSale(input: { id: number; reviewerUserId: nu
   await db.insert(auditLogs).values({ actorUserId: input.reviewerUserId, action: "recorded_sale.rejected", entityType: "recorded_sale", entityId: String(sale.id), metadataJson: {} });
   const [rep] = await db.select({ userId: reps.userId }).from(reps).where(eq(reps.id, sale.repId)).limit(1);
   const [product] = await db.select({ name: products.name }).from(products).where(eq(products.id, sale.productId)).limit(1);
-  if (rep) await notifyUser({ userId: rep.userId, type: "recorded_sale_rejected", title: "A sale you recorded wasn't verified", body: `Operations couldn't verify the ${product?.name || "product"} sale: ${input.reason}`, href: "/rep/claim", entityType: "recorded_sale", entityId: sale.id });
+  if (rep) await notifyUser({ userId: rep.userId, type: "recorded_sale_rejected", title: "A sale you recorded wasn't verified", body: `Operations couldn't verify the ${product?.name || "product"} sale: ${input.reason}`, href: "/rep/record", entityType: "recorded_sale", entityId: sale.id });
   return { id: sale.id, state: "rejected" as const };
 }
 

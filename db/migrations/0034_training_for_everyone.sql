@@ -1,0 +1,1 @@
+ALTER TABLE "training_modules" ADD COLUMN "for_everyone" boolean DEFAULT true NOT NULL;
