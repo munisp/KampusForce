@@ -29,11 +29,14 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
+      // A dropped connection reaches every screen as the browser's "Failed to fetch"; say what happened instead.
+      async fetch(input, init) {
+        try {
+          return await globalThis.fetch(input, { ...(init ?? {}), credentials: "include" });
+        } catch (error) {
+          if ((error as Error)?.name === "AbortError") throw error;
+          throw new TypeError("Couldn't reach KampusForce. Check your internet connection and try again.");
+        }
       },
     }),
   ],
