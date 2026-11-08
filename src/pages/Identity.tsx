@@ -8,6 +8,7 @@ import { useWorkspace } from "@/providers/workspace";
 import { EnrollmentPanel } from "@/components/product/EnrollmentPanel";
 import { DocumentPreview, DocumentUploads } from "@/components/product/IdentityDocuments";
 import { idTypeLabel } from "@/lib/files";
+import { EnrolmentProofs, RepsToActivate, useNewRepCounts } from "@/components/product/NewRepsDesk";
 
 const caseLabels: Record<string, string> = { representative_kyc: "Campus rep ID check", campus_lead_kyc: "Campus lead ID check", vendor_kyb: "Business check", operations_kyc: "Staff ID check", customer_handoff: "Customer handoff" };
 const evidenceLabels: Record<string, string> = { document_ocr: "Reading your ID document", document_structure: "Checking the document's layout", vlm_extraction: "Cross-checking the document's details", capture_integrity: "Checking the photo is genuine", liveness: "Confirming you're a live person", deepfake: "Checking for fake images", face_match: "Matching your face to your ID", bank_name_match: "Matching your bank account name", registry_kyb: "Checking the business registry", reviewer_attestation: "Staff declaration", manual_document_check: "The document is genuine, in date, and has the right name", manual_face_check: "The selfie shows the same person as the ID", manual_business_check: "The CAC certificate matches the business name and number" };
@@ -22,7 +23,12 @@ export default function Identity() {
   const utils = trpc.useUtils();
   const overview = trpc.identity.overview.useQuery({ token });
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [queue, setQueue] = useState<"review" | "waiting" | "decided">("review");
+  type Queue = "review" | "enrolment" | "activate" | "waiting" | "decided";
+  const [queue, setQueue] = useState<Queue>(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return (["review", "enrolment", "activate", "waiting", "decided"] as const).includes(tab as Queue) ? tab as Queue : "review";
+  });
+  const newRepCounts = useNewRepCounts();
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
@@ -47,7 +53,7 @@ export default function Identity() {
     waiting: data.cases.filter((item) => stateQueue(item.state) === "waiting").sort((a, b) => time(b.updatedAt) - time(a.updatedAt)),
     decided: data.cases.filter((item) => stateQueue(item.state) === "decided").sort((a, b) => time(b.decidedAt || b.updatedAt) - time(a.decidedAt || a.updatedAt)),
   };
-  const queued = queueCases[queue];
+  const queued = queue === "review" || queue === "waiting" || queue === "decided" ? queueCases[queue] : [];
   const selected = data.cases.find((item) => item.id === selectedId) || (["ops", "admin", "finance"].includes(user.role) ? queued[0] : data.cases.find((item) => ["draft", "needs_more_info", "manual_review", "submitted", "processing"].includes(item.state)) || data.cases[0]) || null;
   const privileged = ["ops", "admin"].includes(user.role);
   const staff = privileged || user.role === "finance";
@@ -73,11 +79,14 @@ export default function Identity() {
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {actionError && <p className="form-error" role="alert">{actionError.message}</p>}
     <div className="workspace-tabs" role="tablist" aria-label="Check queues">
-      {([["review", "To review"], ["waiting", "Waiting on applicant"], ["decided", "Decided"]] as const).map(([key, label]) => <button key={key} className={queue === key ? "active" : ""} onClick={() => { setQueue(key); setSelectedId(null); setReason(""); setConfirmed([]); }}>{label} <span>{queueCases[key].length}</span></button>)}
+      {([["review", "ID checks to review", queueCases.review.length], ["enrolment", "Enrolment proofs", newRepCounts.enrolments], ["activate", "Ready to activate", newRepCounts.toActivate], ["waiting", "Waiting on applicant", queueCases.waiting.length], ["decided", "Decided", queueCases.decided.length]] as const).map(([key, label, count]) => <button key={key} className={queue === key ? "active" : ""} onClick={() => { setQueue(key); setSelectedId(null); setReason(""); setConfirmed([]); setNotice(""); window.history.replaceState(null, "", key === "review" ? "/identity" : `/identity?tab=${key}`); }}>{label} <span>{count}</span></button>)}
     </div>
-    <div className={`identity-layout${queueCases[queue].length ? "" : " identity-layout-empty"}`}>
+    {queue === "enrolment" && <EnrolmentProofs onDecided={(message) => setNotice(message)} />}
+    {queue === "activate" && <RepsToActivate onDecided={(message) => setNotice(message)} />}
+    {(queue === "review" || queue === "waiting" || queue === "decided") && <>
+    <div className={`identity-layout${queued.length ? "" : " identity-layout-empty"}`}>
       <div className="identity-queue">
-        {queueCases[queue].length ? <div className="identity-case-list">{queueCases[queue].map((item) => <button key={item.id} className={selected?.id === item.id ? "active" : ""} onClick={() => { setSelectedId(item.id); setReason(""); setConfirmed([]); }}><span><strong>{person(item)}</strong><small>{typeLabel(item.caseType)} · {item.caseRef}</small><small className={overdue(item) ? "identity-overdue" : ""}>{queueOf(item.state) === "review" && item.reviewDueAt ? `${overdue(item) ? "Overdue" : "Due"} ${shortDate(item.reviewDueAt)}` : ""}</small></span>{queue !== "review" && <StateBadge state={item.state} />}</button>)}</div> : <EmptyState title={queue === "review" ? "Nothing to review" : queue === "waiting" ? "Nobody to wait for" : "Nothing decided yet"} detail={queue === "review" ? "New checks appear here when someone submits their documents." : "Checks will appear here."} />}
+        {queued.length ? <div className="identity-case-list">{queued.map((item) => <button key={item.id} className={selected?.id === item.id ? "active" : ""} onClick={() => { setSelectedId(item.id); setReason(""); setConfirmed([]); }}><span><strong>{person(item)}</strong><small>{typeLabel(item.caseType)} · {item.caseRef}</small><small className={overdue(item) ? "identity-overdue" : ""}>{queueOf(item.state) === "review" && item.reviewDueAt ? `${overdue(item) ? "Overdue" : "Due"} ${shortDate(item.reviewDueAt)}` : ""}</small></span>{queue !== "review" && <StateBadge state={item.state} />}</button>)}</div> : <EmptyState title={queue === "review" ? "Nothing to review" : queue === "waiting" ? "Nobody to wait for" : "Nothing decided yet"} detail={queue === "review" ? "New checks appear here when someone submits their documents." : "Checks will appear here."} />}
       </div>
       <div className="identity-case">
         {selected ? <Panel title={person(selected)} action={<StateBadge state={selected.state} />}>
@@ -108,6 +117,7 @@ export default function Identity() {
         </Panel> : null}
       </div>
     </div>
+    </>}
     <details className="developer-details"><summary>Technical details</summary>
       <div className="architecture-analytics-grid identity-grid">
         {selected && <Panel title="Check results" action={<FileScan size={18} />}>

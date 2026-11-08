@@ -1339,3 +1339,32 @@ tbody tr:hover { background: rgb(244 241 232 / 55%); }
 .session-ended p { margin: 0; flex: 1; font-size: 14px; line-height: 1.45; }
 .session-ended button { border: 0; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .session-ended button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* ID checks: enrolment proofs and reps ready to activate */
+.new-rep-list { display: grid; gap: 12px; }
+.new-rep-card { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.new-rep-card.ready { border-left: 4px solid var(--teal); }
+.new-rep-card header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; }
+.new-rep-card header strong { display: block; color: var(--navy); }
+.new-rep-card header small { color: var(--muted); }
+.new-rep-card dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 0; }
+.new-rep-card dt { font-size: 12px; color: var(--muted); }
+.new-rep-card dd { margin: 2px 0 0; font-weight: 600; color: var(--ink); }
+.new-rep-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.new-rep-badge.waiting { background: var(--mustard-soft); color: var(--ink); }
+.new-rep-badge.ok { background: var(--teal-soft); color: var(--teal); }
+.new-rep-decision { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+.new-rep-decision label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.new-rep-decision small { color: var(--muted); font-size: 12px; }
+.new-rep-missing { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
+.new-rep-list.compact .new-rep-card { padding: 12px 14px; gap: 8px; }
+
+/* Operations: what's waiting, with direct links */
+.waiting-for-you { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 16px; margin-bottom: 18px; background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--mustard); border-radius: 10px; }
+.waiting-for-you > strong { color: var(--navy); }
+.waiting-for-you ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.waiting-for-you a, .waiting-for-you button { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--canvas); color: var(--ink); font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
+.waiting-for-you a:hover, .waiting-for-you button:hover { border-color: var(--teal); }
+.waiting-for-you a:focus-visible, .waiting-for-you button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.wfy-count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--navy); color: var(--paper); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wfy-clear { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
