@@ -10,7 +10,7 @@ export const IDENTITY_REVIEW_SLA_HOURS = 24;
 export const personCaseTypes = ["representative_kyc", "campus_lead_kyc", "operations_kyc"] as const;
 export type IdentityCaseType = IdentityCase["caseType"];
 export type IdentityEvidenceKind = "document_ocr" | "document_structure" | "vlm_extraction" | "registry_kyb" | "bank_name_match" | "liveness" | "deepfake" | "face_match" | "capture_integrity" | "reviewer_attestation" | "manual_document_check" | "manual_face_check" | "manual_business_check";
-export type IdentityDocumentKind = "government_id" | "selfie" | "business_certificate" | "owner_id" | "student_proof";
+export type IdentityDocumentKind = "government_id" | "selfie" | "business_certificate" | "owner_id" | "student_proof" | "sale_proof";
 
 const personEvidence: IdentityEvidenceKind[] = [
   "document_ocr",

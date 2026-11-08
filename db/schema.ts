@@ -255,6 +255,31 @@ export const vendorEvents = pgTable("vendor_events", {
   payloadPurgedAt: timestamp("payload_purged_at", { withTimezone: true }),
 }, (t) => [index("vendor_event_retention_idx").on(t.payloadRetainUntil, t.payloadPurgedAt), index("vendor_event_deal_idx").on(t.dealId), index("vendor_event_held_customer_idx").on(t.vendorId, t.customerPhoneHash, t.status)]);
 
+/**
+ * A sale a campus rep records themselves ("I onboarded this customer"), with proof. It shows to the rep straight away as
+ * waiting for verification. It is verified when the vendor reports that customer, or approved by Operations (which sends
+ * it through the normal sale process); Operations can also reject it. The vendor can dispute an Operations approval.
+ */
+export const recordedSales = pgTable("recorded_sales", {
+  id: serial("id").primaryKey(),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  customerPhoneHash: varchar("customer_phone_hash", { length: 64 }).notNull(),
+  customerPhoneLast4: varchar("customer_phone_last4", { length: 4 }).notNull(),
+  proofDocumentId: integer("proof_document_id").notNull(),
+  note: varchar("note", { length: 500 }),
+  // waiting | verified | rejected
+  state: varchar("state", { length: 16 }).notNull().default("waiting"),
+  // vendor | operations, once verified
+  verifiedBy: varchar("verified_by", { length: 16 }),
+  reviewerUserId: integer("reviewer_user_id"),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  dealId: integer("deal_id").references(() => deals.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+}, (t) => [index("recorded_sale_rep_idx").on(t.repId, t.createdAt), index("recorded_sale_customer_idx").on(t.vendorId, t.customerPhoneHash, t.state)]);
+
 export const vendorIngestionRetries = pgTable("vendor_ingestion_retries", {
   id: varchar("id", { length: 36 }).primaryKey(),
   dedupeKey: varchar("dedupe_key", { length: 160 }).notNull().unique(),

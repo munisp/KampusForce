@@ -69,6 +69,7 @@ import {
   reviewRolloutEvidence,
   submitExternalRolloutEvidence,
 } from "./services/rolloutReadiness";
+import { approveRecordedSale, rejectRecordedSale, salesToVerify } from "./services/recordedSales";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -319,6 +320,16 @@ export const opsRouter = createRouter({
     return result;
   }),
   // New reps waiting to be activated, with what each still needs, so Operations can activate from ID checks.
+  salesToVerify: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin", "finance"]);
+    return salesToVerify();
+  }),
+  verifySale: authedQuery.input(z.object({ id: z.number().int().positive(), approve: z.boolean(), reason: z.string().trim().min(5).max(500) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return input.approve
+      ? approveRecordedSale({ id: input.id, reviewerUserId: ctx.user.id, reason: input.reason })
+      : rejectRecordedSale({ id: input.id, reviewerUserId: ctx.user.id, reason: input.reason });
+  }),
   repsToActivate: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["ops", "admin", "finance"]);
     const rows = await getDb().select({ repId: reps.id, userId: users.id, code: reps.code, name: users.name, email: users.email, kycState: users.kycState, campusName: campuses.name, termsAcceptedAt: reps.contractorAgreementSignedAt, createdAt: reps.createdAt })
