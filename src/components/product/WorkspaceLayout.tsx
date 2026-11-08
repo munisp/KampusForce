@@ -1,4 +1,4 @@
-import { BarChart3, Bell, BookOpenCheck, CheckCheck, CircleDollarSign, ClipboardCheck, LayoutDashboard, LifeBuoy, LogOut, Network, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UserCheck, UsersRound, Workflow, X } from "lucide-react";
+import { Bell, CheckCheck, CircleDollarSign, HandCoins, ClipboardCheck, LayoutDashboard, LifeBuoy, LogOut, Network, PackageOpen, QrCode, Settings2, ShieldCheck, Store, UserCheck, UsersRound, Workflow, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -8,21 +8,23 @@ import { useWorkspace } from "@/providers/workspace";
 import { trpc } from "@/providers/trpc";
 
 const navByRole = {
+  // In the order a rep works: find a product, sell it, get paid. The phone menu shows the first five.
   rep: [
     { to: "/rep", label: "Overview", icon: LayoutDashboard },
-    { to: "/identity", label: "Verification", icon: ShieldCheck },
-    { to: "/sales", label: "Sales tools", icon: Workflow },
     { to: "/rep/catalog", label: "Products", icon: PackageOpen },
-    { to: "/rep/share", label: "Share a product", icon: QrCode },
-    { to: "/rep/support", label: "Support", icon: LifeBuoy },
-    { to: "/rep/team", label: "My team", icon: UsersRound },
+    { to: "/rep/record", label: "Record a sale", icon: HandCoins },
     { to: "/rep/earnings", label: "Earnings", icon: CircleDollarSign },
+    { to: "/rep/share", label: "Share a product", icon: QrCode },
     { to: "/rep/assist", label: "Help a customer", icon: ClipboardCheck },
+    { to: "/sales", label: "Sales tools", icon: Workflow },
+    { to: "/rep/team", label: "My team", icon: UsersRound },
+    { to: "/rep/support", label: "Support", icon: LifeBuoy },
+    { to: "/identity", label: "Verification", icon: ShieldCheck },
   ],
   vendor: [{ to: "/vendor", label: "Dashboard", icon: Store }, { to: "/identity", label: "Verification", icon: ShieldCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }],
-  ops: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
-  finance: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
-  admin: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Data & finance", icon: Network }],
+  ops: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Reports", icon: Network }],
+  finance: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Reports", icon: Network }],
+  admin: [{ to: "/ops", label: "Operations", icon: ShieldCheck }, { to: "/identity", label: "ID checks", icon: UserCheck }, { to: "/sales", label: "Sales tools", icon: Workflow }, { to: "/architecture", label: "Reports", icon: Network }],
 };
 
 type SystemStatus = { status?: string; mode?: string; paymentsTest?: boolean; checks?: { database?: string; worker?: string } };
@@ -60,7 +62,6 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
   const navigate = useNavigate();
   const logout = trpc.auth.logout.useMutation({ onSettled: () => { setSession(null); if (!endProviderSession()) navigate("/"); } });
   const nav = navByRole[user.role as keyof typeof navByRole] || navByRole.rep;
-  const staff = ["ops", "finance", "admin"].includes(user.role);
   const system = useSystemStatus();
   const modeLabel = system.live ? "Live" : system.testMode ? "Test mode" : "";
   const roleLabel = ({ rep: "Campus rep", vendor: "Vendor", ops: "Operations", finance: "Finance", admin: "Admin" } as Record<string, string>)[user.role] || user.role;
@@ -72,7 +73,6 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
         {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={18} />{label}</NavLink>)}
       </nav>
       <div className="sidebar-bottom">
-        {staff && <NavLink to="/implementation"><BarChart3 size={18} />Build progress</NavLink>}
         <button onClick={() => logout.mutate({ token })}><LogOut size={18} />Sign out</button>
       </div>
     </aside>
@@ -85,7 +85,6 @@ export function WorkspaceLayout({ children, title, subtitle }: { children: React
     </main>
     <nav className="mobile-nav" aria-label="Mobile workspace navigation">
       {nav.slice(0, 5).map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === "/rep"}><Icon size={20} /><span>{label.split(" ")[0]}</span></NavLink>)}
-      {staff && <NavLink to="/implementation"><BookOpenCheck size={20} /><span>Progress</span></NavLink>}
     </nav>
     <button className="mobile-logout" onClick={() => logout.mutate({ token })} aria-label="Sign out"><LogOut size={18} /></button>
   </div>;

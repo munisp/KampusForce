@@ -8,6 +8,18 @@ import { useWorkspace } from "@/providers/workspace";
 import { EnrollmentPanel } from "@/components/product/EnrollmentPanel";
 import { DocumentPreview, DocumentUploads } from "@/components/product/IdentityDocuments";
 import { idTypeLabel } from "@/lib/files";
+import { EnrolmentProofs, RepsToActivate, useNewRepCounts } from "@/components/product/NewRepsDesk";
+
+// What has to be in place before ID checks can run automatically, in plain words.
+const READINESS: Record<string, [string, string]> = {
+  document_processor: ["Automatic document reading", "A service that reads ID documents is connected."],
+  liveness_provider: ["Live selfie check", "A service that checks the selfie is of a real, present person."],
+  deepfake_provider: ["Fake photo detection", "A service that spots edited or computer-made photos."],
+  provider_evaluation: ["Services tested and approved", "Security has approved how well these services work."],
+  privacy_tokenization: ["Private ID references", "ID numbers are kept as scrambled references, not the real numbers."],
+  legal_security_approval: ["Legal and security sign-off", "Privacy notices, how long records are kept, and contracts are approved."],
+  live_execution: ["Switched on", "Someone in charge has approved running real ID checks."],
+};
 
 const caseLabels: Record<string, string> = { representative_kyc: "Campus rep ID check", campus_lead_kyc: "Campus lead ID check", vendor_kyb: "Business check", operations_kyc: "Staff ID check", customer_handoff: "Customer handoff" };
 const evidenceLabels: Record<string, string> = { document_ocr: "Reading your ID document", document_structure: "Checking the document's layout", vlm_extraction: "Cross-checking the document's details", capture_integrity: "Checking the photo is genuine", liveness: "Confirming you're a live person", deepfake: "Checking for fake images", face_match: "Matching your face to your ID", bank_name_match: "Matching your bank account name", registry_kyb: "Checking the business registry", reviewer_attestation: "Staff declaration", manual_document_check: "The document is genuine, in date, and has the right name", manual_face_check: "The selfie shows the same person as the ID", manual_business_check: "The CAC certificate matches the business name and number" };
@@ -22,7 +34,12 @@ export default function Identity() {
   const utils = trpc.useUtils();
   const overview = trpc.identity.overview.useQuery({ token });
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [queue, setQueue] = useState<"review" | "waiting" | "decided">("review");
+  type Queue = "review" | "enrolment" | "activate" | "waiting" | "decided";
+  const [queue, setQueue] = useState<Queue>(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return (["review", "enrolment", "activate", "waiting", "decided"] as const).includes(tab as Queue) ? tab as Queue : "review";
+  });
+  const newRepCounts = useNewRepCounts();
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
@@ -47,7 +64,7 @@ export default function Identity() {
     waiting: data.cases.filter((item) => stateQueue(item.state) === "waiting").sort((a, b) => time(b.updatedAt) - time(a.updatedAt)),
     decided: data.cases.filter((item) => stateQueue(item.state) === "decided").sort((a, b) => time(b.decidedAt || b.updatedAt) - time(a.decidedAt || a.updatedAt)),
   };
-  const queued = queueCases[queue];
+  const queued = queue === "review" || queue === "waiting" || queue === "decided" ? queueCases[queue] : [];
   const selected = data.cases.find((item) => item.id === selectedId) || (["ops", "admin", "finance"].includes(user.role) ? queued[0] : data.cases.find((item) => ["draft", "needs_more_info", "manual_review", "submitted", "processing"].includes(item.state)) || data.cases[0]) || null;
   const privileged = ["ops", "admin"].includes(user.role);
   const staff = privileged || user.role === "finance";
@@ -73,11 +90,14 @@ export default function Identity() {
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {actionError && <p className="form-error" role="alert">{actionError.message}</p>}
     <div className="workspace-tabs" role="tablist" aria-label="Check queues">
-      {([["review", "To review"], ["waiting", "Waiting on applicant"], ["decided", "Decided"]] as const).map(([key, label]) => <button key={key} className={queue === key ? "active" : ""} onClick={() => { setQueue(key); setSelectedId(null); setReason(""); setConfirmed([]); }}>{label} <span>{queueCases[key].length}</span></button>)}
+      {([["review", "ID checks to review", queueCases.review.length], ["enrolment", "Enrolment proofs", newRepCounts.enrolments], ["activate", "Ready to activate", newRepCounts.toActivate], ["waiting", "Waiting on applicant", queueCases.waiting.length], ["decided", "Decided", queueCases.decided.length]] as const).map(([key, label, count]) => <button key={key} className={queue === key ? "active" : ""} onClick={() => { setQueue(key); setSelectedId(null); setReason(""); setConfirmed([]); setNotice(""); window.history.replaceState(null, "", key === "review" ? "/identity" : `/identity?tab=${key}`); }}>{label} <span>{count}</span></button>)}
     </div>
-    <div className={`identity-layout${queueCases[queue].length ? "" : " identity-layout-empty"}`}>
+    {queue === "enrolment" && <EnrolmentProofs onDecided={(message) => setNotice(message)} />}
+    {queue === "activate" && <RepsToActivate onDecided={(message) => setNotice(message)} />}
+    {(queue === "review" || queue === "waiting" || queue === "decided") && <>
+    <div className={`identity-layout${queued.length ? "" : " identity-layout-empty"}`}>
       <div className="identity-queue">
-        {queueCases[queue].length ? <div className="identity-case-list">{queueCases[queue].map((item) => <button key={item.id} className={selected?.id === item.id ? "active" : ""} onClick={() => { setSelectedId(item.id); setReason(""); setConfirmed([]); }}><span><strong>{person(item)}</strong><small>{typeLabel(item.caseType)} · {item.caseRef}</small><small className={overdue(item) ? "identity-overdue" : ""}>{queueOf(item.state) === "review" && item.reviewDueAt ? `${overdue(item) ? "Overdue" : "Due"} ${shortDate(item.reviewDueAt)}` : ""}</small></span>{queue !== "review" && <StateBadge state={item.state} />}</button>)}</div> : <EmptyState title={queue === "review" ? "Nothing to review" : queue === "waiting" ? "Nobody to wait for" : "Nothing decided yet"} detail={queue === "review" ? "New checks appear here when someone submits their documents." : "Checks will appear here."} />}
+        {queued.length ? <div className="identity-case-list">{queued.map((item) => <button key={item.id} className={selected?.id === item.id ? "active" : ""} onClick={() => { setSelectedId(item.id); setReason(""); setConfirmed([]); }}><span><strong>{person(item)}</strong><small>{typeLabel(item.caseType)} · {item.caseRef}</small><small className={overdue(item) ? "identity-overdue" : ""}>{queueOf(item.state) === "review" && item.reviewDueAt ? `${overdue(item) ? "Overdue" : "Due"} ${shortDate(item.reviewDueAt)}` : ""}</small></span>{queue !== "review" && <StateBadge state={item.state} />}</button>)}</div> : <EmptyState title={queue === "review" ? "Nothing to review" : queue === "waiting" ? "Nobody to wait for" : "Nothing decided yet"} detail={queue === "review" ? "New checks appear here when someone submits their documents." : "Checks will appear here."} />}
       </div>
       <div className="identity-case">
         {selected ? <Panel title={person(selected)} action={<StateBadge state={selected.state} />}>
@@ -108,14 +128,14 @@ export default function Identity() {
         </Panel> : null}
       </div>
     </div>
+    </>}
     <details className="developer-details"><summary>Technical details</summary>
       <div className="architecture-analytics-grid identity-grid">
         {selected && <Panel title="Check results" action={<FileScan size={18} />}>
           <div className="identity-case-summary"><div><span>Policy</span><strong>{selected.policyVersion}</strong></div><div><span>Mode</span><strong>{selected.providerMode === "sandbox" ? "test" : selected.providerMode}</strong></div><div><span>Reviewed by</span><strong>{selected.reviewMethod === "manual" ? "a person" : "test data"}</strong></div></div>
           {selectedEvidence.length ? <div className="table-wrap"><table><thead><tr><th>Check</th><th>Service</th><th>Score</th><th>State</th></tr></thead><tbody>{selectedEvidence.map((item) => <tr key={item.id}><td><strong>{evidenceLabels[item.kind] || item.kind.replaceAll("_", " ")}</strong></td><td>{item.provider}<small className="table-subtitle">{item.modelVersion || "version unavailable"}</small></td><td>{item.score === null ? "—" : Number(item.score).toFixed(3)}</td><td><StateBadge state={item.state} /></td></tr>)}</tbody></table></div> : <EmptyState title="No results yet" detail="Results will appear here after the checks run." />}
         </Panel>}
-        <Panel title="What's needed before real ID checks" action={<ShieldCheck size={18} />}><div className="readiness-checks">{data.readiness.checks.map((check) => <div key={check.key}><span>{check.ready ? <Check size={14} /> : <KeyRound size={14} />}</span><p><strong>{check.key.replaceAll("_", " ")}</strong><small>{check.detail}</small></p><StateBadge state={check.ready ? "verified" : "blocked"} /></div>)}</div></Panel>
-        <Panel title="What starts a check" action={<Workflow size={18} />}><div className="identity-trigger-list">{data.triggers.map((trigger) => <div key={`${trigger.event}-${trigger.caseType}`}><strong>{trigger.event}</strong><span>{trigger.action.replaceAll("_", " ")}</span><small>{trigger.downstream.replaceAll("_", " ")}</small></div>)}</div></Panel>
+        <Panel title="What's needed before real ID checks" action={<ShieldCheck size={18} />}><div className="readiness-checks">{data.readiness.checks.map((check) => <div key={check.key}><span>{check.ready ? <Check size={14} /> : <KeyRound size={14} />}</span><p><strong>{READINESS[check.key]?.[0] || check.key.replaceAll("_", " ")}</strong><small>{READINESS[check.key]?.[1] || check.detail}</small></p><StateBadge state={check.ready ? "verified" : "blocked"} /></div>)}</div></Panel>
       </div>
     </details>
   </WorkspaceLayout>;

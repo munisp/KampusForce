@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import QRCode from "qrcode";
 import { z } from "zod";
+import { assertProductTrainingPassed, missingProductTraining } from "./services/training";
 import { TRPCError } from "@trpc/server";
 import {
   assistedSessions,
@@ -26,11 +27,13 @@ import { getDb } from "./queries/connection";
 import { createSupportTicket, escalateSupportTicket, isSlaBreached, rateSupportTicket, syncSlaBreaches, ticketEvents } from "./services/support";
 import { createInvitationToken, hashInvitationToken, revokeRecruitment } from "./services/recruiting";
 import { listRepFraudCases, requestFraudAppeal } from "./services/fraud";
-import { openDealDispute } from "./services/ledger";
+import { openDealDispute, repOutstandingKobo } from "./services/ledger";
+import { imagesForProducts, pickedProductIds, pickProduct } from "./services/productCatalog";
 import { configurePayoutDestination, lookUpBankAccount, payoutDestinationStatus } from "./services/payoutDestinations";
 import { listBanks } from "./services/bankAccounts";
 import { repOnboarding } from "./services/onboarding";
 import { pickUpHeldSales } from "./services/events";
+import { recordSale, repRecordedSales } from "./services/recordedSales";
 
 async function currentRep(userId: number) {
   const [rep] = await getDb().select().from(reps).where(eq(reps.userId, userId)).limit(1);
@@ -63,11 +66,22 @@ export const repRouter = createRouter({
     const [campus] = await getDb().select().from(campuses).where(eq(campuses.id, rep.campusId)).limit(1);
     return { user: ctx.user, rep, campus };
   }),
+  // Products on sale from approved vendors, with photos, stock and whether this rep picked them to sell.
   catalog: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep", "vendor", "ops"]);
-    return getDb().select({ product: products, rule: commissionRules, vendorName: vendors.companyName, vendorQualityScore: vendors.qualityScore }).from(products)
+    const rows = await getDb().select({ product: products, rule: commissionRules, vendorName: vendors.companyName, vendorQualityScore: vendors.qualityScore }).from(products)
       .innerJoin(vendors, eq(products.vendorId, vendors.id)).innerJoin(commissionRules, eq(commissionRules.productId, products.id))
-      .where(and(eq(products.status, "active"), isNull(commissionRules.supersededAt))).orderBy(desc(products.id));
+      .where(and(eq(products.status, "active"), eq(vendors.status, "active"), isNull(commissionRules.supersededAt))).orderBy(desc(products.id));
+    const photos = await imagesForProducts(rows.map((row) => row.product.id));
+    const rep = ctx.user.role === "rep" ? await getDb().select({ id: reps.id }).from(reps).where(eq(reps.userId, ctx.user.id)).limit(1) : [];
+    const picked = rep[0] ? await pickedProductIds(rep[0].id) : new Set<number>();
+    return rows.map((row) => ({ ...row, images: photos.get(row.product.id) || [], picked: picked.has(row.product.id), soldOut: row.rule.triggerEvent === "sale" && row.product.stockQuantity === 0 }));
+  }),
+  // "My products": a rep picks the products they want to sell, so their list stays short.
+  pickProduct: authedQuery.input(z.object({ productId: z.number().int().positive(), picked: z.boolean() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    const rep = await currentRep(ctx.user.id);
+    return pickProduct({ repId: rep.id, ...input });
   }),
   dashboard: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep"]);
@@ -77,6 +91,7 @@ export const repRouter = createRouter({
     const overrides = rep.tier === "campus_lead" ? await getDb().select().from(campusLeadOverrides).where(eq(campusLeadOverrides.leadRepId, rep.id)) : [];
     const corrections = await getDb().select().from(commissionCorrections).where(and(eq(commissionCorrections.repId, rep.id), eq(commissionCorrections.state, "accrued")));
     return {
+      walletKobo: await repOutstandingKobo(rep.id),
       metrics: {
         activations: rows.length,
         pendingKobo: rows.filter((r) => ["pending", "confirmed"].includes(r.deal.state)).reduce((s, r) => s + r.deal.repCommissionKobo, 0),
@@ -147,6 +162,8 @@ export const repRouter = createRouter({
     if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations needs to activate your account before you can share products" });
     const [product] = await getDb().select().from(products).where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
     if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Active product not found" });
+    if (!product.landingUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This product is sold in person, so there's no link to share. Record the sale when you make it." });
+    await assertProductTrainingPassed(ctx.user.id, product.id);
     let attributed = false;
     let pickedUp: Awaited<ReturnType<typeof pickUpHeldSales>> = [];
     if (input.customerPhone) {
@@ -163,10 +180,32 @@ export const repRouter = createRouter({
     const text = `I can help you activate ${product.name} at the vendor’s listed price. Use my KampusForce link: ${url}`;
     return { url, qr, text, whatsappUrl: `https://wa.me/?text=${encodeURIComponent(text)}`, attributed, pickedUpSales: pickedUp.filter((r) => r.status === "accepted").length };
   }),
+  // A rep records a sale they made, with proof; it waits for the vendor's report or Operations to verify it.
+  recordSale: authedQuery.input(z.object({
+    productId: z.number().int().positive(),
+    customerPhone: z.string().trim().min(7).max(20),
+    proofBase64: z.string().min(4).max(14 * 1024 * 1024),
+    note: z.string().trim().max(500).optional(),
+    quantity: z.number().int().min(1).max(100).optional(),
+  })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["rep"]);
+    return recordSale({ userId: ctx.user.id, ...input });
+  }),
+  // Required lessons the rep still has to pass, per product, so the app can say why a product is locked.
+  productTraining: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["rep"]);
+    return missingProductTraining(ctx.user.id);
+  }),
+  recordedSales: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["rep"]);
+    const rep = await currentRep(ctx.user.id);
+    return repRecordedSales(rep.id);
+  }),
   assistedStart: authedQuery.input(z.object({ productId: z.number().int().positive(), customerPhone: z.string() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["rep"]);
     const rep = await currentRep(ctx.user.id);
     if (rep.status !== "active") throw new TRPCError({ code: "FORBIDDEN", message: "Operations must activate your rep profile before assisted onboarding" });
+    await assertProductTrainingPassed(ctx.user.id, input.productId);
     const { attribution, created, phoneHash } = await ensureAttribution({ repId: rep.id, productId: input.productId, customerPhone: input.customerPhone, source: "assisted", actorUserId: ctx.user.id });
     if (created) await pickUpHeldSales({ vendorId: attribution.vendorId, customerPhoneHash: phoneHash, repId: rep.id });
     const [{ id }] = await getDb().insert(assistedSessions).values({ repId: rep.id, productId: input.productId, customerPhoneHash: attribution.customerPhoneHash, currentStep: 1, consentAt: new Date() }).returning({ id: assistedSessions.id });
@@ -203,7 +242,7 @@ export const repRouter = createRouter({
     const overrides = rep.tier === "campus_lead" ? await getDb().select({ override: campusLeadOverrides, sourceRepCode: reps.code }).from(campusLeadOverrides).innerJoin(reps, eq(campusLeadOverrides.sourceRepId, reps.id)).where(eq(campusLeadOverrides.leadRepId, rep.id)).orderBy(desc(campusLeadOverrides.createdAt)) : [];
     const destination = await payoutDestinationStatus(ctx.user.id);
     const corrections = await getDb().select().from(commissionCorrections).where(eq(commissionCorrections.repId, rep.id)).orderBy(desc(commissionCorrections.createdAt));
-    return { deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides, corrections, destination };
+    return { walletKobo: await repOutstandingKobo(rep.id), deals: rows, history: history.map((h) => h.history), payouts: repPayouts, overrides, corrections, destination };
   }),
   banks: authedQuery.query(async ({ ctx }) => {
     requireRole(ctx.user, ["rep"]);

@@ -279,7 +279,7 @@ export async function changePromotionState(input: { actor: SalesActor; promotion
     if (promotion.startsAt > now || promotion.endsAt <= now) throw new TRPCError({ code: "BAD_REQUEST", message: "Promotion can start only inside its scheduled window" });
     const capacity = await promotionCapacityForNewDeal(getDb(), promotion.id, 0, false);
     if (capacity.remainingBudgetKobo !== undefined && (capacity.remainingBudgetKobo <= 0 || capacity.uncommittedEscrowKobo <= 0)) {
-      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Restore budget headroom or uncommitted escrow before resuming" });
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Raise the budget or add money to the wallet before restarting this promotion" });
     }
   } else if (input.action === "pause" && promotion.state !== "active") {
     throw new TRPCError({ code: "CONFLICT", message: "Only an active promotion can be paused" });

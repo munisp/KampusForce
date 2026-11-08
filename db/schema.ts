@@ -1,7 +1,9 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   bigserial,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -26,14 +28,14 @@ export const fraudCaseStateEnum = pgEnum("fraud_case_state", ["open", "released"
 export const fraudHoldStateEnum = pgEnum("fraud_hold_state", ["active", "released", "upheld"]);
 export const fraudConductActionEnum = pgEnum("fraud_conduct_action", ["none", "strike", "suspension"]);
 export const vendorStatusEnum = pgEnum("vendor_status", ["pending", "active", "paused"]);
-export const productCategoryEnum = pgEnum("product_category", ["fintech", "airtime_data", "devices", "edtech", "micro_insurance"]);
+export const productCategoryEnum = pgEnum("product_category", ["fintech", "airtime_data", "devices", "edtech", "micro_insurance", "other"]);
 export const productStatusEnum = pgEnum("product_status", ["draft", "active", "paused"]);
 export const commissionBasisEnum = pgEnum("commission_basis", ["flat", "pct"]);
-export const commissionTriggerEnum = pgEnum("commission_trigger", ["signup", "kyc_complete", "funded", "first_transaction", "renewal"]);
+export const commissionTriggerEnum = pgEnum("commission_trigger", ["signup", "kyc_complete", "funded", "first_transaction", "renewal", "sale"]);
 export const ruleDraftStateEnum = pgEnum("rule_draft_state", ["draft", "published", "expired"]);
 export const attributionSourceEnum = pgEnum("attribution_source", ["link", "qr", "assisted", "claim"]);
 export const attributionStatusEnum = pgEnum("attribution_status", ["active", "expired", "disputed"]);
-export const vendorEventTypeEnum = pgEnum("vendor_event_type", ["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund"]);
+export const vendorEventTypeEnum = pgEnum("vendor_event_type", ["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund", "sale"]);
 export const vendorEventStatusEnum = pgEnum("vendor_event_status", ["processed", "ignored", "quarantined"]);
 export const webhookCredentialStateEnum = pgEnum("webhook_credential_state", ["active", "retiring", "revoked"]);
 export const ingestionRetryStateEnum = pgEnum("ingestion_retry_state", ["retry_scheduled", "resolved", "dead_letter"]);
@@ -169,8 +171,29 @@ export const products = pgTable("products", {
   landingUrl: varchar("landing_url", { length: 500 }).notNull(),
   pitchScript: text("pitch_script").notNull(),
   status: productStatusEnum("status").notNull().default("draft"),
+  // Units the vendor has to sell; null when the vendor doesn't track stock. Goes down when a sale is approved.
+  stockQuantity: integer("stock_quantity"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Product photos a vendor uploads. Stored in the private object store and served by /api/product-images/:id. */
+export const productImages = pgTable("product_images", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  objectKey: varchar("object_key", { length: 200 }).notNull(),
+  contentType: varchar("content_type", { length: 40 }).notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("product_images_product_idx").on(t.productId, t.position)]);
+
+/** Products a campus rep chose to sell ("My products"). */
+export const repProducts = pgTable("rep_products", {
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("rep_products_unique").on(t.repId, t.productId)]);
 
 export const commissionRules = pgTable("commission_rules", {
   id: serial("id").primaryKey(),
@@ -254,6 +277,35 @@ export const vendorEvents = pgTable("vendor_events", {
   payloadRetainUntil: timestamp("payload_retain_until", { withTimezone: true }).notNull().defaultNow(),
   payloadPurgedAt: timestamp("payload_purged_at", { withTimezone: true }),
 }, (t) => [index("vendor_event_retention_idx").on(t.payloadRetainUntil, t.payloadPurgedAt), index("vendor_event_deal_idx").on(t.dealId), index("vendor_event_held_customer_idx").on(t.vendorId, t.customerPhoneHash, t.status)]);
+
+/**
+ * A sale a campus rep records themselves ("I onboarded this customer"), with proof. It shows to the rep straight away as
+ * waiting for verification. It is verified when the vendor reports that customer, or approved by Operations (which sends
+ * it through the normal sale process); Operations can also reject it. The vendor can dispute an Operations approval.
+ */
+export const recordedSales = pgTable("recorded_sales", {
+  id: serial("id").primaryKey(),
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  vendorId: integer("vendor_id").notNull().references(() => vendors.id),
+  customerPhoneHash: varchar("customer_phone_hash", { length: 64 }).notNull(),
+  customerPhoneLast4: varchar("customer_phone_last4", { length: 4 }).notNull(),
+  proofDocumentId: integer("proof_document_id").notNull(),
+  // What was sold, for products paid per sale: units, the listed unit price when recorded, and the total.
+  quantity: integer("quantity").notNull().default(1),
+  unitPriceKobo: bigint("unit_price_kobo", { mode: "number" }),
+  amountKobo: bigint("amount_kobo", { mode: "number" }),
+  note: varchar("note", { length: 500 }),
+  // waiting | verified | rejected
+  state: varchar("state", { length: 16 }).notNull().default("waiting"),
+  // vendor | operations, once verified
+  verifiedBy: varchar("verified_by", { length: 16 }),
+  reviewerUserId: integer("reviewer_user_id"),
+  reviewReason: varchar("review_reason", { length: 500 }),
+  dealId: integer("deal_id").references(() => deals.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+}, (t) => [index("recorded_sale_rep_idx").on(t.repId, t.createdAt), index("recorded_sale_customer_idx").on(t.vendorId, t.customerPhoneHash, t.state)]);
 
 export const vendorIngestionRetries = pgTable("vendor_ingestion_retries", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -1046,7 +1098,10 @@ export const trainingModules = pgTable("training_modules", {
   sortOrder: integer("sort_order").notNull().default(0),
   quizJson: json("quiz_json").$type<Array<{ question: string; options: string[]; answerIndex: number }>>().notNull(),
   active: boolean("active").notNull().default(true),
+  // true: every rep gets it. false: only reps it's assigned to through a product or a campaign.
+  forEveryone: boolean("for_everyone").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const trainingProgress = pgTable("training_progress", {
@@ -1092,6 +1147,24 @@ export const campaigns = pgTable("campaigns", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("campaign_state_schedule_idx").on(t.state, t.startsAt, t.endsAt), index("campaign_audience_idx").on(t.campusId, t.productId, t.goal)]);
+
+// Which lessons belong to a product or a campaign. A lesson with no rows here is general and every rep gets it.
+// A required product lesson must be passed before a rep can share or record a sale for that product.
+export const trainingAssignments = pgTable("training_assignments", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id),
+  productId: integer("product_id").references(() => products.id),
+  campaignId: integer("campaign_id").references(() => campaigns.id),
+  required: boolean("required").notNull().default(true),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("training_assignment_product_unique").on(t.moduleId, t.productId),
+  uniqueIndex("training_assignment_campaign_unique").on(t.moduleId, t.campaignId),
+  index("training_assignment_product_idx").on(t.productId),
+  index("training_assignment_campaign_idx").on(t.campaignId),
+  check("training_assignment_one_target", sql`(${t.productId} is null) <> (${t.campaignId} is null)`),
+]);
 
 export const campaignEnrollments = pgTable("campaign_enrollments", {
   id: serial("id").primaryKey(),

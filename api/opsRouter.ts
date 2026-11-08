@@ -1,5 +1,5 @@
 import { notifyUser } from "./services/notifications";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, sql, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
@@ -18,7 +18,7 @@ import {
   supportTickets,
   users,
   vendorEvents,
-  vendors,
+  vendors, enrollmentAttestations
 } from "@db/schema";
 import { createRouter } from "./middleware";
 import { authedQuery, requireRole } from "./services/auth";
@@ -69,6 +69,7 @@ import {
   reviewRolloutEvidence,
   submitExternalRolloutEvidence,
 } from "./services/rolloutReadiness";
+import { approveRecordedSale, rejectRecordedSale, salesToVerify } from "./services/recordedSales";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -318,6 +319,42 @@ export const opsRouter = createRouter({
       : { userId: input.userId, type: "payout_account_rejected", title: "Your bank account wasn't confirmed", body: `Operations couldn't confirm the account is yours: ${input.note} Add an account in your own name.`, href: "/rep/earnings", entityType: "payout_destination", entityId: String(input.userId) });
     return result;
   }),
+  // New reps waiting to be activated, with what each still needs, so Operations can activate from ID checks.
+  salesToVerify: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin", "finance"]);
+    return salesToVerify();
+  }),
+  verifySale: authedQuery.input(z.object({ id: z.number().int().positive(), approve: z.boolean(), reason: z.string().trim().min(5).max(500), amountKobo: z.number().int().positive().max(10_000_000_000).optional() })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return input.approve
+      ? approveRecordedSale({ id: input.id, reviewerUserId: ctx.user.id, reason: input.reason, amountKobo: input.amountKobo })
+      : rejectRecordedSale({ id: input.id, reviewerUserId: ctx.user.id, reason: input.reason });
+  }),
+  repsToActivate: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin", "finance"]);
+    const rows = await getDb().select({ repId: reps.id, userId: users.id, code: reps.code, name: users.name, email: users.email, kycState: users.kycState, campusName: campuses.name, termsAcceptedAt: reps.contractorAgreementSignedAt, createdAt: reps.createdAt })
+      .from(reps).innerJoin(users, eq(users.id, reps.userId)).innerJoin(campuses, eq(campuses.id, reps.campusId))
+      .where(eq(reps.status, "pending")).orderBy(desc(reps.createdAt)).limit(100);
+    const userIds = rows.map((r) => r.userId);
+    const enrolments = userIds.length ? await getDb().select({ userId: enrollmentAttestations.userId, state: enrollmentAttestations.state, validUntil: enrollmentAttestations.validUntil })
+      .from(enrollmentAttestations).where(inArray(enrollmentAttestations.userId, userIds)).orderBy(desc(enrollmentAttestations.createdAt)) : [];
+    const invitations = userIds.length ? await getDb().select({ id: campusRecruitments.id, userId: campusRecruitments.acceptedUserId })
+      .from(campusRecruitments).where(and(inArray(campusRecruitments.acceptedUserId, userIds), eq(campusRecruitments.status, "accepted"))) : [];
+    const now = Date.now();
+    return rows.map((row) => {
+      const latest = enrolments.find((e) => e.userId === row.userId);
+      const enrolment = !latest ? "missing" : latest.state === "verified" && (!latest.validUntil || latest.validUntil.getTime() > now) ? "verified" : latest.state === "submitted" ? "submitted" : "redo";
+      const idApproved = row.kycState === "verified";
+      const waitingOn = [
+        !idApproved && (row.kycState === "pending" ? "ID check waiting for review" : "ID check not sent"),
+        enrolment === "submitted" && "Enrolment proof waiting for review",
+        enrolment === "missing" && "Enrolment proof not sent",
+        enrolment === "redo" && "Enrolment proof needs sending again",
+        !row.termsAcceptedAt && "Contractor terms not accepted",
+      ].filter(Boolean) as string[];
+      return { ...row, idApproved, enrolment, invitationId: invitations.find((i) => i.userId === row.userId)?.id ?? null, ready: waitingOn.length === 0, waitingOn };
+    });
+  }),
   activateRep: authedQuery.input(z.object({ repId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     try {
@@ -453,9 +490,15 @@ export const opsRouter = createRouter({
       ? captureCampusCohortSnapshot(input.subjectId, ctx.user.id)
       : captureRolloutQuarterSnapshot(input.subjectId, ctx.user.id);
   }),
-  resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean(), correctionKobo: z.number().int().positive().max(100_000_000).optional() })).mutation(async ({ ctx, input }) => {
+  resolveDispute: authedQuery.input(z.object({ disputeId: z.number().int().positive(), decision: z.string().min(5).max(1000), upholdRep: z.boolean(), correctionKobo: z.number().int().positive().max(100_000_000).optional(), reverseCommission: z.boolean().optional() })).mutation(async ({ ctx, input }) => {
     requireRole(ctx.user, ["ops", "admin"]);
     const result = await resolveDealDispute({ ...input, actorUserId: ctx.user.id });
+    if (result.reversed && "dealRepId" in result && result.dealRepId && result.dealVendorId) {
+      const [rep] = await getDb().select({ userId: reps.userId }).from(reps).where(eq(reps.id, result.dealRepId)).limit(1);
+      const [vendor] = await getDb().select({ userId: vendors.userId }).from(vendors).where(eq(vendors.id, result.dealVendorId)).limit(1);
+      if (rep) await notifyUser({ userId: rep.userId, type: "commission_reversed", title: "A sale's commission was taken back", body: `Operations agreed with the vendor: ${input.decision}`, href: "/rep/earnings", entityType: "deal", entityId: result.disputeId });
+      if (vendor?.userId) await notifyUser({ userId: vendor.userId, type: "commission_reversed_vendor", title: "Commission returned to your wallet", body: `Operations agreed with your dispute, and the commission went back to your wallet.`, href: "/vendor", entityType: "deal", entityId: result.disputeId });
+    }
     if (result.state === "resolved" && result.correctionKobo) {
       const amount = `₦${(result.correctionKobo / 100).toLocaleString("en-NG")}`;
       const [rep] = await getDb().select({ userId: reps.userId }).from(reps).where(eq(reps.id, result.dealRepId)).limit(1);

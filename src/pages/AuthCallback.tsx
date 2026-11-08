@@ -5,7 +5,7 @@ import { finishSignIn } from "@/lib/oidc";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 
-const workspacePath = (role: string) => role === "rep" ? "/rep" : role === "vendor" ? "/vendor" : "/ops";
+import { workspacePath } from "@/lib/roles";
 
 export default function AuthCallback() {
   const navigate = useNavigate();

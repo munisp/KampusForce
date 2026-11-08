@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
-import { auditLogs, enrollmentAttestations, identityCases, identityConsents, identityDocuments, type IdentityCase, users } from "@db/schema";
+import { and, eq, inArray, isNull, lt, or, ne } from "drizzle-orm";
+import { auditLogs, enrollmentAttestations, identityCases, identityConsents, identityDocuments, type IdentityCase, users, recordedSales } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { deleteObject, getObject, putObject } from "../lib/objectStore";
 import { IDENTITY_DOCUMENT_RETENTION_DAYS, type IdentityDocumentKind, requiredDocuments } from "./identityPolicy";
@@ -67,6 +67,11 @@ async function purgeDocuments(documents: (typeof identityDocuments.$inferSelect)
   return purged;
 }
 
+/** Proof a rep attaches when recording a sale (a screenshot, receipt or reference). Kept until the sale is decided. */
+export async function storeSaleProof(input: { actorUserId: number; contentBase64: string }) {
+  return storeDocument({ ownerUserId: input.actorUserId, caseId: null, kind: "sale_proof", contentBase64: input.contentBase64 });
+}
+
 export async function uploadCaseDocument(input: { caseId: number; actorUserId: number; kind: IdentityDocumentKind; idType?: GovernmentIdType; contentBase64: string }) {
   const [identityCase] = await getDb().select().from(identityCases).where(eq(identityCases.id, input.caseId)).limit(1);
   if (!identityCase || !ownsIdentityCase(identityCase, input.actorUserId)) throw new TRPCError({ code: "NOT_FOUND", message: "Check not found" });
@@ -111,10 +116,13 @@ export async function purgeExpiredIdentityDocuments(now = new Date()) {
     and(eq(identityCases.state, "draft"), lt(identityCases.updatedAt, abandonedBefore)),
   ));
   const attestations = await db.select({ id: enrollmentAttestations.id }).from(enrollmentAttestations).where(lt(enrollmentAttestations.reviewedAt, decidedBefore));
+  // Sale proofs stay while the sale waits for verification, then follow the same 30-day rule after the decision.
+  const decidedSaleProofs = await db.select({ id: recordedSales.proofDocumentId }).from(recordedSales).where(and(ne(recordedSales.state, "waiting"), lt(recordedSales.decidedAt, decidedBefore)));
   const due = await db.select().from(identityDocuments).where(and(isNull(identityDocuments.purgedAt), or(
     cases.length ? inArray(identityDocuments.caseId, cases.map((row) => row.id)) : undefined,
     attestations.length ? inArray(identityDocuments.attestationId, attestations.map((row) => row.id)) : undefined,
-    and(isNull(identityDocuments.caseId), isNull(identityDocuments.attestationId), lt(identityDocuments.uploadedAt, orphanedBefore)),
+    decidedSaleProofs.length ? inArray(identityDocuments.id, decidedSaleProofs.map((row) => row.id)) : undefined,
+    and(isNull(identityDocuments.caseId), isNull(identityDocuments.attestationId), ne(identityDocuments.kind, "sale_proof"), lt(identityDocuments.uploadedAt, orphanedBefore)),
   ))).limit(200);
   return { purged: await purgeDocuments(due) };
 }

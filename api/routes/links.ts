@@ -14,6 +14,8 @@ linkRoutes.get("/:code", async (c) => {
   if (!rep || !product) return c.text("This KampusForce link is invalid or no longer active", 404);
   // First-touch attribution is created by the authenticated rep before sharing.
   // Public redirects never accept or persist customer identifiers.
+  // A product sold in person has no web page to send the customer to.
+  if (!product.landingUrl) return c.text("This product is sold in person by KampusForce campus reps. Ask the rep who shared it.", 404);
   const token = attributionToken(rep.id, product.id, product.vendorId);
   const target = new URL(product.landingUrl);
   target.searchParams.set("kf_token", token);

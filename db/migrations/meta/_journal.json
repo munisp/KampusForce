@@ -225,6 +225,34 @@
       "when": 1793879190165,
       "tag": "0031_held_sale_pickup",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793883623989,
+      "tag": "0032_recorded_sales",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793916349610,
+      "tag": "0033_training_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793917284049,
+      "tag": "0034_training_for_everyone",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794018652028,
+      "tag": "0035_product_sales",
+      "breakpoints": true
     }
   ]
 }

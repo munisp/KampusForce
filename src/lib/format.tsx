@@ -1,5 +1,7 @@
+/** Naira, with kobo shown whenever there are any, so a ₦1,999.99 price never reads as ₦2,000. */
 export function money(kobo = 0) {
-  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(kobo / 100);
+  const digits = Math.round(kobo) % 100 === 0 ? 0 : 2;
+  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: digits, maximumFractionDigits: digits }).format(kobo / 100);
 }
 
 export function shortDate(value: Date | string | null | undefined) {
@@ -15,6 +17,8 @@ export function fullDate(value: Date | string | null | undefined) {
 export const stateLabel: Record<string, string> = {
   pending: "Waiting", confirmed: "Confirmed", payable: "Ready to pay", paid: "Paid", disputed: "Disputed", void: "Cancelled", clawed_back: "Taken back", failed: "Failed",
   draft: "Not submitted", processing: "Being checked", manual_review: "Being reviewed", needs_more_info: "More info needed", verified: "Confirmed", revoked: "Cancelled", blocked: "Not ready", quarantined: "Held", dead_letter: "Couldn't process",
+  assigned: "Not started", in_progress: "In progress", completed: "Passed",
+  on_sale: "On sale", paused: "Paused",
 };
 
 export function StateBadge({ state }: { state: string }) {
@@ -22,5 +26,8 @@ export function StateBadge({ state }: { state: string }) {
 }
 
 export const productCategories: Record<string, string> = {
-  fintech: "Fintech", airtime_data: "Airtime & data", devices: "Devices", edtech: "Edtech", micro_insurance: "Micro-insurance",
+  fintech: "Fintech", airtime_data: "Airtime & data", devices: "Devices", edtech: "Edtech", micro_insurance: "Micro-insurance", other: "Other products",
 };
+
+/** Why a fraud review was opened, in plain words. */
+export const fraudReasonLabel = (reason: string) => ({ activation_velocity: "Many sales in one day", operations_review: "Opened by Operations" } as Record<string, string>)[reason] || reason.replaceAll("_", " ");
