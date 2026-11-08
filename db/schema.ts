@@ -28,14 +28,14 @@ export const fraudCaseStateEnum = pgEnum("fraud_case_state", ["open", "released"
 export const fraudHoldStateEnum = pgEnum("fraud_hold_state", ["active", "released", "upheld"]);
 export const fraudConductActionEnum = pgEnum("fraud_conduct_action", ["none", "strike", "suspension"]);
 export const vendorStatusEnum = pgEnum("vendor_status", ["pending", "active", "paused"]);
-export const productCategoryEnum = pgEnum("product_category", ["fintech", "airtime_data", "devices", "edtech", "micro_insurance"]);
+export const productCategoryEnum = pgEnum("product_category", ["fintech", "airtime_data", "devices", "edtech", "micro_insurance", "other"]);
 export const productStatusEnum = pgEnum("product_status", ["draft", "active", "paused"]);
 export const commissionBasisEnum = pgEnum("commission_basis", ["flat", "pct"]);
-export const commissionTriggerEnum = pgEnum("commission_trigger", ["signup", "kyc_complete", "funded", "first_transaction", "renewal"]);
+export const commissionTriggerEnum = pgEnum("commission_trigger", ["signup", "kyc_complete", "funded", "first_transaction", "renewal", "sale"]);
 export const ruleDraftStateEnum = pgEnum("rule_draft_state", ["draft", "published", "expired"]);
 export const attributionSourceEnum = pgEnum("attribution_source", ["link", "qr", "assisted", "claim"]);
 export const attributionStatusEnum = pgEnum("attribution_status", ["active", "expired", "disputed"]);
-export const vendorEventTypeEnum = pgEnum("vendor_event_type", ["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund"]);
+export const vendorEventTypeEnum = pgEnum("vendor_event_type", ["account_created", "kyc_complete", "funded", "first_transaction", "renewal", "refund", "sale"]);
 export const vendorEventStatusEnum = pgEnum("vendor_event_status", ["processed", "ignored", "quarantined"]);
 export const webhookCredentialStateEnum = pgEnum("webhook_credential_state", ["active", "retiring", "revoked"]);
 export const ingestionRetryStateEnum = pgEnum("ingestion_retry_state", ["retry_scheduled", "resolved", "dead_letter"]);
@@ -171,8 +171,29 @@ export const products = pgTable("products", {
   landingUrl: varchar("landing_url", { length: 500 }).notNull(),
   pitchScript: text("pitch_script").notNull(),
   status: productStatusEnum("status").notNull().default("draft"),
+  // Units the vendor has to sell; null when the vendor doesn't track stock. Goes down when a sale is approved.
+  stockQuantity: integer("stock_quantity"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Product photos a vendor uploads. Stored in the private object store and served by /api/product-images/:id. */
+export const productImages = pgTable("product_images", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  objectKey: varchar("object_key", { length: 200 }).notNull(),
+  contentType: varchar("content_type", { length: 40 }).notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("product_images_product_idx").on(t.productId, t.position)]);
+
+/** Products a campus rep chose to sell ("My products"). */
+export const repProducts = pgTable("rep_products", {
+  repId: integer("rep_id").notNull().references(() => reps.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("rep_products_unique").on(t.repId, t.productId)]);
 
 export const commissionRules = pgTable("commission_rules", {
   id: serial("id").primaryKey(),
@@ -270,6 +291,10 @@ export const recordedSales = pgTable("recorded_sales", {
   customerPhoneHash: varchar("customer_phone_hash", { length: 64 }).notNull(),
   customerPhoneLast4: varchar("customer_phone_last4", { length: 4 }).notNull(),
   proofDocumentId: integer("proof_document_id").notNull(),
+  // What was sold, for products paid per sale: units, the listed unit price when recorded, and the total.
+  quantity: integer("quantity").notNull().default(1),
+  unitPriceKobo: bigint("unit_price_kobo", { mode: "number" }),
+  amountKobo: bigint("amount_kobo", { mode: "number" }),
   note: varchar("note", { length: 500 }),
   // waiting | verified | rejected
   state: varchar("state", { length: 16 }).notNull().default("waiting"),

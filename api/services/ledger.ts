@@ -72,49 +72,72 @@ async function accrueCampusLeadOverride(tx: Transaction, deal: typeof deals.$inf
   return { overrideId: id, leadRepId: assignment.lead.id, ...economics };
 }
 
+/** The vendor's wallet can't cover a commission that has to be credited now. Thrown inside a transaction, it undoes it. */
+export class InsufficientEscrowError extends Error {
+  readonly balanceKobo: number;
+  readonly neededKobo: number;
+  constructor(balanceKobo: number, neededKobo: number) {
+    super("The vendor's wallet doesn't have enough to pay this commission");
+    this.balanceKobo = balanceKobo;
+    this.neededKobo = neededKobo;
+  }
+}
+
+/**
+ * Credits a pending deal: the commission leaves the vendor's wallet, the rep's share goes to their wallet (rep_payable)
+ * and KampusForce's fee to platform revenue, all in the caller's transaction. Returns false, changing nothing, when the
+ * vendor's wallet is short. The refund period starts now.
+ */
+export async function creditDealLocked(tx: Transaction, dealId: number, input: { actor: string; reason: string; actorUserId?: number }) {
+  const [current] = await tx.select().from(deals).where(eq(deals.id, dealId)).limit(1).for("update");
+  if (!current || current.state !== "pending") return { credited: false as const, reason: "not_pending" as const };
+  const [wallet] = await tx.select().from(escrowWallets).where(eq(escrowWallets.vendorId, current.vendorId)).limit(1).for("update");
+  if (!wallet || wallet.balanceKobo < current.vendorCommissionKobo) return { credited: false as const, reason: "escrow_short" as const, balanceKobo: wallet?.balanceKobo || 0, neededKobo: current.vendorCommissionKobo };
+  const [rule] = current.commissionRuleId
+    ? await tx.select().from(commissionRules).where(eq(commissionRules.id, current.commissionRuleId)).limit(1)
+    : await tx.select().from(commissionRules).where(eq(commissionRules.productId, current.productId)).orderBy(desc(commissionRules.version)).limit(1);
+  await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo - current.vendorCommissionKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, current.vendorId));
+  const group = randomReference("confirm");
+  await tx.insert(ledgerEntries).values([
+    { dealId: current.id, account: "vendor_escrow", direction: "debit", amountKobo: current.vendorCommissionKobo, entryGroup: group },
+    { dealId: current.id, account: "rep_payable", direction: "credit", amountKobo: current.repCommissionKobo, entryGroup: group },
+    { dealId: current.id, account: "platform_revenue", direction: "credit", amountKobo: current.platformFeeKobo, entryGroup: group },
+  ]);
+  const override = await accrueCampusLeadOverride(tx, current, group);
+  await enqueueFinancialPosting(tx, {
+    entryGroup: group,
+    operation: "activation_confirmation",
+    accountRefs: {
+      vendor_escrow: `vendor:${current.vendorId}`,
+      rep_payable: `rep:${current.repId}`,
+      platform_revenue: "platform",
+      ...(override ? { lead_override_payable: `rep:${override.leadRepId}` } : {}),
+    },
+  });
+  const clawbackUntil = rule ? new Date(Date.now() + rule.clawbackDays * 86_400_000) : null;
+  await tx.update(deals).set({ clawbackUntil, updatedAt: new Date() }).where(eq(deals.id, current.id));
+  await stateChange(tx, current.id, "pending", "confirmed", input.actor, input.reason);
+  await stateChange(tx, current.id, "confirmed", "payable", input.actor, override ? `Ready for payout; ₦${override.overrideKobo / 100} campus lead bonus paid by KampusForce` : "Ready for the next payout");
+  await signalPromotionActivationConfirmed(current.id, input.actorUserId, tx);
+  await signalActivationEvidence(current.id, "ledger.confirmation", `deal:${current.id};state:payable;commission-rule:${current.commissionRuleId || "unversioned"}`, new Date(), tx);
+  return { credited: true as const, overrideAccrued: Boolean(override), clawbackUntil };
+}
+
 export async function confirmDueDeals(actorUserId?: number) {
   const due = await db().select().from(deals).where(and(eq(deals.state, "pending"), lte(deals.confirmAt, new Date())));
   let confirmed = 0;
   let queuedForEscrow = 0;
   let overridesAccrued = 0;
   for (const deal of due) {
-    const changed = await db().transaction(async (tx) => {
-      const [current] = await tx.select().from(deals).where(eq(deals.id, deal.id)).limit(1).for("update");
-      if (!current || current.state !== "pending") return false;
-      const [wallet] = await tx.select().from(escrowWallets).where(eq(escrowWallets.vendorId, current.vendorId)).limit(1).for("update");
-      if (!wallet || wallet.balanceKobo < current.vendorCommissionKobo) return false;
-      const [rule] = current.commissionRuleId
-        ? await tx.select().from(commissionRules).where(eq(commissionRules.id, current.commissionRuleId)).limit(1)
-        : await tx.select().from(commissionRules).where(eq(commissionRules.productId, current.productId)).orderBy(desc(commissionRules.version)).limit(1);
-      await tx.update(escrowWallets).set({ balanceKobo: wallet.balanceKobo - current.vendorCommissionKobo, updatedAt: new Date() }).where(eq(escrowWallets.vendorId, current.vendorId));
-      const group = randomReference("confirm");
-      await tx.insert(ledgerEntries).values([
-        { dealId: current.id, account: "vendor_escrow", direction: "debit", amountKobo: current.vendorCommissionKobo, entryGroup: group },
-        { dealId: current.id, account: "rep_payable", direction: "credit", amountKobo: current.repCommissionKobo, entryGroup: group },
-        { dealId: current.id, account: "platform_revenue", direction: "credit", amountKobo: current.platformFeeKobo, entryGroup: group },
-      ]);
-      const override = await accrueCampusLeadOverride(tx, current, group);
-      if (override) overridesAccrued += 1;
-      await enqueueFinancialPosting(tx, {
-        entryGroup: group,
-        operation: "activation_confirmation",
-        accountRefs: {
-          vendor_escrow: `vendor:${current.vendorId}`,
-          rep_payable: `rep:${current.repId}`,
-          platform_revenue: "platform",
-          ...(override ? { lead_override_payable: `rep:${override.leadRepId}` } : {}),
-        },
-      });
-      const clawbackUntil = rule ? new Date(Date.now() + rule.clawbackDays * 86_400_000) : null;
-      await tx.update(deals).set({ clawbackUntil, updatedAt: new Date() }).where(eq(deals.id, current.id));
-      await stateChange(tx, current.id, "pending", "confirmed", actorUserId ? `staff:${actorUserId}` : "system:confirmation", "Waiting period over; commission set aside");
-      await stateChange(tx, current.id, "confirmed", "payable", actorUserId ? `staff:${actorUserId}` : "system:confirmation", override ? `Ready for payout; ₦${override.overrideKobo / 100} campus lead bonus paid by KampusForce` : "Ready for the next payout");
-      await signalPromotionActivationConfirmed(current.id, actorUserId, tx);
-      await signalActivationEvidence(current.id, "ledger.confirmation", `deal:${current.id};state:payable;commission-rule:${current.commissionRuleId || "unversioned"}`, new Date(), tx);
-      return true;
-    });
-    if (changed) confirmed += 1;
-    else queuedForEscrow += 1;
+    const result = await db().transaction((tx) => creditDealLocked(tx, deal.id, {
+      actor: actorUserId ? `staff:${actorUserId}` : "system:confirmation",
+      reason: "Waiting period over; commission set aside",
+      actorUserId,
+    }));
+    if (result.credited) {
+      confirmed += 1;
+      if (result.overrideAccrued) overridesAccrued += 1;
+    } else if (result.reason === "escrow_short") queuedForEscrow += 1;
   }
   if (actorUserId) {
     await db().insert(auditLogs).values({ actorUserId, action: "payout.confirmation_sweep", entityType: "deal_batch", entityId: randomReference("sweep"), metadataJson: { confirmed, queuedForEscrow, overridesAccrued } });
@@ -231,8 +254,9 @@ async function recordCommissionCorrection(tx: Transaction, input: { dispute: typ
   await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.commission_corrected", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, amountKobo, vendorId: deal.vendorId, repId: deal.repId, entryGroup: group } });
 }
 
-export async function resolveDealDispute(input: { disputeId: number; actorUserId: number; upholdRep: boolean; decision: string; correctionKobo?: number }) {
+export async function resolveDealDispute(input: { disputeId: number; actorUserId: number; upholdRep: boolean; decision: string; correctionKobo?: number; reverseCommission?: boolean }) {
   if (input.correctionKobo && !input.upholdRep) throw new TRPCError({ code: "BAD_REQUEST", message: "A correction can only be paid when the rep is right." });
+  if (input.reverseCommission && input.upholdRep) throw new TRPCError({ code: "BAD_REQUEST", message: "The commission can only be taken back when the rep isn't right." });
   return db().transaction(async (tx) => {
     const [dispute] = await tx.select().from(disputes).where(eq(disputes.id, input.disputeId)).limit(1).for("update");
     if (!dispute) throw new TRPCError({ code: "NOT_FOUND", message: "Dispute not found" });
@@ -250,6 +274,14 @@ export async function resolveDealDispute(input: { disputeId: number; actorUserId
       await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.resolved", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, restoredState: previousState, payoutEligibleState: previousState === "confirmed" ? "payable" : previousState } });
       return { disputeId: dispute.id, state: "resolved" as const, dealState: previousState === "confirmed" ? "payable" : previousState, reversed: false, correctionKobo: input.correctionKobo || 0, dealRepId: deal.repId, dealVendorId: deal.vendorId };
     }
+    // The vendor showed the sale didn't happen or was refunded: the commission goes back to the vendor's wallet and
+    // comes out of the rep's (reverseDealLocked closes the dispute as part of the reversal).
+    if (input.reverseCommission) {
+      const reversal = await reverseDealLocked(tx, deal.id, `user:${input.actorUserId}`);
+      await tx.update(disputes).set({ state: "resolved", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
+      await tx.insert(auditLogs).values({ actorUserId: input.actorUserId, action: "dispute.commission_reversed", entityType: "dispute", entityId: String(dispute.id), metadataJson: { dealId: deal.id, previousState, dealState: reversal.state } });
+      return { disputeId: dispute.id, state: "resolved" as const, dealState: reversal.state, reversed: reversal.reversed, correctionKobo: 0, dealRepId: deal.repId, dealVendorId: deal.vendorId };
+    }
     // A rejected claim changes nothing: the rep loses the argument, not the commission. Refunds and fraud cases are
     // how money is taken back, each with its own evidence.
     await tx.update(disputes).set({ state: "rejected", decision: input.decision, decidedByUserId: input.actorUserId, decidedAt: new Date() }).where(eq(disputes.id, dispute.id));
@@ -260,7 +292,8 @@ export async function resolveDealDispute(input: { disputeId: number; actorUserId
   });
 }
 
-async function repOutstandingKobo(repId: number, client: LedgerClient = db()): Promise<number> {
+/** The rep's wallet: everything credited to them, less reversals and payouts. */
+export async function repOutstandingKobo(repId: number, client: LedgerClient = db()): Promise<number> {
   const entries: { amount: number; direction: string }[] = await client
     .select({ amount: ledgerEntries.amountKobo, direction: ledgerEntries.direction })
     .from(ledgerEntries)
@@ -288,6 +321,28 @@ export async function runPayoutBatch(actorUserId?: number) {
   const results: { repId: number; status: string; grossKobo?: number; netKobo?: number; overrideKobo?: number; payoutId?: number; reason?: string }[] = [];
   const batchId = `KF-${new Date().toISOString().slice(0, 10)}-${randomReference("batch").slice(-8)}`;
   for (const repId of repIds) {
+    results.push(await queueRepPayout(repId, { batchId, actorUserId, minimumKobo: DAILY_PAYOUT_MINIMUM_KOBO }));
+  }
+  return { eligibleDeals: payable.length, eligibleOverrides: accruedOverrides.length, results };
+}
+
+const DAILY_PAYOUT_MINIMUM_KOBO = 50_000;
+
+/**
+ * Pays a rep everything ready in their wallet now, straight after a sale is credited, with no minimum. The same checks
+ * as the daily run apply (active, ID-checked, bank account confirmed, no fraud hold); if one fails the money stays in
+ * the wallet and the daily run pays it once the block clears. The payout dispatcher sends it within a minute.
+ */
+export async function payRepNow(repId: number, actorUserId?: number) {
+  const batchId = `KF-NOW-${new Date().toISOString().slice(0, 10)}-${randomReference("now").slice(-8)}`;
+  const result = await queueRepPayout(repId, { batchId, actorUserId, minimumKobo: 1 });
+  await db().insert(auditLogs).values({ actorUserId: actorUserId || null, action: "payout.instant_requested", entityType: "rep", entityId: String(repId), metadataJson: result });
+  return result;
+}
+
+async function queueRepPayout(repId: number, options: { batchId: string; actorUserId?: number; minimumKobo: number }) {
+  const { batchId, actorUserId } = options;
+  {
     const queued = await db().transaction(async (tx) => {
       // The rep lock and null payout links prevent two batches reserving the
       // same entitlement. Money and paid states move only on success below.
@@ -314,8 +369,8 @@ export async function runPayoutBatch(actorUserId?: number) {
       const directOutstanding = await repOutstandingKobo(repId, tx);
       const overrideOutstanding = await leadOverrideOutstandingKobo(repId, tx);
       const adjustedGross = Math.min(gross, Math.max(0, directOutstanding + overrideOutstanding));
-      if (adjustedGross < 50_000) {
-        return { repId, status: "rolled", grossKobo: adjustedGross, overrideKobo: overrideGross, reason: "Below ₦500 minimum after clawback netting" };
+      if (adjustedGross < options.minimumKobo || adjustedGross <= 0) {
+        return { repId, status: "rolled", grossKobo: adjustedGross, overrideKobo: overrideGross, reason: adjustedGross <= 0 ? "Nothing to pay after clawback netting" : "Below ₦500 minimum after clawback netting" };
       }
       const tax = withholdingKobo(adjustedGross);
       const net = adjustedGross - tax;
@@ -349,9 +404,8 @@ export async function runPayoutBatch(actorUserId?: number) {
       });
       return { repId, status: "queued", grossKobo: adjustedGross, netKobo: net, overrideKobo: overrideGross, payoutId: payout.id };
     });
-    results.push(queued);
+    return queued as { repId: number; status: string; grossKobo?: number; netKobo?: number; overrideKobo?: number; payoutId?: number; reason?: string };
   }
-  return { eligibleDeals: payable.length, eligibleOverrides: accruedOverrides.length, results };
 }
 
 const DISPATCH_RECOVERY_TIMEOUT_MS = 2 * 60_000;

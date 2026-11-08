@@ -3,7 +3,7 @@ import { AlertTriangle, Check, Clock3, UserCheck, X } from "lucide-react";
 import { EmptyState, Panel } from "./WorkspaceLayout";
 import { ErrorState, Loading } from "./Loading";
 import { DocumentPreview } from "./IdentityDocuments";
-import { shortDate } from "@/lib/format";
+import { money, shortDate } from "@/lib/format";
 import { trpc } from "@/providers/trpc";
 import { useWorkspace } from "@/providers/workspace";
 
@@ -111,10 +111,13 @@ export function SalesToVerify({ onDecided }: { onDecided?: (message: string) => 
   const utils = trpc.useUtils();
   const list = trpc.ops.salesToVerify.useQuery({ token });
   const [reasons, setReasons] = useState<Record<number, string>>({});
+  const [amounts, setAmounts] = useState<Record<number, string>>({});
   const [notice, setNotice] = useState("");
   const verify = trpc.ops.verifySale.useMutation({
     onSuccess: (result) => {
-      const message = result.state === "verified" ? "Approved. The sale is now in the rep's earnings, in the vendor's normal waiting period. The vendor was told and can dispute it." : "Rejected. The rep has been told why.";
+      const message = result.state === "verified"
+        ? `Approved. ${"repCommissionKobo" in result ? `${money(result.repCommissionKobo)} ${"paidOut" in result && result.paidOut ? "is being paid to the rep's bank now" : "is in the rep's wallet (it goes to their bank once their payout details are confirmed)"}, ${money(result.platformFeeKobo)} went to KampusForce, and ${money(result.vendorCommissionKobo)} came out of the vendor's wallet.` : "The rep's share is in their wallet."} The vendor was told and can dispute it during the refund period.`
+        : "Rejected. The rep and the vendor have been told why.";
       setNotice(message); onDecided?.(message); utils.ops.salesToVerify.invalidate();
     },
   });
@@ -125,19 +128,40 @@ export function SalesToVerify({ onDecided }: { onDecided?: (message: string) => 
     <p className="panel-note">Campus reps recorded these sales, and the vendor hasn't reported them yet. If the vendor reports one, it's verified automatically and leaves this list. Approve only when the proof shows the customer did what the product pays for. Approving charges the vendor's wallet, and the vendor can dispute it.</p>
     {notice && <p className="success-message" role="status"><Check size={16} />{notice}</p>}
     {verify.error && <p className="form-error" role="alert">{verify.error.message}</p>}
-    {rows.length ? <div className="new-rep-list">{rows.map(({ sale, productName, vendorName, repName, repCode }) => {
+    {rows.length ? <div className="new-rep-list">{rows.map(({ sale, productName, vendorName, repName, repCode, commission, split, vendorWalletKobo, stockQuantity }) => {
       const reason = (reasons[sale.id] || "").trim();
+      // A product sale carries its own amount. Other percentage products pay a share of an amount the rep didn't
+      // record, so Operations reads it off the proof.
+      const isProductSale = commission?.triggerEvent === "sale";
+      const needsAmount = commission?.basis === "pct" && !isProductSale;
+      const naira = Number((amounts[sale.id] || "").replace(/[,\s]/g, ""));
+      const amountKobo = Number.isFinite(naira) && naira > 0 ? Math.round(naira * 100) : 0;
+      const commissionKobo = needsAmount ? (amountKobo && commission?.pctBps ? Math.round((amountKobo * commission.pctBps) / 10_000) : 0) : split?.vendorCommissionKobo || 0;
+      const walletShort = commissionKobo > 0 && vendorWalletKobo < commissionKobo;
+      const stockShort = isProductSale && stockQuantity !== null && sale.quantity > stockQuantity;
       return <article key={sale.id} className="new-rep-card">
         <header><div><strong>{productName} · {vendorName}</strong><small>Recorded by {repName} ({repCode}) · {shortDate(sale.createdAt)}</small></div><span className="new-rep-badge waiting"><Clock3 size={13} />To verify</span></header>
-        <dl><div><dt>Customer</dt><dd className="mono">•••• {sale.customerPhoneLast4}</dd></div>{sale.note && <div><dt>Rep's note</dt><dd>{sale.note}</dd></div>}</dl>
+        <dl><div><dt>Customer</dt><dd className="mono">•••• {sale.customerPhoneLast4}</dd></div>
+          {isProductSale && <div><dt>Sold</dt><dd>{sale.quantity} × {money(sale.unitPriceKobo || 0)} = <strong>{money(sale.amountKobo || 0)}</strong></dd></div>}
+          {split && <div><dt>Commission</dt><dd>{money(split.vendorCommissionKobo)} from the vendor: rep gets {money(split.repCommissionKobo)}, KampusForce {money(split.platformFeeKobo)}</dd></div>}
+          <div><dt>Vendor's wallet</dt><dd>{money(vendorWalletKobo)}</dd></div>
+          {isProductSale && stockQuantity !== null && <div><dt>In stock</dt><dd>{stockQuantity}</dd></div>}
+          {sale.note && <div><dt>Rep's note</dt><dd>{sale.note}</dd></div>}</dl>
+        {walletShort && <p className="form-error" role="status"><AlertTriangle size={14} /> The vendor's wallet can't cover this commission yet. Approving will ask them to add funds; the sale stays waiting.</p>}
+        {stockShort && <p className="form-error" role="status"><AlertTriangle size={14} /> The vendor has only {stockQuantity} in stock. Ask them to update their stock, or reject the sale.</p>}
         <DocumentPreview documentId={sale.proofDocumentId} label={`proof for the ${productName} sale`} />
         {canDecide && <div className="new-rep-decision">
           <label htmlFor={`sale-reason-${sale.id}`}>Reason for your decision</label>
           <input id={`sale-reason-${sale.id}`} value={reasons[sale.id] || ""} onChange={(e) => setReasons({ ...reasons, [sale.id]: e.target.value })} maxLength={500} placeholder="e.g. Screenshot shows the account created on 5 Nov" />
           <small>The rep sees it if you reject. Don't type phone or account numbers.</small>
+          {needsAmount && <>
+            <label htmlFor={`sale-amount-${sale.id}`}>Amount the customer paid (₦)</label>
+            <input id={`sale-amount-${sale.id}`} inputMode="decimal" value={amounts[sale.id] || ""} onChange={(e) => setAmounts({ ...amounts, [sale.id]: e.target.value })} placeholder="e.g. 25000" />
+            <small>{productName} pays {(commission?.pctBps || 0) / 100}% of the sale amount. Take it from the proof.{commissionKobo ? ` Vendor pays ${money(commissionKobo)} commission; the rep gets ${money(commissionKobo - Math.round(commissionKobo * 0.2))}.` : ""}</small>
+          </>}
           <div className="decision-actions">
             <button className="button secondary small" disabled={reason.length < 5 || verify.isPending} onClick={() => verify.mutate({ token, id: sale.id, approve: false, reason })}><X size={13} />Reject</button>
-            <button className="button primary small" disabled={reason.length < 5 || verify.isPending} onClick={() => verify.mutate({ token, id: sale.id, approve: true, reason })}><Check size={13} />Approve sale</button>
+            <button className="button primary small" disabled={reason.length < 5 || (needsAmount && !amountKobo) || stockShort || verify.isPending} onClick={() => verify.mutate({ token, id: sale.id, approve: true, reason, ...(needsAmount ? { amountKobo } : {}) })}><Check size={13} />Approve sale</button>
           </div>
         </div>}
       </article>;

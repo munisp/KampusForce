@@ -12,6 +12,7 @@ import { REQUEST_ID_HEADER, runWithRequestId } from "./lib/requestcontext";
 import { webhookRoutes } from "./routes/webhooks";
 import { linkRoutes } from "./routes/links";
 import { promotionLinkRoutes } from "./routes/promotionLinks";
+import { productImageRoutes } from "./routes/productImages";
 import { healthRoutes } from "./routes/health";
 import { providerPayoutRoutes } from "./routes/providerPayouts";
 import { startDurableWorker } from "./services/jobs";
@@ -110,6 +111,7 @@ app.route("/v1/webhooks", webhookRoutes);
 app.route("/l", linkRoutes);
 app.route("/p", promotionLinkRoutes);
 app.route("/api/health", healthRoutes);
+app.route("/api/product-images", productImageRoutes);
 app.route("/api/integrations/providers", providerPayoutRoutes);
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
