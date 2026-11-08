@@ -18,7 +18,7 @@ export const stateLabel: Record<string, string> = {
   pending: "Waiting", confirmed: "Confirmed", payable: "Ready to pay", paid: "Paid", disputed: "Disputed", void: "Cancelled", clawed_back: "Taken back", failed: "Failed",
   draft: "Not submitted", processing: "Being checked", manual_review: "Being reviewed", needs_more_info: "More info needed", verified: "Confirmed", revoked: "Cancelled", blocked: "Not ready", quarantined: "Held", dead_letter: "Couldn't process",
   assigned: "Not started", in_progress: "In progress", completed: "Passed",
-  on_sale: "On sale", paused: "Paused",
+  on_sale: "On sale", paused: "Paused", taken_down: "Taken down",
 };
 
 export function StateBadge({ state }: { state: string }) {

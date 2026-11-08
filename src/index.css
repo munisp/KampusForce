@@ -1463,3 +1463,5 @@ td.numeric.positive { color: var(--teal); }
 .panel-toolbar { display: flex; justify-content: flex-end; margin: 0 0 16px; }
 @media (max-width: 680px) { .panel-toolbar .button { width: 100%; justify-content: center; } }
 .show-all { display: block; margin: 12px auto 0; }
+.ops-product-cell { display: flex; gap: 10px; align-items: center; min-width: 180px; }
+.ops-product-cell img, .ops-product-thumb { width: 40px; height: 40px; object-fit: cover; border: 1px solid var(--line); background: var(--canvas); flex: 0 0 auto; }

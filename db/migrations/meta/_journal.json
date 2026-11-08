@@ -253,6 +253,13 @@
       "when": 1794018652028,
       "tag": "0035_product_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794177584495,
+      "tag": "0036_product_holds",
+      "breakpoints": true
     }
   ]
 }
