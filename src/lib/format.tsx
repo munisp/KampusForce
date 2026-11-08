@@ -1,5 +1,7 @@
+/** Naira, with kobo shown whenever there are any, so a ₦1,999.99 price never reads as ₦2,000. */
 export function money(kobo = 0) {
-  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(kobo / 100);
+  const digits = Math.round(kobo) % 100 === 0 ? 0 : 2;
+  return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: digits, maximumFractionDigits: digits }).format(kobo / 100);
 }
 
 export function shortDate(value: Date | string | null | undefined) {

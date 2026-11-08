@@ -199,6 +199,10 @@ export const vendorRouter = createRouter({
       throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Invalid commission rule" });
     }
     return getDb().transaction(async (tx) => {
+      // One product per name for a vendor; the lock makes a double-click or two tabs wait for each other.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`vendor-product:${vendor.id}`}))`);
+      const [sameName] = await tx.select({ id: products.id }).from(products).where(and(eq(products.vendorId, vendor.id), sql`lower(${products.name}) = lower(${input.name})`)).limit(1);
+      if (sameName) throw new TRPCError({ code: "CONFLICT", message: `You already have a product called "${input.name}". Edit that one, or use a different name.` });
       const [product] = await tx.insert(products).values({
         vendorId: vendor.id, vendorRef: `v${vendor.id}-${crypto.randomUUID().slice(0, 8)}`, name: input.name, category: input.category, description: input.description,
         priceKobo: input.priceKobo, landingUrl: input.landingUrl || "", pitchScript: input.description, status: "active",

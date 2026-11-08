@@ -169,7 +169,7 @@ export async function buildAdvancedAnalytics(windowDays: AnalyticsWindow) {
       commissionEconomics: "Vendor, representative and platform commission totals include only currently confirmed, payable or paid records created in the selected window; pending, void and clawed-back records are excluded.",
       platformRevenue: "Confirmed vendor-funded platform share before any separately recorded Campus Lead override; not profit or cash on hand.",
       withholding: "Sandbox withholding on payouts currently marked paid and created in the selected window; it is not evidence of tax remittance.",
-      dataQuality: "Operational control score, not a statistical model-quality score. Quarantine, reconciliation variance and failed postings reduce it.",
+      dataQuality: "How clean the records are. Held sales, bank checks that don't match and payment records that failed to copy lower it.",
       dailyTrend: "Activations use deal creation time; confirmations use each deal's first confirmed state-history event. They are separate event-time series, not a same-day conversion rate.",
       conversionCohorts: "Monday-start UTC creation cohorts. Seven-day conversion uses each deal's first confirmed state-history event and divides by cohort records with a complete seven-day observation window.",
     },

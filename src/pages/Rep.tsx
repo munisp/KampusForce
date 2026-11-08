@@ -320,14 +320,18 @@ export function RepRecordSale() {
   const commission = !chosen || !units ? 0 : chosen.rule.basis === "flat" ? (chosen.rule.flatAmountKobo || 0) * (isProductSale ? units : 1) : isProductSale ? Math.round(total * (chosen.rule.pctBps || 0) / 10_000) : 0;
   const repShare = commission - Math.round(commission * 0.2);
   const tooMany = Boolean(isProductSale && chosen?.product.stockQuantity !== null && chosen && units > (chosen.product.stockQuantity ?? 0));
+  // Set on the first click, before the photo is prepared, so a double-click can't send the sale twice.
+  const sending = useRef(false);
+  const [preparing, setPreparing] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!proof) return;
+    if (!proof || sending.current) return;
     if (proof.size > MAX_DOCUMENT_BYTES) { setStatus("That file is too big. The limit is 10 MB."); return; }
+    sending.current = true; setPreparing(true);
     setStatus("Preparing your proof…");
     const ready = await shrinkPhoto(proof);
     setStatus(`Sending ${formatBytes(ready.size)}…`);
-    record.mutate({ token, productId, customerPhone: phone, note: note.trim() || undefined, proofBase64: await fileToBase64(ready), ...(isProductSale ? { quantity: units } : {}) }, { onSettled: () => setStatus("") });
+    record.mutate({ token, productId, customerPhone: phone, note: note.trim() || undefined, proofBase64: await fileToBase64(ready), ...(isProductSale ? { quantity: units } : {}) }, { onSettled: () => { sending.current = false; setPreparing(false); setStatus(""); } });
   };
   return <RepFrame title="Record a sale" subtitle="Sold something? Record it here with your proof. It shows in your earnings straight away, waiting for verification.">
     <div className="share-layout">
@@ -344,7 +348,7 @@ export function RepRecordSale() {
           <label>Proof<input key={fileKey} type="file" accept="image/jpeg,image/png,application/pdf" required disabled={!active} onChange={(e) => { setProof(e.target.files?.[0] || null); record.reset(); }} /><small>A screenshot or photo of the customer's confirmation, a receipt or a reference. JPG, PNG or PDF, up to 10 MB. Whoever verifies the sale sees it.</small></label>
           <label>Note <span className="optional">optional</span><textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="e.g. Helped them sign up in the library on Tuesday" disabled={!active} /></label>
           <ProductLock titles={locked} />
-          <button className="button primary" disabled={!active || record.isPending || locked.length > 0 || !productId || !proof || phone.trim().length < 7 || (isProductSale && (units < 1 || tooMany))}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
+          <button className="button primary" disabled={!active || record.isPending || preparing || locked.length > 0 || !productId || !proof || phone.trim().length < 7 || (isProductSale && (units < 1 || tooMany))}>{record.isPending ? status || "Recording…" : "Record this sale"}<ArrowRight size={16} /></button>
           {status && !record.isPending && <p className="form-error">{status}</p>}
         </form>
         {record.error && <p className="form-error" role="alert">{record.error.message}</p>}
