@@ -95,7 +95,7 @@ export function VendorWalletHistory() {
 }
 
 type CatalogRow = {
-  product: { id: number; name: string; description: string; category: string; priceKobo: number; landingUrl: string; status: string; stockQuantity: number | null; vendorRef: string };
+  product: { id: number; name: string; description: string; category: string; priceKobo: number; landingUrl: string; status: string; stockQuantity: number | null; vendorRef: string; heldReason: string | null };
   rule: { basis: "flat" | "pct"; pctBps: number | null; flatAmountKobo: number | null; triggerEvent: string; clawbackDays: number };
   images: string[];
 };
@@ -143,7 +143,7 @@ function VendorProductCard({ row, onChanged }: { row: CatalogRow; onChanged: () 
       <label>Link customers go to {isProductSale && <span className="optional">optional</span>}<input type="url" placeholder="https://" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} required={!isProductSale} /></label>
       <div className="decision-actions"><button type="button" className="button secondary small" onClick={() => setEditing(false)}><X size={13} />Cancel</button><button className="button primary small" disabled={update.isPending}>Save changes</button></div>
     </form> : <div className="vendor-product-body">
-      <header><div><strong>{product.name}</strong><small>{productCategories[product.category] || product.category} · code <span className="mono">{product.vendorRef}</span></small></div><StateBadge state={product.status === "active" ? "on_sale" : product.status} /></header>
+      <header><div><strong>{product.name}</strong><small>{productCategories[product.category] || product.category} · code <span className="mono">{product.vendorRef}</span></small></div><StateBadge state={product.heldReason ? "taken_down" : product.status === "active" ? "on_sale" : product.status} /></header>
       <p>{product.description}</p>
       <dl className="product-terms">
         <div><dt>Price</dt><dd>{product.priceKobo ? money(product.priceKobo) : "—"}</dd></div>
@@ -153,11 +153,13 @@ function VendorProductCard({ row, onChanged }: { row: CatalogRow; onChanged: () 
       </dl>
       <div className="decision-actions">
         <button className="button secondary small" onClick={() => setEditing(true)}><Pencil size={13} />Edit</button>
-        {product.status === "active"
+        {product.heldReason ? null : product.status === "active"
           ? <button className="button secondary small" disabled={status.isPending} onClick={() => status.mutate({ token, productId: product.id, status: "paused" })}><Pause size={13} />Pause sales</button>
           : <button className="button primary small" disabled={status.isPending} onClick={() => status.mutate({ token, productId: product.id, status: "active" })}><Play size={13} />Put on sale</button>}
       </div>
-      {product.status !== "active" && <p className="panel-footnote"><Clock3 size={13} /> Paused: reps can't see or record sales of this product.</p>}
+      {product.heldReason
+        ? <p className="form-error" role="status">KampusForce took this product down: {product.heldReason} Reps can't see it. Contact Operations to have it put back.</p>
+        : product.status !== "active" && <p className="panel-footnote"><Clock3 size={13} /> Paused: reps can't see or record sales of this product.</p>}
     </div>}
     {error && <p className="form-error" role="alert">{error.message}</p>}
   </article>;

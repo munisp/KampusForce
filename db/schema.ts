@@ -173,6 +173,11 @@ export const products = pgTable("products", {
   status: productStatusEnum("status").notNull().default("draft"),
   // Units the vendor has to sell; null when the vendor doesn't track stock. Goes down when a sale is approved.
   stockQuantity: integer("stock_quantity"),
+  // Set when Operations takes a product down (for example a misleading or banned listing). The vendor can't put it
+  // back on sale until Operations lifts the hold.
+  heldReason: varchar("held_reason", { length: 300 }),
+  heldAt: timestamp("held_at", { withTimezone: true }),
+  heldByUserId: integer("held_by_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

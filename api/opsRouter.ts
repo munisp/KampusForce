@@ -70,6 +70,7 @@ import {
   submitExternalRolloutEvidence,
 } from "./services/rolloutReadiness";
 import { approveRecordedSale, rejectRecordedSale, salesToVerify } from "./services/recordedSales";
+import { holdProduct, productsForOperations, releaseProductHold } from "./services/productCatalog";
 
 export const opsRouter = createRouter({
   overview: authedQuery.query(async ({ ctx }) => {
@@ -318,6 +319,19 @@ export const opsRouter = createRouter({
       ? { userId: input.userId, type: "payout_account_approved", title: "Your bank account is confirmed", body: "Operations confirmed your bank account. Payouts can go to it now.", href: "/rep/earnings", entityType: "payout_destination", entityId: String(input.userId) }
       : { userId: input.userId, type: "payout_account_rejected", title: "Your bank account wasn't confirmed", body: `Operations couldn't confirm the account is yours: ${input.note} Add an account in your own name.`, href: "/rep/earnings", entityType: "payout_destination", entityId: String(input.userId) });
     return result;
+  }),
+  // Every product, so Operations can take down a listing that breaks the rules (and lift the hold later).
+  products: authedQuery.query(async ({ ctx }) => {
+    requireRole(ctx.user, ["ops", "admin", "finance"]);
+    return productsForOperations();
+  }),
+  holdProduct: authedQuery.input(z.object({ productId: z.number().int().positive(), reason: z.string().trim().min(10).max(300) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return holdProduct({ actorUserId: ctx.user.id, ...input });
+  }),
+  releaseProductHold: authedQuery.input(z.object({ productId: z.number().int().positive(), note: z.string().trim().min(5).max(300) })).mutation(async ({ ctx, input }) => {
+    requireRole(ctx.user, ["ops", "admin"]);
+    return releaseProductHold({ actorUserId: ctx.user.id, ...input });
   }),
   // New reps waiting to be activated, with what each still needs, so Operations can activate from ID checks.
   salesToVerify: authedQuery.query(async ({ ctx }) => {

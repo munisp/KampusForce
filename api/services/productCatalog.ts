@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
-import { auditLogs, productImages, products, repProducts } from "@db/schema";
+import { auditLogs, productImages, products, repProducts, vendors } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { deleteObject, getObject, putObject } from "../lib/objectStore";
+import { notifyUser } from "./notifications";
 
 // Vendors manage what they list: details, price, stock, photos, and whether it's on sale. Reps pick the products
 // they want to sell. Photos are kept in the private object store and served through /api/product-images/:id.
@@ -48,6 +49,7 @@ export async function updateProduct(input: {
 
 export async function setProductStatus(input: { vendorId: number; actorUserId: number; productId: number; status: "active" | "paused" }) {
   const product = await ownedProduct(input.vendorId, input.productId);
+  if (input.status === "active" && product.heldReason) throw new TRPCError({ code: "PRECONDITION_FAILED", message: `KampusForce took this product down: ${product.heldReason} Contact Operations to have it put back.` });
   if (product.status === input.status) return product;
   const [updated] = await getDb().update(products).set({ status: input.status, updatedAt: new Date() }).where(eq(products.id, product.id)).returning();
   await getDb().insert(auditLogs).values({ actorUserId: input.actorUserId, action: input.status === "paused" ? "vendor.product_paused" : "vendor.product_resumed", entityType: "product", entityId: String(product.id), metadataJson: {} });
@@ -114,4 +116,36 @@ export async function pickProduct(input: { repId: number; productId: number; pic
 export async function pickedProductIds(repId: number) {
   const rows = await getDb().select({ productId: repProducts.productId }).from(repProducts).where(eq(repProducts.repId, repId));
   return new Set(rows.map((row) => row.productId));
+}
+
+/** Every product on the platform, for Operations to review and take down. */
+export async function productsForOperations() {
+  const rows = await getDb().select({ product: products, vendorName: vendors.companyName, vendorStatus: vendors.status }).from(products)
+    .innerJoin(vendors, eq(vendors.id, products.vendorId)).orderBy(asc(products.status), asc(vendors.companyName), asc(products.name));
+  const photos = await imagesForProducts(rows.map((row) => row.product.id));
+  return rows.map((row) => ({ ...row, images: photos.get(row.product.id) || [] }));
+}
+
+/** Operations takes a product down: it leaves the reps' catalog at once and the vendor can't put it back on sale. */
+export async function holdProduct(input: { actorUserId: number; productId: number; reason: string }) {
+  const [product] = await getDb().select().from(products).where(eq(products.id, input.productId)).limit(1);
+  if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found." });
+  if (product.heldReason) throw new TRPCError({ code: "CONFLICT", message: "This product is already taken down." });
+  await getDb().update(products).set({ status: "paused", heldReason: input.reason, heldAt: new Date(), heldByUserId: input.actorUserId, updatedAt: new Date() }).where(eq(products.id, product.id));
+  await getDb().insert(auditLogs).values({ actorUserId: input.actorUserId, action: "operations.product_held", entityType: "product", entityId: String(product.id), metadataJson: { reason: input.reason, previousStatus: product.status } });
+  const [vendor] = await getDb().select({ userId: vendors.userId }).from(vendors).where(eq(vendors.id, product.vendorId)).limit(1);
+  if (vendor?.userId) await notifyUser({ userId: vendor.userId, type: "product_held", title: `KampusForce took down ${product.name}`, body: `Reps can't see or sell it for now. Reason: ${input.reason}`, href: "/vendor", entityType: "product", entityId: product.id });
+  return { productId: product.id, held: true };
+}
+
+/** Operations lifts a hold. The product stays paused; the vendor decides when to put it back on sale. */
+export async function releaseProductHold(input: { actorUserId: number; productId: number; note: string }) {
+  const [product] = await getDb().select().from(products).where(eq(products.id, input.productId)).limit(1);
+  if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found." });
+  if (!product.heldReason) throw new TRPCError({ code: "CONFLICT", message: "This product isn't taken down." });
+  await getDb().update(products).set({ heldReason: null, heldAt: null, heldByUserId: null, updatedAt: new Date() }).where(eq(products.id, product.id));
+  await getDb().insert(auditLogs).values({ actorUserId: input.actorUserId, action: "operations.product_hold_released", entityType: "product", entityId: String(product.id), metadataJson: { note: input.note, heldReason: product.heldReason } });
+  const [vendor] = await getDb().select({ userId: vendors.userId }).from(vendors).where(eq(vendors.id, product.vendorId)).limit(1);
+  if (vendor?.userId) await notifyUser({ userId: vendor.userId, type: "product_hold_released", title: `${product.name} can go back on sale`, body: `KampusForce lifted its hold. Put it back on sale from Products when you're ready. ${input.note}`, href: "/vendor", entityType: "product", entityId: product.id });
+  return { productId: product.id, held: false };
 }
