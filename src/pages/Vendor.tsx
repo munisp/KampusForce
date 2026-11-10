@@ -76,7 +76,10 @@ export default function Vendor() {
     const reference = new URLSearchParams(window.location.search).get("funding");
     if (!reference || fundingChecked.current) return;
     fundingChecked.current = true;
-    window.history.replaceState(null, "", "/vendor");
+    // Back from Paystack: show the Wallet tab, where the result ("Payment confirmed") appears. The page used to stay
+    // on Overview, so a vendor who'd just paid saw no confirmation at all.
+    window.history.replaceState(null, "", "/vendor#funding");
+    setView("wallet");
     confirmFunding.mutate({ token, reference });
   }, [confirmFunding, token]);
   const simulate = trpc.vendor.simulateEvent.useMutation({ onSuccess: refresh });

@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { enrollmentAttestations } from "@db/schema";
+import { campuses, enrollmentAttestations, reps } from "@db/schema";
 import { getDb } from "../queries/connection";
 import { currentEnrollmentAttestation, reviewEnrollmentAttestation, submitEnrollmentAttestation } from "./studentAssurance";
 
@@ -8,9 +8,12 @@ export async function completeSyntheticEnrollment(input: { userId: number; revie
   if (current?.providerMode === "sandbox") return { attestation: current, synthetic: true, alreadyVerified: true };
   const [submitted] = await getDb().select().from(enrollmentAttestations)
     .where(and(eq(enrollmentAttestations.userId, input.userId), eq(enrollmentAttestations.state, "submitted"))).limit(1);
+  // The school must be one of our campuses (submitEnrollmentAttestation refuses anything else): use the rep's own.
+  const [school] = await getDb().select({ name: campuses.name }).from(reps).innerJoin(campuses, eq(campuses.id, reps.campusId))
+    .where(eq(reps.userId, input.userId)).limit(1);
   const attestation = submitted || await submitEnrollmentAttestation({
     userId: input.userId,
-    providerName: "School records office",
+    providerName: school?.name ?? "",
     providerMode: "sandbox",
     attestationReference: `synthetic-enrollment-${crypto.randomUUID()}`,
     academicTerm: "Current term",
